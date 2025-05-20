@@ -1,0 +1,8 @@
+log/
+logs/
+.venv/
+.idea/
+.vscode/
+.env
+job.db
+tmp/

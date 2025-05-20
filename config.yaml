@@ -1,0 +1,29 @@
+# 大模型和嵌入模型的配置文件
+api:
+  # language_embedding:
+  #   - name: "bge-large-zh"
+  #     url: "http://192.168.132.149:9030"
+  #     key: ""
+  #     dim: 1024
+  #     max_tokens: 1024
+  #   - name: "bge-large-zh"
+  #     url: "http://192.168.132.149:9031"
+  #     key: ""
+  #     dim: 1024
+  #     max_tokens: 1024
+  #   - name: "bge-large-zh"
+  #     url: "http://192.168.132.149:9032"
+  #     key: ""
+  #     dim: 1024
+  #     max_tokens: 1024
+  #   - name: "bge-large-zh"
+  #     url: "http://192.168.132.149:9033"
+  #     key: ""
+  #     dim: 1024
+  #     max_tokens: 1024
+  language_embedding:
+    - name: "Pro/BAAI/bge-m3"
+      url: "https://api.siliconflow.cn/v1/embeddings"
+      key: "sk-nbuhzzxjzjoakwnhitieyfcdbxngivqlttdqpfrdxzhtwanc"
+      dim: 1024
+      max_tokens: 8000
