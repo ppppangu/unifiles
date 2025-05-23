@@ -45,7 +45,7 @@ os.environ["FILE_SERVER_POSTGRES_PASSWORD"]="postgres"
 os.environ["FILE_SERVER_POSTGRES_DATABASE"]="postgres"
 
 # MinerUAPIList
-os.environ["FILE_SERVER_MINERU_URL_LIST"]="['http://192.168.132.149:8888']"
+os.environ["FILE_SERVER_MINERU_URL_LIST"]="['http://192.168.132.149:8889']"
 
 # 获取环境变量
 FILE_SERVER_S3_ENDPOINT_URL = os.getenv("FILE_SERVER_S3_ENDPOINT_URL")
@@ -54,7 +54,7 @@ FILE_SERVER_S3_SECRET_ACCESS_KEY = os.getenv("FILE_SERVER_S3_SECRET_ACCESS_KEY")
 FILE_SERVER_S3_BUCKET_NAME = os.getenv("FILE_SERVER_S3_BUCKET_NAME")
 FILE_SERVER_S3_REGION = os.getenv("FILE_SERVER_S3_REGION")
 FILE_SERVER_POSTGRES_HOST = os.getenv("FILE_SERVER_POSTGRES_HOST")
-FILE_SERVER_POSTGRES_PORT = os.getenv("FILE_SERVER_POSTGRES_PORT")
+FILE_SERVER_POSTGRES_PORT = int(os.getenv("FILE_SERVER_POSTGRES_PORT"))
 FILE_SERVER_POSTGRES_USER = os.getenv("FILE_SERVER_POSTGRES_USER")
 FILE_SERVER_POSTGRES_PASSWORD = os.getenv("FILE_SERVER_POSTGRES_PASSWORD")
 FILE_SERVER_POSTGRES_DATABASE = os.getenv("FILE_SERVER_POSTGRES_DATABASE")
@@ -89,7 +89,7 @@ async def upload(request: Request):
     # parase and validate
     form = await request.form()
 
-    # 解析请求参数
+    # parase
     knowledge_base_id = form.get("knowledge_base_id")
     document_id = form.get("document_id")
     user_id = form.get("user_id")
@@ -101,13 +101,15 @@ async def upload(request: Request):
     # validate
     if not any([knowledge_base_id,document_id,file_url]):
         return JSONResponse({"status": "error", "message": "knowledge_base_id / document_id / pdf_file_url are required"}, status_code=400)
-    if not mode:
-        mode = ["vector"]
-    if not parse_method:
-        parse_method = "auto"
     if not user_id:
         return JSONResponse({"status": "error", "message": "user_id is required"}, status_code=400)
-    else:
+    if not mode:
+        mode = ["vector"]
+    # 如果parse_method为空，则设置为simple
+    if not parse_method:
+        parse_method = "simple"
+
+    try:
         # Create a database connection
         conn = await asyncpg.connect(
             host=FILE_SERVER_POSTGRES_HOST,
@@ -122,15 +124,17 @@ async def upload(request: Request):
                 return JSONResponse({"status": "error", "message": "there is no user_id for this knowledge_base_id, please user_id and knowledge_base_id are whether match"}, status_code=400)
         finally:
             await conn.close()
+    except Exception as e:
+        return JSONResponse({"status": "error", "message": f"when check user_id is match with knowledge_base_id, Failed to connect to PostgreSQL, error: {e}"}, status_code=500)
 
-    # 下载并保存文件
-    # async with aiohttp.ClientSession() as session:
-    #     async with session.get(file_url,timeout=aiohttp.ClientTimeout(total=300)) as response:
-    #         file_content = await response.read()
-    #         file_save_name = file_url.split("/")[-1]
-    #         file_path = temp_path / file_name
-    #         async with aiofiles.open(file_path, mode="wb") as f:
-    #             await f.write(file_content)
+    # 下载并保存文件, 上传到s3后删除临时文件
+    async with aiohttp.ClientSession() as session:
+        async with session.get(file_url,timeout=aiohttp.ClientTimeout(total=300)) as response:
+            file_content = await response.read()
+            file_save_name = file_url.split("/")[-1]
+            file_path = temp_path / file_name
+            async with aiofiles.open(file_path, mode="wb") as f:
+                await f.write(file_content)
 
     file_name = file_url.split("/")[-1]
 
@@ -141,7 +145,6 @@ async def upload(request: Request):
     logger.info(f"document_id: {document_id}")
     logger.info(f"upload file: {file_name}")
     logger.info(f"mode: {mode}")
-    logger.info(f"file_size: {len(file_content)}")
     logger.info("------------------------------------------------")
 
     if "vector" in mode:
@@ -180,6 +183,7 @@ async def upload(request: Request):
             mineru_client=mineru_client
         )
         await vector_process.ocr()
+
     if "graph" in mode: ...
 
     logger.info("================================================")

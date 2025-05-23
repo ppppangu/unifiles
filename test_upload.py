@@ -7,17 +7,8 @@ import traceback
 from urllib.parse import unquote
 
 try:
-    # First check if the server is running
-    health_url = "http://localhost:8000/health"
-    try:
-        health_response = requests.get(health_url, timeout=5)
-        print(f"Server health check: {health_response.status_code} - {health_response.text}")
-    except requests.exceptions.ConnectionError:
-        print("ERROR: Cannot connect to the server. Make sure the server is running on http://localhost:8000")
-        exit(1)
-
     # URL of the PDF file
-    pdf_url = "https://publicwyy.obs.cn-north-4.myhuaweicloud.com/DeployServive/MinerU_npu_api/v1.1/test_sample/%E5%A4%A7%E6%A8%A1%E5%9E%8B%E8%B5%8B%E8%83%BD%E4%B8%AD%E5%B0%8F%E5%AD%A6%E7%A0%94%E5%AD%A6%E4%B8%93%E9%A1%B9%E9%A1%B9%E7%9B%AE.pdf"
+    pdf_url = "https://publicfiles.us-east-1.m.com/DeployServive/MinerU_npu_api/v1.1/test_sample/%E5%A4%A7%E6%A8%A1%E5%9E%8B%E8%B5%8B%E8%83%BD%E4%B8%AD%E5%B0%8F%E5%AD%A6%E7%A0%94%E5%AD%A6%E4%B8%93%E9%A1%B9%E9%A1%B9%E7%9B%AE.pdf"
 
     # Download the PDF file
     print(f"Downloading PDF from: {unquote(pdf_url)}")
