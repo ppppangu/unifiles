@@ -67,62 +67,93 @@ async def _describe_image(img: Image.Image) -> str:
                 return ""
 
 
-async def extract_text_pages(pdf_bytes: bytes) -> List[str]:
-    """核心：返回处理后的每页文本列表（如有 OCR 描述则拼接）"""
+async def extract_text_pages(pdf_bytes: bytes, max_concurrent_ocr: int = 3) -> List[str]:
+    """核心：返回处理后的每页文本列表（如有 OCR 描述则拼接）
+
+    Args:
+        pdf_bytes: PDF 文件字节数据
+        max_concurrent_ocr: 最大并发 OCR 任务数，控制内存使用
+    """
+    from src.logger import logger
 
     # 1. 在线程池里解析 PDF 结构，避免阻塞事件循环
-    def _parse() -> List[Tuple[str, bool, bytes | None]]:
-        results: List[Tuple[str, bool, bytes | None]] = []
+    def _parse() -> List[Tuple[str, bool]]:
+        """只解析文本和是否需要OCR，不立即生成图像"""
+        results: List[Tuple[str, bool]] = []
         with pdfplumber.open(BytesIO(pdf_bytes)) as pdf:
-            for page in pdf.pages:
+            logger.info(f"开始解析PDF，共 {len(pdf.pages)} 页")
+            for i, page in enumerate(pdf.pages):
                 text = page.extract_text() or ""
                 need_ocr = _page_need_ocr(page)
-                img_bytes: bytes | None = None
-                if need_ocr:
-                    img = page.to_image(resolution=150).original
-                    buf = BytesIO()
-                    img.save(buf, format="JPEG")
-                    img_bytes = buf.getvalue()
-                results.append((text, need_ocr, img_bytes))
+                results.append((text, need_ocr))
+                if i % 10 == 0:  # 每10页记录一次进度
+                    logger.info(f"已解析 {i+1}/{len(pdf.pages)} 页")
         return results
 
     page_info = await asyncio.to_thread(_parse)
 
-    # 2. 对需要 OCR 的页面并发调用多模态模型
-    tasks = [
-        _describe_image(Image.open(BytesIO(img))) if need and img else None
-        for (_, need, img) in page_info
-    ]
-
-    # 填充占位
-    ocr_results: List[str | None] = []
-    if tasks:
-        # 保留 None 位置
-        tasks_filter = [t for t in tasks if t is not None]
-        if tasks_filter:
-            ocr_texts = await asyncio.gather(*tasks_filter, return_exceptions=True)
-        else:
-            ocr_texts = []
-        idx = 0
-        for t in tasks:
-            if t is None:
-                ocr_results.append(None)
-            else:
-                res = ocr_texts[idx]
-                idx += 1
-                if isinstance(res, Exception):
-                    ocr_results.append(None)
-                else:
-                    ocr_results.append(res)
-    else:
-        ocr_results = []
-
-    # 3. 组合文本
+    # 2. 分批处理需要 OCR 的页面，控制内存使用
     combined_pages: List[str] = []
-    for (text, need, _), ocr in zip(page_info, ocr_results):
-        if need and ocr:
-            combined_pages.append(f"{text}\n\n[图表描述]: {ocr}")
+    ocr_semaphore = asyncio.Semaphore(max_concurrent_ocr)
+
+    async def _process_page_with_ocr(page_idx: int, text: str) -> str:
+        """处理单个需要OCR的页面"""
+        async with ocr_semaphore:
+            try:
+                # 在需要时才生成图像，用完立即释放
+                def _generate_image() -> bytes:
+                    with pdfplumber.open(BytesIO(pdf_bytes)) as pdf:
+                        page = pdf.pages[page_idx]
+                        img = page.to_image(resolution=120).original  # 降低分辨率节省内存
+                        buf = BytesIO()
+                        img.save(buf, format="JPEG", quality=85)  # 压缩质量
+                        return buf.getvalue()
+
+                img_bytes = await asyncio.to_thread(_generate_image)
+                img = Image.open(BytesIO(img_bytes))
+                ocr_result = await _describe_image(img)
+
+                # 立即释放图像内存
+                img.close()
+                del img_bytes
+
+                if ocr_result:
+                    return f"{text}\n\n[图表描述]: {ocr_result}"
+                else:
+                    return text
+            except Exception as e:
+                logger.error(f"页面 {page_idx} OCR 处理失败: {e}")
+                return text
+
+    # 3. 逐页处理，对需要OCR的页面进行异步处理
+    ocr_tasks = []
+    for i, (text, need_ocr) in enumerate(page_info):
+        if need_ocr:
+            task = _process_page_with_ocr(i, text)
+            ocr_tasks.append((i, task))
         else:
             combined_pages.append(text)
 
-    return combined_pages 
+    # 4. 等待所有OCR任务完成
+    if ocr_tasks:
+        logger.info(f"开始处理 {len(ocr_tasks)} 个需要OCR的页面")
+        ocr_results = await asyncio.gather(*[task for _, task in ocr_tasks], return_exceptions=True)
+
+        # 将OCR结果插入到正确位置
+        ocr_idx = 0
+        final_pages = []
+        for i, (text, need_ocr) in enumerate(page_info):
+            if need_ocr:
+                result = ocr_results[ocr_idx]
+                if isinstance(result, Exception):
+                    logger.error(f"页面 {i} OCR失败: {result}")
+                    final_pages.append(text)
+                else:
+                    final_pages.append(result)
+                ocr_idx += 1
+            else:
+                final_pages.append(text)
+
+        return final_pages
+    else:
+        return [text for text, _ in page_info]
