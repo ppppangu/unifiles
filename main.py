@@ -68,13 +68,20 @@ async def start_up():
     mk_need_path()
     logger.info("File server started successfully")
 
+supported_file_types = [".doc",".docx",".ppt",".pptx",".xls",".xlsx",".odt",".ods",".odp",".txt",".rtf",".jpg",".jpeg",".png",".tiff",".tif",".bmp",".html",".htm",".md",".csv",".tsv",".xml"]
+
 # 健康检查
 async def health(request: Request):
     return JSONResponse({"status": "ok"})
 
+# 获取支持的文件类型
+async def get_supported_file_types(request: Request):
+    return JSONResponse({"status": "ok", "message": "Supported file types", "data": {"supported_file_types": supported_file_types}})
+
 # 上传文件到云端，config桶里的bucket下的default目录，每个文件一个目录（目录名为生成的一个uuid），文件名即文件的原始文件名，不区分用户。返回值为公网url
 async def upload_minio(request: Request):
     try:
+        
         # 解析和验证表单数据
         form = await request.form()
 
@@ -83,6 +90,14 @@ async def upload_minio(request: Request):
         if not user_id:
             user_id = "default"
         upload_file = form.get("upload_file")
+        file_type = Path(upload_file.filename).suffix.lower()
+        if file_type not in supported_file_types:
+            logger.error(f"Unsupported file type: {file_type}")
+            return JSONResponse(
+                {"status": "error", "message": f"Unsupported file type: {file_type}"},
+                status_code=400
+            )
+
         client_ip = await get_client_ip(request)
         logger.info(f"Upload request received - user_id: {user_id} - client_ip: {client_ip}")
 
@@ -194,6 +209,9 @@ async def process(request: Request):
     if not knowledge_base_id:
         knowledge_base_id = "df_" + user_id
 
+    # 对于公网url，需要先下载到本地，再进行处理
+
+
     if not mode:
         mode = "simple"
 
@@ -218,8 +236,9 @@ app = Starlette(
     middleware=middleware,
     routes=[
         Route("/health", health,methods=["GET"]),
+        Route("/get_supported_file_types", get_supported_file_types,methods=["GET"]),
         Route("/upload_minio", upload_minio,methods=["POST"]),
-        Route("/process", process,methods=["POST"]),
+        Route("/process", process,methods=["POST"])
     ],
     on_startup=[start_up]
 )
