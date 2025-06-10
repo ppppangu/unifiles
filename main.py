@@ -68,7 +68,9 @@ async def start_up():
     mk_need_path()
     logger.info("File server started successfully")
 
-supported_file_types = [".doc",".docx",".ppt",".pptx",".xls",".xlsx",".odt",".ods",".odp",".txt",".rtf",".jpg",".jpeg",".png",".tiff",".tif",".bmp",".html",".htm",".md",".csv",".tsv",".xml"]
+document_file_types = [".doc",".docx",".ppt",".pptx",".xls",".xlsx",".odt",".ods",".odp",".txt",".rtf",".jpg",".jpeg",".png",".tiff",".tif",".bmp",".html",".htm",".md",".csv",".tsv",".xml"]
+
+supported_file_types = document_file_types + [".py",".ipynb",".js",".json"]
 
 # 健康检查
 async def health(request: Request):
