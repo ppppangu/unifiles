@@ -30,6 +30,7 @@ from pathlib import Path
 from datetime import datetime
 import uuid
 import io
+import time
 
 # 导入配置
 from src.tools import (
@@ -63,6 +64,8 @@ async def upload_minio(request: Request):
 
         # 解析参数
         user_id = form.get("user_id")
+        if not user_id:
+            user_id = "default"
         upload_file = form.get("upload_file")
 
         print(f"Upload request received - user_id: {user_id}")
@@ -99,7 +102,7 @@ async def upload_minio(request: Request):
         file_uuid = str(uuid.uuid4())
 
         # 构建MinIO对象路径: default/{uuid}/{filename}
-        object_path = f"default/{file_uuid}/{filename}"
+        object_path = f"{user_id}/default_file_space/{file_uuid}/{filename}"
 
         # 创建MinIO客户端
         minio_client = Minio(
@@ -129,10 +132,10 @@ async def upload_minio(request: Request):
 
         # 生成公网URL
         if minio_config.get("use_public_url", False) and minio_config.get("public_url_prefix"):
-            public_url = f"{minio_config['public_url_prefix']}/{bucket_name}/{object_path}"
+            public_url = f"{minio_config['public_url_prefix']}/{bucket_name}/{user_id}/default_file_space/{file_uuid}/{filename}"
         else:
             # 如果没有配置公网URL前缀，使用MinIO的默认URL
-            public_url = f"http://{minio_config['host']}:{minio_config['port']}/{bucket_name}/{object_path}"
+            public_url = f"http://{minio_config['host']}:{minio_config['port']}/{bucket_name}/{user_id}/default_file_space/{file_uuid}/{filename}"
 
         logger.info(f"Generated public URL: {public_url}")
 
@@ -159,17 +162,27 @@ async def upload_minio(request: Request):
 async def process(request: Request):
     # parase and validate
     form = await request.form()
+    user_id = form.get("user_id")
+    file_url = form.get("file_url")
+    knowledge_base_id = form.get("knowledge_base_id")
+    mode = form.get("mode")
 
-    return JSONResponse({"status": "ok"})
+    if not user_id:
+        return JSONResponse({"status": "error", "message": "user_id is required"}, status_code=400)
 
-# 下载文件
-async def download_minio(request: Request):
-    # parase and validate
-    form = await request.form()
+    if not file_url:
+        return JSONResponse({"status": "error", "message": "file_url is required"}, status_code=400)
 
-    return JSONResponse({"status": "ok"})
+    if not knowledge_base_id:
+        knowledge_base_id = "df_" + user_id
 
+    if not mode:
+        mode = "simple"
 
+    time.sleep(10)
+    markdown_public_url = "https://www.example_markdown_url.com"
+
+    return JSONResponse({"status": "ok", "message": "File processed successfully", "data": {"user_id": user_id, "file_url": file_url, "knowledge_base_id": knowledge_base_id, "mode": mode, "markdown_public_url": markdown_public_url}})
 
 middleware = [
     Middleware(CORSMiddleware, 
@@ -187,7 +200,6 @@ app = Starlette(
         Route("/health", health,methods=["GET"]),
         Route("/upload_minio", upload_minio,methods=["POST"]),
         Route("/process", process,methods=["POST"]),
-        Route("/download_minio", download_minio,methods=["GET"])
     ],
     on_startup=[start_up]
 )

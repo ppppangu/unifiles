@@ -22,6 +22,7 @@ dependencies = [
     "python-dotenv>=1.1.0",
     "python-multipart>=0.0.20",
     "pyyaml>=6.0.2",
+    "requests>=2.32.4",
     "starlette>=0.46.2",
     "uvicorn>=0.34.2",
 ]
