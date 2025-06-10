@@ -30,6 +30,7 @@ from datetime import datetime
 import uuid
 import io
 import time
+import asyncio
 
 # 导入配置
 from src.tools import (
@@ -196,10 +197,12 @@ async def process(request: Request):
     if not mode:
         mode = "simple"
 
-    time.sleep(10)
-    markdown_public_url = "https://www.example_markdown_url.com"
-
-    return JSONResponse({"status": "ok", "message": "File processed successfully", "data": {"user_id": user_id, "file_url": file_url, "knowledge_base_id": knowledge_base_id, "mode": mode, "markdown_public_url": markdown_public_url}})
+    if mode == "simple":
+        await asyncio.sleep(5)
+        markdown_public_url = "https://www.example_markdown_url.com"
+        return JSONResponse({"status": "ok", "message": "File processed successfully", "data": {"user_id": user_id, "file_url": file_url, "knowledge_base_id": knowledge_base_id, "mode": mode, "markdown_public_url": markdown_public_url}})
+    elif mode == "normal":
+        return JSONResponse({"status": "ok", "message": "File processed successfully", "data": {"user_id": user_id, "file_url": file_url, "knowledge_base_id": knowledge_base_id, "mode": mode}})
 
 middleware = [
     Middleware(CORSMiddleware, 
