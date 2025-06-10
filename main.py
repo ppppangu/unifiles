@@ -13,7 +13,6 @@ from starlette.routing import Route
 from starlette.middleware import Middleware
 from starlette.middleware.cors import CORSMiddleware
 
-
 # 导入异步依赖
 import aiohttp
 import aiofiles
@@ -45,12 +44,28 @@ config = read_config()
 pg_config = read_pg_config()
 minio_config = read_minio_config()
 
+# 日志配置
+log_path = Path(__file__).parent / "logs"
+logger.add(log_path / f"{datetime.now().strftime('%Y-%m-%d')}.log", rotation="100 MB")
+
+async def get_client_ip(request: Request):
+    # 尝试从常见的HTTP头获取真实IP
+    forwarded_for = request.headers.get("X-Forwarded-For")
+    if forwarded_for:
+        # X-Forwarded-For可能包含多个IP，第一个通常是客户端真实IP
+        client_ip = forwarded_for.split(",")[0].strip()
+    else:
+        # 如果没有代理信息，则使用直接连接的客户端IP
+        client_ip = request.client[0] if request.client else None
+    
+    return client_ip
+
 # 启动函数
 async def start_up():
     """应用启动时执行的初始化操作"""
     # 创建必要的目录
     mk_need_path()
-    print("File server started successfully")  # 使用print代替logger进行测试
+    logger.info("File server started successfully")
 
 # 健康检查
 async def health(request: Request):
@@ -67,12 +82,12 @@ async def upload_minio(request: Request):
         if not user_id:
             user_id = "default"
         upload_file = form.get("upload_file")
-
-        print(f"Upload request received - user_id: {user_id}")
+        client_ip = await get_client_ip(request)
+        logger.info(f"Upload request received - user_id: {user_id} - client_ip: {client_ip}")
 
         # 验证必需参数
         if not upload_file:
-            print("No file provided in upload request")
+            logger.error("No file provided in upload request")
             return JSONResponse(
                 {"status": "error", "message": "No file provided"},
                 status_code=400
@@ -81,7 +96,7 @@ async def upload_minio(request: Request):
         # 获取文件信息
         filename = upload_file.filename
         if not filename:
-            print("No filename provided")
+            logger.error("No filename provided")
             return JSONResponse(
                 {"status": "error", "message": "No filename provided"},
                 status_code=400
@@ -166,6 +181,8 @@ async def process(request: Request):
     file_url = form.get("file_url")
     knowledge_base_id = form.get("knowledge_base_id")
     mode = form.get("mode")
+    client_ip = await get_client_ip(request)
+    logger.info(f"Process request received - user_id: {user_id} - client_ip: {client_ip} - file_url: {file_url} - knowledge_base_id: {knowledge_base_id} - mode: {mode}")
 
     if not user_id:
         return JSONResponse({"status": "error", "message": "user_id is required"}, status_code=400)
@@ -206,4 +223,4 @@ app = Starlette(
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    uvicorn.run(app, host="0.0.0.0", port=8087)
