@@ -1,6 +1,11 @@
-"""文件上传的服务器，提供文件上传，以及多种预定义的处理模式，上传完成后返回处理结果的结果所在位置，不提供文件本地存储服务。代码保持间接性，不写不必要的注释"""
+"""
+文件服务器
+相关功能
+1、指定用户id，接收二进制文件，保存到云端指定用户空间（没有的话会创建指定用户空间）。如果不指定用户名，则保存到公共空间，但是这个端口需要谨慎使用。
+2、接收用户id，文件id，将云端文件进行处理（处理方式包括：不走ocr的向量化存储、走ocr的向量化存储（但是两者接口适配）、图谱处理）
+"""
 
-# 导入依赖
+# 导入web框架依赖
 from starlette.applications import Starlette
 from starlette.responses import JSONResponse
 from starlette.requests import Request
@@ -8,321 +13,185 @@ from starlette.routing import Route
 from starlette.middleware import Middleware
 from starlette.middleware.cors import CORSMiddleware
 
-import asyncio
+
+# 导入异步依赖
 import aiohttp
 import aiofiles
-import aiosqlite
+
+# 导入数据库依赖
 import asyncpg
 
-import boto3
-import ast
-import uvicorn
+# 导入数据存储依赖
+from minio import Minio
 
-import os
+# 导入工具依赖
 from loguru import logger
 from pathlib import Path
 from datetime import datetime
+import uuid
+import io
 
-from src.vector_process import VectorProcess
-from src.mineru_client import MinerUClient
-from src.extra_user_infomation import get_user_id_by_knowledge_base_id
+# 导入配置
+from src.tools import (
+    read_config,
+    read_pg_config,
+    read_minio_config,
+    mk_need_path
+)
 
-from src.tools import async_get_s3_connection
+# 读取相关配置
+config = read_config()
+pg_config = read_pg_config()
+minio_config = read_minio_config()
 
-# 调试使用
-#S3
-os.environ["FILE_SERVER_S3_ENDPOINT_URL"]="http://1.tcp.cpolar.cn:21729"
-os.environ["FILE_SERVER_S3_ACCESS_KEY"]="N3r+Mh2:z4w)LK=a8e%N"
-os.environ["FILE_SERVER_S3_SECRET_ACCESS_KEY"]="N3r+Mh2:z4w)LK=a8e%N"
-os.environ["FILE_SERVER_S3_BUCKET_NAME"]="users"
-os.environ["FILE_SERVER_S3_REGION"]="us-east-1"
+# 启动函数
+async def start_up():
+    """应用启动时执行的初始化操作"""
+    # 创建必要的目录
+    mk_need_path()
+    print("File server started successfully")  # 使用print代替logger进行测试
 
-# vector_db(postgres)  数据库的配置信息
-os.environ["FILE_SERVER_POSTGRES_HOST"]="192.168.132.149"
-os.environ["FILE_SERVER_POSTGRES_PORT"]="5437"
-os.environ["FILE_SERVER_POSTGRES_USER"]="postgres"
-os.environ["FILE_SERVER_POSTGRES_PASSWORD"]="postgres"
-os.environ["FILE_SERVER_POSTGRES_DATABASE"]="postgres"
-
-# MinerUAPIList
-os.environ["FILE_SERVER_MINERU_URL_LIST"]="['http://192.168.132.149:8889']"
-
-# 获取环境变量
-FILE_SERVER_S3_ENDPOINT_URL = os.getenv("FILE_SERVER_S3_ENDPOINT_URL")
-FILE_SERVER_S3_ACCESS_KEY = os.getenv("FILE_SERVER_S3_ACCESS_KEY")
-FILE_SERVER_S3_SECRET_ACCESS_KEY = os.getenv("FILE_SERVER_S3_SECRET_ACCESS_KEY")
-FILE_SERVER_S3_BUCKET_NAME = os.getenv("FILE_SERVER_S3_BUCKET_NAME")
-FILE_SERVER_S3_REGION = os.getenv("FILE_SERVER_S3_REGION")
-FILE_SERVER_POSTGRES_HOST = os.getenv("FILE_SERVER_POSTGRES_HOST")
-FILE_SERVER_POSTGRES_PORT = int(os.getenv("FILE_SERVER_POSTGRES_PORT"))
-FILE_SERVER_POSTGRES_USER = os.getenv("FILE_SERVER_POSTGRES_USER")
-FILE_SERVER_POSTGRES_PASSWORD = os.getenv("FILE_SERVER_POSTGRES_PASSWORD")
-FILE_SERVER_POSTGRES_DATABASE = os.getenv("FILE_SERVER_POSTGRES_DATABASE")
-FILE_SERVER_MINERU_URL_LIST = ast.literal_eval(os.getenv("FILE_SERVER_MINERU_URL_LIST"))
-
-# 设置日志文件的目录和文件
-logs_path = Path(__file__).parent / "logs"
-logs_path.mkdir(mode=777, exist_ok=True)
-
-# 设置临时文件的下载目录
-temp_path = Path(__file__).parent / "tmp"
-temp_path.mkdir(mode=777, exist_ok=True)
-
-# 设置用于记录任务进度的db文件的路径
-db_path = Path(__file__).parent / "job.db"
-db_path.touch(exist_ok=True)
-
-async def homepage(request: Request):
-    return JSONResponse({"message": "Hello, World!"})
-
+# 健康检查
 async def health(request: Request):
     return JSONResponse({"status": "ok"})
 
-async def get_mode(request: Request):
-    return JSONResponse(
-        {
-            "mode": ["vector","graph"]
-        }
-    )
+# 上传文件到云端，config桶里的bucket下的default目录，每个文件一个目录（目录名为生成的一个uuid），文件名即文件的原始文件名，不区分用户。返回值为公网url
+async def upload_minio(request: Request):
+    try:
+        # 解析和验证表单数据
+        form = await request.form()
 
-async def upload(request: Request):
+        # 解析参数
+        user_id = form.get("user_id")
+        upload_file = form.get("upload_file")
+
+        print(f"Upload request received - user_id: {user_id}")
+
+        # 验证必需参数
+        if not upload_file:
+            print("No file provided in upload request")
+            return JSONResponse(
+                {"status": "error", "message": "No file provided"},
+                status_code=400
+            )
+
+        # 获取文件信息
+        filename = upload_file.filename
+        if not filename:
+            print("No filename provided")
+            return JSONResponse(
+                {"status": "error", "message": "No filename provided"},
+                status_code=400
+            )
+
+        # 读取文件内容
+        file_content = await upload_file.read()
+        if not file_content:
+            logger.error("Empty file provided")
+            return JSONResponse(
+                {"status": "error", "message": "Empty file provided"},
+                status_code=400
+            )
+
+        logger.info(f"File info - name: {filename}, size: {len(file_content)} bytes")
+
+        # 生成UUID作为目录名
+        file_uuid = str(uuid.uuid4())
+
+        # 构建MinIO对象路径: default/{uuid}/{filename}
+        object_path = f"default/{file_uuid}/{filename}"
+
+        # 创建MinIO客户端
+        minio_client = Minio(
+            f"{minio_config['host']}:{minio_config['port']}",
+            access_key=minio_config["access_key"],
+            secret_key=minio_config["secret_key"],
+            secure=False  # 根据配置调整
+        )
+
+        # 检查桶是否存在，不存在则创建
+        bucket_name = minio_config["bucket_name"]
+        if not minio_client.bucket_exists(bucket_name):
+            minio_client.make_bucket(bucket_name)
+            logger.info(f"Created bucket: {bucket_name}")
+
+        # 上传文件到MinIO
+        file_stream = io.BytesIO(file_content)
+        minio_client.put_object(
+            bucket_name,
+            object_path,
+            file_stream,
+            length=len(file_content),
+            content_type=upload_file.content_type or "application/octet-stream"
+        )
+
+        logger.info(f"File uploaded successfully to MinIO: {object_path}")
+
+        # 生成公网URL
+        if minio_config.get("use_public_url", False) and minio_config.get("public_url_prefix"):
+            public_url = f"{minio_config['public_url_prefix']}/{bucket_name}/{object_path}"
+        else:
+            # 如果没有配置公网URL前缀，使用MinIO的默认URL
+            public_url = f"http://{minio_config['host']}:{minio_config['port']}/{bucket_name}/{object_path}"
+
+        logger.info(f"Generated public URL: {public_url}")
+
+        return JSONResponse({
+            "status": "success",
+            "message": "File uploaded successfully",
+            "data": {
+                "file_id": file_uuid,
+                "filename": filename,
+                "object_path": object_path,
+                "public_url": public_url,
+                "file_size": len(file_content)
+            }
+        })
+
+    except Exception as e:
+        logger.error(f"Error uploading file to MinIO: {str(e)}")
+        return JSONResponse(
+            {"status": "error", "message": f"Upload failed: {str(e)}"},
+            status_code=500
+        )
+
+# 处理文件
+async def process(request: Request):
     # parase and validate
     form = await request.form()
 
-    # parase
-    knowledge_base_id = form.get("knowledge_base_id")
-    document_id = form.get("document_id")
-    user_id = form.get("user_id")
-    job_id = form.get("job_id")
-    file_url = form.get("pdf_file_url")
-    mode = form.getlist("mode")
-    parse_method = form.get("parse_method")
-
-    # validate
-    if not any([knowledge_base_id,document_id,file_url]):
-        return JSONResponse({"status": "error", "message": "knowledge_base_id / document_id / pdf_file_url are required"}, status_code=400)
-    if not user_id:
-        return JSONResponse({"status": "error", "message": "user_id is required"}, status_code=400)
-    if not mode:
-        mode = ["vector"]
-    # 如果parse_method为空，则设置为simple
-    if not parse_method:
-        parse_method = "simple"
-
-    try:
-        # Create a database connection
-        conn = await asyncpg.connect(
-            host=FILE_SERVER_POSTGRES_HOST,
-            port=int(FILE_SERVER_POSTGRES_PORT),
-            user=FILE_SERVER_POSTGRES_USER,
-            password=FILE_SERVER_POSTGRES_PASSWORD,
-            database=FILE_SERVER_POSTGRES_DATABASE
-        )
-        try:
-            user_id = await get_user_id_by_knowledge_base_id(knowledge_base_id, conn)
-            if not user_id:
-                return JSONResponse({"status": "error", "message": "there is no user_id for this knowledge_base_id, please user_id and knowledge_base_id are whether match"}, status_code=400)
-        finally:
-            await conn.close()
-    except Exception as e:
-        return JSONResponse({"status": "error", "message": f"when check user_id is match with knowledge_base_id, Failed to connect to PostgreSQL, error: {e}"}, status_code=500)
-
-    # 下载并保存文件, 上传到s3后删除临时文件
-    async with aiohttp.ClientSession() as session:
-        async with session.get(file_url,timeout=aiohttp.ClientTimeout(total=300)) as response:
-            file_content = await response.read()
-            file_save_name = file_url.split("/")[-1]
-            file_path = temp_path / file_name
-            async with aiofiles.open(file_path, mode="wb") as f:
-                await f.write(file_content)
-
-    file_name = file_url.split("/")[-1]
-
-    logger.info("================================================")
-    logger.info("------------------------------------------------")
-    logger.info(f"user_id: {user_id}")
-    logger.info(f"knowledge_base_id: {knowledge_base_id}")
-    logger.info(f"document_id: {document_id}")
-    logger.info(f"upload file: {file_name}")
-    logger.info(f"mode: {mode}")
-    logger.info("------------------------------------------------")
-
-    if "vector" in mode:
-        pg_connection = await asyncpg.connect(
-            host=FILE_SERVER_POSTGRES_HOST,
-            port=int(FILE_SERVER_POSTGRES_PORT),
-            user=FILE_SERVER_POSTGRES_USER,
-            password=FILE_SERVER_POSTGRES_PASSWORD,
-            database=FILE_SERVER_POSTGRES_DATABASE
-        )
-        s3_connection = await async_get_s3_connection(
-            FILE_SERVER_S3_ENDPOINT_URL,
-            FILE_SERVER_S3_ACCESS_KEY,
-            FILE_SERVER_S3_SECRET_ACCESS_KEY,
-            FILE_SERVER_S3_REGION
-        )
-        mineru_client = MinerUClient(
-            mineru_url=FILE_SERVER_MINERU_URL,
-            file_content=file_content,
-            s3_connection=s3_connection,
-            bucket_name=FILE_SERVER_S3_BUCKET_NAME,
-            user_id=user_id,
-            knowledge_base_id=knowledge_base_id,
-            document_id=document_id,
-            parse_method=parse_method
-        )
-        vector_process = VectorProcess(
-            pdf=file_content,
-            user_id=user_id,
-            knowledge_base_id=knowledge_base_id,
-            document_id=document_id,
-            document_name=file_name,
-            pg_connection=pg_connection,
-            s3_connection=s3_connection,
-            bucket_name=FILE_SERVER_S3_BUCKET_NAME,
-            mineru_client=mineru_client
-        )
-        await vector_process.ocr()
-
-    if "graph" in mode: ...
-
-    logger.info("================================================")
     return JSONResponse({"status": "ok"})
 
-async def start_up():
-    # 设置日志
-    log_path = str(logs_path / f"{datetime.now().strftime('%Y-%m-%d')}.log")
-    logger.add(log_path, enqueue=True, format="{time:YYYY-MM-DD HH:mm:ss} | {level} | {message}",level="INFO")
+# 下载文件
+async def download_minio(request: Request):
+    # parase and validate
+    form = await request.form()
 
-    logger.info("===================start up====================")
-    logger.info("file server begin to start up!")
-    
-    # 检查向量数据库连接
-    try:
-        test_pg_connection = await asyncpg.connect(
-            host=FILE_SERVER_POSTGRES_HOST,
-            port=int(FILE_SERVER_POSTGRES_PORT),
-            user=FILE_SERVER_POSTGRES_USER,
-            password=FILE_SERVER_POSTGRES_PASSWORD,
-            database=FILE_SERVER_POSTGRES_DATABASE
-        )
-        await test_pg_connection.close()
-        logger.info(f"vector database connection test passed! | Vector database(postgres) is working on {FILE_SERVER_POSTGRES_HOST}:{FILE_SERVER_POSTGRES_PORT}")
-    except Exception as e:
-        logger.error(f"Failed to connect to PostgreSQL, config_url: postgres://{FILE_SERVER_POSTGRES_USER}:{FILE_SERVER_POSTGRES_PASSWORD}@{FILE_SERVER_POSTGRES_HOST}:{FILE_SERVER_POSTGRES_PORT}/{FILE_SERVER_POSTGRES_DATABASE}, error: {e}")
-    finally:
-        try:
-            await test_pg_connection.close()
-        except Exception as e:
-            pass
+    return JSONResponse({"status": "ok"})
 
-    # 检查S3连接
-    try:
-        # 使用自定义配置创建S3客户端
-        test_s3_connection = await async_get_s3_connection(FILE_SERVER_S3_ENDPOINT_URL, FILE_SERVER_S3_ACCESS_KEY, FILE_SERVER_S3_SECRET_ACCESS_KEY, FILE_SERVER_S3_REGION)
-        await test_s3_connection.list_buckets()
-        logger.info(f"s3 connection test passed!              | S3 is working on {FILE_SERVER_S3_ENDPOINT_URL}")
-    except Exception as e:
-        logger.error(f"Failed to connect to S3, config_url: s3://{FILE_SERVER_S3_ACCESS_KEY}:{FILE_SERVER_S3_SECRET_ACCESS_KEY}@{FILE_SERVER_S3_ENDPOINT_URL}, error: {e}")
-    finally:
-        try:
-            await test_s3_connection.close()
-        except Exception as e:
-            pass
-
-    # 检查MinerU的服务端连接
-    for mineru_url in FILE_SERVER_MINERU_URL_LIST:
-        try:
-            test_s3_connection = await async_get_s3_connection(FILE_SERVER_S3_ENDPOINT_URL, FILE_SERVER_S3_ACCESS_KEY, FILE_SERVER_S3_SECRET_ACCESS_KEY, FILE_SERVER_S3_REGION)
-            await test_s3_connection.list_buckets()
-            mineru_client = MinerUClient(
-                mineru_url=mineru_url,
-                file_content=None,
-                s3_connection=test_s3_connection
-            )
-            await mineru_client.health()
-            logger.info(f"mineru connection test passed!          | MinerU is working on {mineru_url}")
-        except Exception as e:
-            logger.error(f"Failed to initialize MinerUClient, mineru_url: {mineru_url}, error: {e}")
-        finally:
-            try:
-                await test_s3_connection.close()
-            except Exception as e:
-                pass
-    
-    # 创建用于记录任务的db文件
-    if not db_path.exists():
-        try:
-            async with aiosqlite.connect(db_path) as db:
-
-                # 【持久增量记录】创建任务表，任务调度从这里确定，status有pedding(就是接收到任务等待调度)，running(就是正在运行)，completed(就是运行完成)，failed(就是任务失败)
-                await db.execute('''
-                CREATE TABLE IF NOT EXISTS jobs (
-                    id INTEGER PRIMARY KEY,
-                    user_id TEXT NOT NULL,
-                    knowledge_base_id TEXT NOT NULL,
-                    document_id TEXT NOT NULL,
-                    file_url TEXT NOT NULL,
-                    mode TEXT NOT NULL, 
-                    status TEXT NOT NULL
-                )
-                ''')
-
-                # 【持久增量记录】创建ocr任务表，ocr任务调度从这里确定
-                await db.execute('''
-                CREATE TABLE IF NOT EXISTS ocr_jobs (
-                    id INTEGER PRIMARY KEY,
-                    parse_method TEXT NOT NULL,
-                    recive_time TEXT NOT NULL,
-                    start_time TEXT NOT NULL,
-                    end_time TEXT NOT NULL,
-                    run_result TEXT NOT NULL,
-                    run_result_detail TEXT NOT NULL,
-                    mineru_url TEXT NOT NULL
-                )
-                ''')
-
-                # 【临时调度记录】先删除mineru管理表，再创建
-                await db.execute('''
-                DROP TABLE IF EXISTS mineru_manager
-                ''')
-
-                # 【临时调度记录】创建mineru管理表，mineru管理表用来自动调配ocr在哪个mineru端口上运行，同时记录已经存在的mineru端口的所有记录
-                await db.execute('''
-                CREATE TABLE IF NOT EXISTS mineru_manager (
-                    id INTEGER PRIMARY KEY,
-                    mineru_url TEXT NOT NULL,
-                    RUNNING_JOB_ID TEXT
-                )
-                ''')
-                
-                # 提交更改
-                await db.commit()
-        finally:
-            try:
-                await db.close()
-            except Exception as e:
-                pass
-    else:
-        logger.info("job db init success")
-    logger.info("==================start up=======================")
 
 
 middleware = [
-    Middleware(CORSMiddleware, allow_origins=["*"], allow_credentials=True, allow_methods=["*"], allow_headers=["*"])
+    Middleware(CORSMiddleware, 
+               allow_origins=["*"], 
+               allow_credentials=True, 
+               allow_methods=["*"], 
+               allow_headers=["*"],
+               expose_headers=["*"]
+               )
 ]
 
 app = Starlette(
     middleware=middleware,
     routes=[
-        Route("/", homepage,methods=["GET"]),
         Route("/health", health,methods=["GET"]),
-        Route("/get_mode", get_mode,methods=["GET"]),
-        Route("/upload", upload,methods=["POST"])
+        Route("/upload_minio", upload_minio,methods=["POST"]),
+        Route("/process", process,methods=["POST"]),
+        Route("/download_minio", download_minio,methods=["GET"])
     ],
     on_startup=[start_up]
 )
 
 if __name__ == "__main__":
-
+    import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000)
