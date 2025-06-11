@@ -5,6 +5,11 @@ api:
       url: "https://api.siliconflow.cn/v1/embeddings"
       key: "sk-sqichvhplvkasryatqtmufwevhgnvcxzgqilurqxvvvllmpo"
       alias: "bge-m3"
+  multimodal_llm:
+    - name: "Qwen/Qwen2.5-VL-32B-Instruct"
+      url: "https://api.siliconflow.cn/v1/chat/completions"
+      key: "sk-sqichvhplvkasryatqtmufwevhgnvcxzgqilurqxvvvllmpo"
+      alias: "Qwen2.5-VL-32B-Instruct"
 # server组件
 server_components:
   pg_vector:
@@ -16,7 +21,7 @@ server_components:
     active: true
   minio:
     host: "192.168.132.149"
-    port: "9000"
+    port: 9000
     access_key: "[REDACTED]"
     secret_key: "[REDACTED]"
     bucket_name: "publicfiles"
@@ -30,3 +35,9 @@ server_components:
   convert_format_server:
     - url: "http://192.168.132.149:8889"
       active: true
+
+text_chunk_strategy:
+  SlidingWindow:
+    module: "normal"
+    chunk_size: 2000
+    chunk_overlap: 300

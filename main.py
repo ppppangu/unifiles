@@ -12,6 +12,7 @@ from starlette.requests import Request
 from starlette.routing import Route
 from starlette.middleware import Middleware
 from starlette.middleware.cors import CORSMiddleware
+from fastapi import UploadFile
 
 # 导入异步依赖
 import aiohttp
@@ -31,6 +32,7 @@ import uuid
 import io
 import time
 import asyncio
+from mineru_process import mineru_process
 
 # 导入配置
 from src.tools import (
@@ -79,6 +81,7 @@ async def health(request: Request):
 # 获取支持的文件类型
 async def get_supported_file_types(request: Request):
     return JSONResponse({"status": "ok", "message": "Supported file types", "data": {"supported_file_types": supported_file_types}})
+
 
 # 上传文件到云端，config桶里的bucket下的default目录，每个文件一个目录（目录名为生成的一个uuid），文件名即文件的原始文件名，不区分用户。返回值为公网url
 async def upload_minio(request: Request):
@@ -211,16 +214,12 @@ async def process(request: Request):
     if not knowledge_base_id:
         knowledge_base_id = "df_" + user_id
 
-    # 对于公网url，需要先下载到本地，再进行处理
-
-
     if not mode:
         mode = "simple"
 
     if mode == "simple":
-        await asyncio.sleep(5)
-        markdown_public_url = "https://www.example_markdown_url.com"
-        return JSONResponse({"status": "ok", "message": "File processed successfully", "data": {"user_id": user_id, "file_url": file_url, "knowledge_base_id": knowledge_base_id, "mode": mode, "markdown_public_url": markdown_public_url}})
+        markdown_public_url = await mineru_process(file_url, knowledge_base_id, mode, user_id)
+        return JSONResponse({"status": "ok", "message": "File processed successfully", "data": {"user_id": user_id, "file_url": file_url, "knowledge_base_id": knowledge_base_id, "mode": mode, "markdown_url": markdown_public_url}})
     elif mode == "normal":
         return JSONResponse({"status": "ok", "message": "File processed successfully", "data": {"user_id": user_id, "file_url": file_url, "knowledge_base_id": knowledge_base_id, "mode": mode}})
 
