@@ -32,7 +32,9 @@ import uuid
 import io
 import time
 import asyncio
+import httpx
 from mineru_process import mineru_process
+from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
 
 # 导入配置
 from src.tools import (
@@ -194,6 +196,33 @@ async def upload_minio(request: Request):
             status_code=500
         )
 
+@retry(
+    stop=stop_after_attempt(3),
+    wait=wait_exponential(multiplier=1, min=1, max=10),
+    retry=retry_if_exception_type((httpx.RequestError, httpx.HTTPStatusError))
+)
+async def convert_document_to_pdf(file_url: str):
+    try:
+        # 文件格式校验
+        # 不在范围内的话返回None
+        if not file_url.endswith(document_file_types):
+            return None
+        
+        # 如果已经是pdf文件，则直接返回
+        if file_url.endswith(".pdf"):
+            return file_url
+
+        # 其他情况，调用转换服务
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            response = await client.post(config["server_components"]["convert_format_server"][0]["url"] + "/convert_document_to_pdf", files={"file": file_url})
+            response.raise_for_status()
+            converted_url = response.json()["converted_url"]
+        return converted_url
+    
+    except Exception as e:
+        logger.error(f"Error converting document to pdf: {str(e)}")
+        return None
+
 # 处理文件
 async def process(request: Request):
     # parase and validate
@@ -216,6 +245,11 @@ async def process(request: Request):
 
     if not mode:
         mode = "simple"
+
+    # 文件格式校验
+    file_url = await convert_document_to_pdf(file_url)
+    if not file_url:
+        return JSONResponse({"status": "error", "message": "file_url is not a supported file type"}, status_code=400)
 
     if mode == "simple":
         markdown_public_url = await mineru_process(file_url, knowledge_base_id, mode, user_id)
