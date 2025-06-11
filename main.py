@@ -204,14 +204,13 @@ async def upload_minio(request: Request):
 async def convert_document_to_pdf(file_url: str):
     try:
         # 文件格式校验
+        if file_url.endswith(".pdf"):
+            return file_url
+        
         # 不在范围内的话返回None
         if not file_url.endswith(document_file_types):
             return None
         
-        # 如果已经是pdf文件，则直接返回
-        if file_url.endswith(".pdf"):
-            return file_url
-
         # 其他情况，调用转换服务
         async with httpx.AsyncClient(timeout=30.0) as client:
             response = await client.post(config["server_components"]["convert_format_server"][0]["url"] + "/convert_document_to_pdf", files={"file": file_url})

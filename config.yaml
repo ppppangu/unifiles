@@ -33,7 +33,7 @@ server_components:
     - url: "http://192.168.132.149:8889"
       active: true
   convert_format_server:
-    - url: "http://192.168.132.149:31758/convert"
+    - url: "http://192.168.132.149:31758"
       active: true
 
 text_chunk_strategy:
