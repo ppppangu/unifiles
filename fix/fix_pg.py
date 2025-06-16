@@ -14,6 +14,7 @@ pg_config = read_pg_config()
 async def fixpg_public_url_250613():
     """20250613用于检查并完善chunk_schema.documents表的public_url字段，增加对第一版向量数据库的兼容"""
     # 连接到数据库
+    logger.info("开始建立数据库连接")
     conn = await asyncpg.connect(
         host=pg_config.get("host"),
         port=pg_config.get("port"),
@@ -21,6 +22,7 @@ async def fixpg_public_url_250613():
         password=pg_config.get("password"),
         database=pg_config.get("database")
     )
+    logger.info("数据库连接建立成功")
     # 检查chunk_schema.documents表是否有markdown_public_url字段，若存在则跳过，若不存在则添加。
     try:
         async with conn.transaction():
