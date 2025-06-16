@@ -17,7 +17,7 @@ async def fixpg_public_url_250613():
     logger.info("开始建立数据库连接")
     conn = await asyncpg.connect(
         host=pg_config.get("host"),
-        port=pg_config.get("port"),
+        port=int(pg_config.get("port")),
         user=pg_config.get("user"),
         password=pg_config.get("password"),
         database=pg_config.get("database")
