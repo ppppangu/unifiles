@@ -35,6 +35,8 @@ import asyncio
 import httpx
 from mineru_process import mineru_process
 from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
+from delete_file_module import delete_file_from_vcdb, delete_file_from_minio
+from fix.fix_pg import fixpg_public_url_250613
 
 # 导入配置
 from src.tools import (
@@ -71,10 +73,15 @@ async def start_up():
     # 创建必要的目录
     mk_need_path()
     logger.info("File server started successfully")
+    # 检查chunk_schema.documents表的raw_file_public_url字段
+    await fixpg_public_url_250613()
 
 document_file_types = [".doc",".docx",".ppt",".pptx",".xls",".xlsx",".odt",".ods",".odp",".txt",".rtf",".jpg",".jpeg",".png",".tiff",".tif",".bmp",".html",".htm",".md",".csv",".tsv",".xml"]
 
-supported_file_types = document_file_types + [".py",".ipynb",".js",".json"]
+pdf_file_types = [".pdf"]
+
+supported_file_types = document_file_types + pdf_file_types + [".py",".ipynb",".js",".json"]
+
 
 # 健康检查
 async def health(request: Request):
@@ -256,6 +263,25 @@ async def process(request: Request):
     elif mode == "normal":
         return JSONResponse({"status": "ok", "message": "File processed successfully", "data": {"user_id": user_id, "file_url": file_url, "knowledge_base_id": knowledge_base_id, "mode": mode}})
 
+# 删除文件
+async def delete_file(request: Request):
+    form = await request.form()
+    user_id = form.get("user_id")
+    file_id = form.get("file_id")
+    knowledge_base_id = form.get("knowledge_base_id")
+    client_ip = await get_client_ip(request)
+    logger.info(f"Delete file request received - user_id: {user_id} - client_ip: {client_ip} - file_id: {file_id} - knowledge_base_id: {knowledge_base_id}")
+    if not user_id:
+        return JSONResponse({"status": "error", "message": "user_id is required"}, status_code=400)
+    if not file_id:
+        return JSONResponse({"status": "error", "message": "file_id is required"}, status_code=400)
+    if not knowledge_base_id:
+        knowledge_base_id = "df_" + user_id
+    # 删除文件
+    await delete_file_from_vcdb(user_id, file_id, knowledge_base_id)
+    await delete_file_from_minio(user_id, file_id, knowledge_base_id)
+    return JSONResponse({"status": "ok", "message": "File deleted successfully"})
+
 middleware = [
     Middleware(CORSMiddleware, 
                allow_origins=["*"], 
@@ -272,7 +298,8 @@ app = Starlette(
         Route("/health", health,methods=["GET"]),
         Route("/get_supported_file_types", get_supported_file_types,methods=["GET"]),
         Route("/upload_minio", upload_minio,methods=["POST"]),
-        Route("/process", process,methods=["POST"])
+        Route("/process", process,methods=["POST"]),
+        Route("/delete_file", delete_file,methods=["POST"])
     ],
     on_startup=[start_up]
 )
