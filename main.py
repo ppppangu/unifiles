@@ -74,7 +74,12 @@ async def start_up():
     mk_need_path()
     logger.info("File server started successfully")
     # 检查chunk_schema.documents表的raw_file_public_url字段
-    await fixpg_public_url_250613()
+    try:
+        await fixpg_public_url_250613()
+        logger.info("数据库修复检查完成")
+    except Exception as e:
+        logger.error(f"数据库修复检查失败，但服务器将继续启动: {str(e)}")
+        # 继续启动服务器，不让数据库连接问题阻止服务启动
 
 document_file_types = [".doc",".docx",".ppt",".pptx",".xls",".xlsx",".odt",".ods",".odp",".txt",".rtf",".jpg",".jpeg",".png",".tiff",".tif",".bmp",".html",".htm",".md",".csv",".tsv",".xml"]
 
@@ -210,58 +215,149 @@ async def upload_minio(request: Request):
 )
 async def convert_document_to_pdf(file_url: str):
     try:
+        # 验证URL格式
+        if not file_url or not isinstance(file_url, str):
+            logger.error(f"无效的文件URL: {file_url}")
+            return None
+            
         # 文件格式校验
-        if file_url.endswith(".pdf"):
+        file_extension = file_url.split('.')[-1].lower() if '.' in file_url else ''
+        logger.info(f"检测到文件扩展名: {file_extension}")
+        
+        if file_url.lower().endswith(".pdf"):
+            logger.info(f"文件已经是PDF格式，无需转换: {file_url}")
             return file_url
         
-        # 不在范围内的话返回None
-        if not file_url.endswith(document_file_types):
+        # 检查是否为支持的文档格式
+        is_supported = False
+        for ext in document_file_types:
+            if file_url.lower().endswith(ext):
+                is_supported = True
+                break
+                
+        if not is_supported:
+            logger.error(f"不支持的文件类型: {file_extension}")
             return None
         
-        # 其他情况，调用转换服务
-        async with httpx.AsyncClient(timeout=30.0) as client:
-            response = await client.post(config["server_components"]["convert_format_server"][0]["url"] + "/convert_document_to_pdf", files={"file": file_url})
+        # 调用转换服务
+        logger.info(f"开始转换文件: {file_url}")
+        convert_url = config["server_components"]["convert_format_server"][0]["url"] + "/convert_document_to_pdf"
+        logger.info(f"转换服务URL: {convert_url}")
+        
+        async with httpx.AsyncClient(timeout=60.0) as client:
+            response = await client.post(convert_url, files={"file": file_url})
             response.raise_for_status()
-            converted_url = response.json()["converted_url"]
-        return converted_url
+            result = response.json()
+            
+            if "converted_url" not in result or not result["converted_url"]:
+                logger.error(f"转换服务返回无效结果: {result}")
+                return None
+                
+            converted_url = result["converted_url"]
+            logger.info(f"文件转换成功: {file_url} -> {converted_url}")
+            return converted_url
     
+    except httpx.HTTPStatusError as e:
+        logger.error(f"转换服务HTTP错误: {e.response.status_code} - {e.response.reason_phrase}")
+        if e.response.status_code == 400:
+            try:
+                error_detail = e.response.json()
+                logger.error(f"转换服务错误详情: {error_detail}")
+            except:
+                pass
+        raise
+    except httpx.RequestError as e:
+        logger.error(f"转换服务请求错误: {str(e)}")
+        raise
     except Exception as e:
-        logger.error(f"Error converting document to pdf: {str(e)}")
+        logger.error(f"文件转换过程中发生未预期的错误: {str(e)}")
         return None
 
 # 处理文件
 async def process(request: Request):
-    # parase and validate
-    form = await request.form()
-    user_id = form.get("user_id")
-    file_url = form.get("file_url")
-    knowledge_base_id = form.get("knowledge_base_id")
-    mode = form.get("mode")
-    client_ip = await get_client_ip(request)
-    logger.info(f"Process request received - user_id: {user_id} - client_ip: {client_ip} - file_url: {file_url} - knowledge_base_id: {knowledge_base_id} - mode: {mode}")
+    try:
+        # parase and validate
+        form = await request.form()
+        user_id = form.get("user_id")
+        file_url = form.get("file_url")
+        knowledge_base_id = form.get("knowledge_base_id")
+        mode = form.get("mode")
+        client_ip = await get_client_ip(request)
+        logger.info(f"Process request received - user_id: {user_id} - client_ip: {client_ip} - file_url: {file_url} - knowledge_base_id: {knowledge_base_id} - mode: {mode}")
 
-    if not user_id:
-        return JSONResponse({"status": "error", "message": "user_id is required"}, status_code=400)
+        # 基本参数验证
+        if not user_id:
+            logger.error("缺少必要参数: user_id")
+            return JSONResponse({"status": "error", "message": "user_id is required"}, status_code=400)
 
-    if not file_url:
-        return JSONResponse({"status": "error", "message": "file_url is required"}, status_code=400)
+        if not file_url:
+            logger.error("缺少必要参数: file_url")
+            return JSONResponse({"status": "error", "message": "file_url is required"}, status_code=400)
 
-    if not knowledge_base_id:
-        knowledge_base_id = "df_" + user_id
+        # 验证file_url格式
+        if not file_url.startswith(('http://', 'https://')):
+            logger.error(f"无效的文件URL格式: {file_url}")
+            return JSONResponse({"status": "error", "message": "Invalid file URL format"}, status_code=400)
 
-    if not mode:
-        mode = "simple"
+        # 设置默认值
+        if not knowledge_base_id:
+            knowledge_base_id = "df_" + user_id
+            logger.info(f"使用默认knowledge_base_id: {knowledge_base_id}")
 
-    # 文件格式校验
-    file_url = await convert_document_to_pdf(file_url)
-    if not file_url:
-        return JSONResponse({"status": "error", "message": "file_url is not a supported file type"}, status_code=400)
+        if not mode:
+            mode = "simple"
+            logger.info(f"使用默认mode: {mode}")
 
-    if mode == "simple":
-        markdown_public_url = await mineru_process(file_url, knowledge_base_id, mode, user_id)
-        return JSONResponse({"status": "ok", "message": "File processed successfully", "data": {"user_id": user_id, "file_url": file_url, "knowledge_base_id": knowledge_base_id, "mode": mode, "markdown_url": markdown_public_url}})
-    elif mode == "normal":
-        return JSONResponse({"status": "ok", "message": "File processed successfully", "data": {"user_id": user_id, "file_url": file_url, "knowledge_base_id": knowledge_base_id, "mode": mode}})
+        # 文件格式校验
+        try:
+            file_url = await convert_document_to_pdf(file_url)
+            if not file_url:
+                logger.error(f"不支持的文件类型或转换失败: {file_url}")
+                return JSONResponse({"status": "error", "message": "Unsupported file type or conversion failed"}, status_code=400)
+        except Exception as e:
+            logger.error(f"文件转换失败: {str(e)}")
+            return JSONResponse({"status": "error", "message": f"File conversion failed: {str(e)}"}, status_code=500)
+
+        # 处理文件
+        try:
+            if mode == "simple":
+                markdown_public_url = await mineru_process(file_url, knowledge_base_id, mode, user_id)
+                if not markdown_public_url:
+                    logger.error("文件处理失败，未返回markdown_public_url")
+                    return JSONResponse({"status": "error", "message": "File processing failed"}, status_code=500)
+                
+                return JSONResponse({
+                    "status": "ok", 
+                    "message": "File processed successfully", 
+                    "data": {
+                        "user_id": user_id, 
+                        "file_url": file_url, 
+                        "knowledge_base_id": knowledge_base_id, 
+                        "mode": mode, 
+                        "markdown_url": markdown_public_url
+                    }
+                })
+            elif mode == "normal":
+                return JSONResponse({
+                    "status": "ok", 
+                    "message": "File processed successfully", 
+                    "data": {
+                        "user_id": user_id, 
+                        "file_url": file_url, 
+                        "knowledge_base_id": knowledge_base_id, 
+                        "mode": mode
+                    }
+                })
+            else:
+                logger.error(f"不支持的处理模式: {mode}")
+                return JSONResponse({"status": "error", "message": f"Unsupported mode: {mode}"}, status_code=400)
+        except Exception as e:
+            logger.error(f"处理文件时发生错误: {str(e)}")
+            return JSONResponse({"status": "error", "message": f"Error processing file: {str(e)}"}, status_code=500)
+    
+    except Exception as e:
+        logger.error(f"处理请求时发生未预期的错误: {str(e)}")
+        return JSONResponse({"status": "error", "message": f"Unexpected error: {str(e)}"}, status_code=500)
 
 # 删除文件
 async def delete_file(request: Request):

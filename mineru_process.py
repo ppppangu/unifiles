@@ -762,12 +762,39 @@ async def embedding_all_text(text: str,alias:str):
     retry=retry_if_exception_type((httpx.RequestError, httpx.HTTPStatusError))
 )
 async def download_file(file_url: str, file_path: str):
-    async with httpx.AsyncClient(timeout=30.0) as client:
-        response = await client.get(file_url)
-        response.raise_for_status()
-        async with aiofiles.open(file_path, "wb") as f:
-            await f.write(response.content)
-        return file_path
+    # 检查URL是否有效
+    if not file_url or not file_url.startswith(('http://', 'https://')):
+        logger.error(f"无效的文件URL: {file_url}")
+        raise ValueError(f"无效的文件URL: {file_url}")
+    
+    try:
+        logger.info(f"开始下载文件: {file_url} 到 {file_path}")
+        async with httpx.AsyncClient(timeout=60.0) as client:  # 增加超时时间
+            response = await client.get(file_url, follow_redirects=True)  # 添加follow_redirects=True处理重定向
+            response.raise_for_status()
+            
+            # 检查响应内容是否为空
+            if not response.content:
+                logger.error(f"下载的文件内容为空: {file_url}")
+                raise ValueError(f"下载的文件内容为空: {file_url}")
+                
+            # 确保目标目录存在
+            os.makedirs(os.path.dirname(file_path), exist_ok=True)
+            
+            async with aiofiles.open(file_path, "wb") as f:
+                await f.write(response.content)
+            
+            logger.info(f"文件下载成功: {file_path}, 大小: {len(response.content)} 字节")
+            return file_path
+    except httpx.HTTPStatusError as e:
+        logger.error(f"HTTP状态错误: {e.response.status_code} - {e.response.reason_phrase}, URL: {file_url}")
+        raise
+    except httpx.RequestError as e:
+        logger.error(f"请求错误: {str(e)}, URL: {file_url}")
+        raise
+    except Exception as e:
+        logger.error(f"下载文件时发生未预期的错误: {str(e)}, URL: {file_url}")
+        raise Exception(f"下载文件失败: {str(e)}")
 
 async def mineru_process(file_url: str, knowledge_base_id: str, mode: str, user_id: str):
     if mode == "simple":
