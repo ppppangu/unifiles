@@ -378,8 +378,9 @@ async def delete_file(request: Request):
     await delete_file_from_minio(user_id, file_id, knowledge_base_id)
     return JSONResponse({"status": "ok", "message": "File deleted successfully"})
 
+# 需要确保中间件能下载跨域文件
 middleware = [
-    Middleware(CORSMiddleware, 
+    Middleware(CORSMiddleware,         
                allow_origins=["*"], 
                allow_credentials=True, 
                allow_methods=["*"], 

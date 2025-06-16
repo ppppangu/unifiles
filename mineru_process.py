@@ -766,34 +766,88 @@ async def download_file(file_url: str, file_path: str):
     if not file_url or not file_url.startswith(('http://', 'https://')):
         logger.error(f"无效的文件URL: {file_url}")
         raise ValueError(f"无效的文件URL: {file_url}")
-    
+
     try:
         logger.info(f"开始下载文件: {file_url} 到 {file_path}")
-        async with httpx.AsyncClient(timeout=60.0) as client:  # 增加超时时间
-            response = await client.get(file_url, follow_redirects=True)  # 添加follow_redirects=True处理重定向
+
+        # 增强的HTTP客户端配置
+        headers = {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+            'Accept': '*/*',
+            'Accept-Language': 'en-US,en;q=0.9',
+            'Accept-Encoding': 'gzip, deflate, br',
+            'Connection': 'keep-alive',
+            'Upgrade-Insecure-Requests': '1'
+        }
+
+        # 配置更宽松的超时和限制
+        timeout = httpx.Timeout(
+            connect=30.0,  # 连接超时
+            read=120.0,    # 读取超时
+            write=30.0,    # 写入超时
+            pool=30.0      # 连接池超时
+        )
+
+        # 配置更宽松的限制
+        limits = httpx.Limits(
+            max_keepalive_connections=50,
+            max_connections=300,
+            keepalive_expiry=30.0
+        )
+
+        async with httpx.AsyncClient(
+            timeout=timeout,
+            limits=limits,
+            headers=headers,
+            follow_redirects=True,
+            verify=False  # 暂时禁用SSL验证以排除证书问题
+        ) as client:
+
+            # 先进行HEAD请求检查文件是否存在
+            try:
+                logger.info(f"检查文件可访问性: {file_url}")
+                head_response = await client.head(file_url)
+                logger.info(f"HEAD请求成功: {head_response.status_code}, Content-Length: {head_response.headers.get('content-length', 'unknown')}")
+            except Exception as head_error:
+                logger.warning(f"HEAD请求失败，继续尝试GET请求: {head_error}")
+
+            # 执行GET请求下载文件
+            logger.info(f"开始GET请求下载文件: {file_url}")
+            response = await client.get(file_url)
+
+            # 详细记录响应信息
+            logger.info(f"GET响应状态: {response.status_code}")
+            logger.info(f"响应头: {dict(response.headers)}")
+
             response.raise_for_status()
-            
+
             # 检查响应内容是否为空
             if not response.content:
                 logger.error(f"下载的文件内容为空: {file_url}")
                 raise ValueError(f"下载的文件内容为空: {file_url}")
-                
+
             # 确保目标目录存在
             os.makedirs(os.path.dirname(file_path), exist_ok=True)
-            
+
             async with aiofiles.open(file_path, "wb") as f:
                 await f.write(response.content)
-            
+
             logger.info(f"文件下载成功: {file_path}, 大小: {len(response.content)} 字节")
             return file_path
+
     except httpx.HTTPStatusError as e:
-        logger.error(f"HTTP状态错误: {e.response.status_code} - {e.response.reason_phrase}, URL: {file_url}")
+        logger.error(f"HTTP状态错误: {e.response.status_code} - {e.response.reason_phrase}")
+        logger.error(f"响应头: {dict(e.response.headers)}")
+        logger.error(f"响应内容: {e.response.text[:500]}...")  # 只记录前500字符
+        logger.error(f"请求URL: {file_url}")
         raise
     except httpx.RequestError as e:
         logger.error(f"请求错误: {str(e)}, URL: {file_url}")
+        logger.error(f"错误类型: {type(e).__name__}")
         raise
     except Exception as e:
         logger.error(f"下载文件时发生未预期的错误: {str(e)}, URL: {file_url}")
+        logger.error(f"错误类型: {type(e).__name__}")
         raise Exception(f"下载文件失败: {str(e)}")
 
 async def mineru_process(file_url: str, knowledge_base_id: str, mode: str, user_id: str):
@@ -861,7 +915,21 @@ async def mineru_process(file_url: str, knowledge_base_id: str, mode: str, user_
             endpoint = f"{host}:{port}"
             minio_client = Minio(endpoint, access_key=access_key, secret_key=secret_key, secure=False, region=region)
             await asyncio.to_thread(minio_client.fput_object, bucket_name, f"{user_id}/knowledgebase/{knowledge_base_id}/{file_uuid}/{file_uuid}.md", file_path.with_suffix(".md"))
-            logger.info(f"用户{user_id}上传md文件到minio成功: {config['server_components']['minio']['public_url_prefix']}/{bucket_name}/{user_id}/knowledgebase/{knowledge_base_id}/{file_uuid}/{file_uuid}.md")
+            await asyncio.to_thread(minio_client.fput_object, bucket_name, f"{user_id}/knowledgebase/{knowledge_base_id}/{file_uuid}/{file_uuid}.pdf", file_path)
+            md_file_public_url = f"{config['server_components']['minio']['public_url_prefix']}/{bucket_name}/{user_id}/knowledgebase/{knowledge_base_id}/{file_uuid}/{file_uuid}.md"
+            pdf_file_public_url = f"{config['server_components']['minio']['public_url_prefix']}/{bucket_name}/{user_id}/knowledgebase/{knowledge_base_id}/{file_uuid}/{file_uuid}.pdf"
+            pg_config = config["server_components"]["pg_vector"]
+            conn = await asyncpg.connect(
+            host=pg_config["host"],
+            port=int(pg_config["port"]),
+            user=pg_config["user"],
+            password=pg_config["password"],
+            database=pg_config["database"]
+        )
+            async with conn.transaction():
+                await conn.execute(f"UPDATE chunk_schema.documents SET md_file_public_url = '{md_file_public_url}' WHERE id = '{file_uuid}'")
+                await conn.execute(f"UPDATE chunk_schema.documents SET raw_file_public_url = '{pdf_file_public_url}' WHERE id = '{file_uuid}'")
+            logger.info(f"用户{user_id}上传md文件到minio成功: {md_file_public_url},且将源文件的pdf格式上传到minio成功: {pdf_file_public_url}")
 
         except Exception as e:
             logger.error(f"上传md文件到minio失败: {e}")
@@ -871,6 +939,8 @@ async def mineru_process(file_url: str, knowledge_base_id: str, mode: str, user_
             await asyncio.to_thread(os.remove, file_path)
             await asyncio.to_thread(os.remove, file_path.with_suffix(".md"))
             await asyncio.to_thread(os.remove, json_file_path)
+            # 关闭数据库连接
+            await conn.close()
             logger.info(f"删除本地文件: {file_path} 和 {file_path.with_suffix('.md')} 和 {json_file_path}")
             # 返回md文件的公网url
             return f"{config['server_components']['minio']['public_url_prefix']}/{bucket_name}/{user_id}/knowledgebase/{knowledge_base_id}/{file_uuid}/{file_uuid}.md"
@@ -878,7 +948,41 @@ async def mineru_process(file_url: str, knowledge_base_id: str, mode: str, user_
     elif mode == "normal":
         return file_url, user_id
 
+async def test_download_file(file_url: str):
+    """
+    测试文件下载功能的独立函数
+    """
+    import tempfile
+    import os
+
+    try:
+        # 创建临时文件路径
+        with tempfile.NamedTemporaryFile(delete=False, suffix='.pdf') as tmp_file:
+            temp_path = tmp_file.name
+
+        logger.info(f"测试下载文件: {file_url}")
+        result = await download_file(file_url, temp_path)
+        logger.info(f"下载测试成功: {result}")
+
+        # 检查文件是否存在和大小
+        if os.path.exists(temp_path):
+            file_size = os.path.getsize(temp_path)
+            logger.info(f"下载的文件大小: {file_size} 字节")
+
+            # 清理临时文件
+            os.unlink(temp_path)
+            return True
+        else:
+            logger.error("下载的文件不存在")
+            return False
+
+    except Exception as e:
+        logger.error(f"下载测试失败: {str(e)}")
+        return False
+
 if __name__ == "__main__":
+    # 可以用于测试下载功能
+    # asyncio.run(test_download_file("http://example.com/test.pdf"))
     asyncio.run(mineru_process("http://1.tcp.cpolar.cn:21729/publicfiles/xx.pdf", "xxx", "simple", "e4f7d0a3-fa32-4ca6-964e-01d02104844b"))
 
 
