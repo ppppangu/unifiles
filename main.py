@@ -321,7 +321,7 @@ async def process(request: Request):
         # 处理文件
         try:
             if mode == "simple":
-                markdown_public_url = await mineru_process(file_url, knowledge_base_id, mode, user_id)
+                markdown_public_url, pdf_file_public_url = await mineru_process(file_url, knowledge_base_id, mode, user_id)
                 if not markdown_public_url:
                     logger.error("文件处理失败，未返回markdown_public_url")
                     return JSONResponse({"status": "error", "message": "File processing failed"}, status_code=500)
@@ -334,7 +334,8 @@ async def process(request: Request):
                         "file_url": file_url, 
                         "knowledge_base_id": knowledge_base_id, 
                         "mode": mode, 
-                        "markdown_url": markdown_public_url
+                        "markdown_public_url": markdown_public_url,
+                        "pdf_file_public_url": pdf_file_public_url
                     }
                 })
             elif mode == "normal":
