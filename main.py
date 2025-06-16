@@ -156,7 +156,7 @@ async def upload_minio(request: Request):
 
         # 创建MinIO客户端
         minio_client = Minio(
-            f"{minio_config['host']}:{minio_config['port']}",
+            f"{minio_config['host']}:{int(minio_config['port'])}",
             access_key=minio_config["access_key"],
             secret_key=minio_config["secret_key"],
             secure=False  # 根据配置调整
