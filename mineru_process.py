@@ -931,6 +931,10 @@ async def mineru_process(file_url: str, knowledge_base_id: str, mode: str, user_
                 await conn.execute(f"UPDATE chunk_schema.documents SET raw_file_public_url = '{pdf_file_public_url}' WHERE id = '{file_uuid}'")
             logger.info(f"用户{user_id}上传md文件到minio成功: {md_file_public_url},且将源文件的pdf格式上传到minio成功: {pdf_file_public_url}")
 
+            # 返回md文件的公网url
+            return {"markdown_public_url": f"{config['server_components']['minio']['public_url_prefix']}/{bucket_name}/{user_id}/knowledgebase/{knowledge_base_id}/{file_uuid}/{file_uuid}.md",
+                "pdf_file_public_url": f"{config['server_components']['minio']['public_url_prefix']}/{bucket_name}/{user_id}/knowledgebase/{knowledge_base_id}/{file_uuid}/{file_uuid}.pdf"}
+
         except Exception as e:
             logger.error(f"上传md文件到minio失败: {e}")
             return None
@@ -942,9 +946,7 @@ async def mineru_process(file_url: str, knowledge_base_id: str, mode: str, user_
             # 关闭数据库连接
             await conn.close()
             logger.info(f"删除本地文件: {file_path} 和 {file_path.with_suffix('.md')} 和 {json_file_path}")
-            # 返回md文件的公网url
-            return {"markdown_public_url": f"{config['server_components']['minio']['public_url_prefix']}/{bucket_name}/{user_id}/knowledgebase/{knowledge_base_id}/{file_uuid}/{file_uuid}.md",
-                    "pdf_file_public_url": f"{config['server_components']['minio']['public_url_prefix']}/{bucket_name}/{user_id}/knowledgebase/{knowledge_base_id}/{file_uuid}/{file_uuid}.pdf"}
+
 
     elif mode == "normal":
         return file_url, user_id
