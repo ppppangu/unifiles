@@ -932,7 +932,9 @@ async def mineru_process(file_url: str, knowledge_base_id: str, mode: str, user_
 
             # 返回md文件的公网url
             return {"markdown_public_url": f"{config['server_components']['minio']['public_url_prefix']}/{bucket_name}/{user_id}/knowledgebase/{knowledge_base_id}/{file_uuid}/{file_uuid}.md",
-                "pdf_file_public_url": f"{config['server_components']['minio']['public_url_prefix']}/{bucket_name}/{user_id}/knowledgebase/{knowledge_base_id}/{file_uuid}/{file_uuid}.pdf"}
+                "pdf_file_public_url": f"{config['server_components']['minio']['public_url_prefix']}/{bucket_name}/{user_id}/knowledgebase/{knowledge_base_id}/{file_uuid}/{file_uuid}.pdf",
+                "file_uuid": file_uuid
+                }
 
         except Exception as e:
             logger.error(f"上传md文件到minio失败: {e}")

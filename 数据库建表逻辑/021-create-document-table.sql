@@ -37,7 +37,10 @@ CREATE TABLE IF NOT EXISTS chunk_schema.documents (
     name TEXT,
     text TEXT,                   -- 文档的完整文本内容，由components表自动生成
     component_ids TEXT[] DEFAULT '{}',
-    hierarchy_path ltree DEFAULT 'root'::ltree    -- 文档在知识库层级中的具体路径
+    hierarchy_path ltree DEFAULT 'root'::ltree,    -- 文档在知识库层级中的具体路径
+    raw_file_public_url TEXT,
+    markdown_public_url TEXT,
+    upload_time TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
 );
 
 -- 创建文档的成份表(分块和图片),由document_id和doc_position联合唯一

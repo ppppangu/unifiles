@@ -293,3 +293,8 @@ FOR EACH ROW EXECUTE FUNCTION sync_chunks_to_components();
 CREATE TRIGGER photos_after_insert_update
 AFTER INSERT OR UPDATE ON chunk_schema.photos
 FOR EACH ROW EXECUTE FUNCTION sync_photos_to_components();
+
+-- 为components表创建触发器，自动更新文档的完整文本内容
+CREATE TRIGGER components_update_document_text
+AFTER INSERT OR UPDATE OR DELETE ON chunk_schema.components
+FOR EACH ROW EXECUTE FUNCTION update_document_content();

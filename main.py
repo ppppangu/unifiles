@@ -335,10 +335,12 @@ async def process(request: Request):
                         "mode": mode, 
                         "file_url": file_url, 
                         "markdown_public_url": return_url["markdown_public_url"],
-                        "pdf_file_public_url": return_url["pdf_file_public_url"]
+                        "pdf_file_public_url": return_url["pdf_file_public_url"],
+                        "file_uuid": return_url["file_uuid"]
                     }
                 })
             elif mode == "normal":
+                file_uuid = ""
                 return JSONResponse({
                     "status": "ok", 
                     "message": "File processed successfully", 
@@ -346,7 +348,10 @@ async def process(request: Request):
                         "user_id": user_id, 
                         "file_url": file_url, 
                         "knowledge_base_id": knowledge_base_id, 
-                        "mode": mode
+                        "mode": mode,
+                        "file_uuid": file_uuid,
+                        "markdown_public_url": "",
+                        "pdf_file_public_url": ""
                     }
                 })
             else:
