@@ -864,6 +864,7 @@ async def mineru_process(file_url: str, knowledge_base_id: str, mode: str, user_
         await download_file(file_url, file_path)
         logger.info(f"下载文件到本地完成: {file_path}")
         file_url_str = str(file_path)
+        raw_file_name = file_path.name
         # 使用pdfplumber读取pdf文件
         logger.info(f"----------------第二阶段：读取文本------------------")
         text = await plumber_read_pdf(file_url_str)
@@ -927,7 +928,7 @@ async def mineru_process(file_url: str, knowledge_base_id: str, mode: str, user_
             database=pg_config["database"]
         )
             async with conn.transaction():
-                await conn.execute(f"""UPDATE chunk_schema.documents SET markdown_public_url = '{md_file_public_url}', raw_file_public_url = '{pdf_file_public_url}', upload_time = now() WHERE id = '{file_uuid}'""")
+                await conn.execute(f"""UPDATE chunk_schema.documents SET markdown_public_url = '{md_file_public_url}', raw_file_public_url = '{pdf_file_public_url}', name = '{raw_file_name}', upload_time = now() WHERE id = '{file_uuid}'""")
             logger.info(f"用户{user_id}上传md文件到minio成功: {md_file_public_url},且将源文件的pdf格式上传到minio成功: {pdf_file_public_url},且更新数据库成功")
 
             # 返回md文件的公网url
