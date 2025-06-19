@@ -40,7 +40,8 @@ CREATE TABLE IF NOT EXISTS chunk_schema.documents (
     hierarchy_path ltree DEFAULT 'root'::ltree,    -- 文档在知识库层级中的具体路径
     raw_file_public_url TEXT,
     markdown_public_url TEXT,
-    upload_time TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+    upload_time TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    tags TEXT[] DEFAULT '{}'
 );
 
 -- 创建文档的成份表(分块和图片),由document_id和doc_position联合唯一

@@ -1,6 +1,7 @@
 """
-本模块使用单例模式用于将配置文件中的embedding模型和多模态LLM自动进行负载均衡
+本模块使用单例模式用于将配置文件中的embedding模型、多模态LLM和语言LLM自动进行负载均衡
 支持基于type和alias的负载均衡，可以在特定类型或alias的实例间进行负载均衡
+支持的类型: language_embedding, multimodal_llm, language_llm
 """
 import threading
 import yaml
@@ -12,18 +13,20 @@ with open(Path(__file__).parent / "config.yaml", "r") as f:
     config = yaml.safe_load(f)
 readed_language_embeddings_list = config["api"]["language_embedding"]
 readed_multimodal_llm_list = config["api"]["multimodal_llm"]
+readed_language_llm_list = config["api"]["language_llm"]
 
 # 定义全局线程锁
 _lock = threading.Lock()
 
 # 合并所有实例
-_all_instances = readed_language_embeddings_list + readed_multimodal_llm_list
+_all_instances = readed_language_embeddings_list + readed_multimodal_llm_list + readed_language_llm_list
 _all_instances_num = len(_all_instances)
 
 # 按类型分组的实例
 _type_instances: Dict[str, List[dict]] = {
     "language_embedding": readed_language_embeddings_list,
-    "multimodal_llm": readed_multimodal_llm_list
+    "multimodal_llm": readed_multimodal_llm_list,
+    "language_llm": readed_language_llm_list
 }
 
 # 定义全局共享索引（用于所有实例的负载均衡）
@@ -37,9 +40,6 @@ _alias_indices: Dict[str, int] = {}
 
 # 定义基于alias的实例缓存
 _alias_instances_cache: Dict[str, List[dict]] = {}
-
-# 定义基于type+alias组合的实例缓存
-_type_alias_instances_cache: Dict[str, Dict[str, List[dict]]] = {}
 
 # 初始化alias实例缓存
 def _initialize_alias_cache():
@@ -139,7 +139,7 @@ def get_latest_embedding_instance(alias: Optional[str] = None, instance_type: Op
     Args:
         alias: 可选的alias参数，如果提供则只在该alias的实例间进行负载均衡
         instance_type: 可选的type参数，如果提供则只在该type的实例间进行负载均衡
-                      支持的类型: 'language_embedding', 'multimodal_llm'
+                      支持的类型: 'language_embedding', 'multimodal_llm', 'language_llm'
 
     注意: alias和instance_type参数是互斥的，不能同时使用
 

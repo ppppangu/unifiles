@@ -10,6 +10,11 @@ api:
       url: "https://api.siliconflow.cn/v1/chat/completions"
       key: "sk-sqichvhplvkasryatqtmufwevhgnvcxzgqilurqxvvvllmpo"
       alias: "Qwen2.5-VL-32B-Instruct"
+  language_llm:
+    - name: "Qwen/Qwen2.5-7B-Instruct"
+      url: "https://api.siliconflow.cn/v1/chat/completions"
+      key: "sk-sqichvhplvkasryatqtmufwevhgnvcxzgqilurqxvvvllmpo"
+      alias: "Qwen2.5-7B-Instruct"
 # server组件
 server_components:
   pg_vector:
@@ -41,3 +46,7 @@ text_chunk_strategy:
     module: "normal"
     chunk_size: 2000
     chunk_overlap: 300
+
+graph_module:
+  summary_strategy:
+    window_size: 30000

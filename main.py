@@ -37,6 +37,8 @@ from mineru_process import mineru_process
 from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
 from delete_file_module import delete_file_from_vcdb, delete_file_from_minio
 from fix.fix_pg import fixpg_public_url_250613
+# 导入图谱模块
+from graph_module import produce_document_graph, get_documents_graph
 
 # 导入配置
 from src.tools import (
@@ -384,6 +386,42 @@ async def delete_file(request: Request):
     await delete_file_from_minio(user_id, file_id, knowledge_base_id)
     return JSONResponse({"status": "ok", "message": "File deleted successfully"})
 
+async def graph_knowledge_base(request: Request):
+    form = await request.form()
+    user_id = form.get("user_id")
+    knowledge_base_id = form.get("knowledge_base_id")
+    mode = form.get("mode")
+    level = form.get("level")
+    client_ip = await get_client_ip(request)
+    logger.info(f"Knowledge base request received - user_id: {user_id} - client_ip: {client_ip} - knowledge_base_id: {knowledge_base_id}")
+    if not user_id:
+        return JSONResponse({"status": "error", "message": "user_id is required"}, status_code=400)
+    if not knowledge_base_id:
+        return JSONResponse({"status": "error", "message": "knowledge_base_id is required"}, status_code=400)
+    if not mode:
+        return JSONResponse({"status": "error", "message": "mode is required"}, status_code=400)
+    if not level:
+        return JSONResponse({"status": "error", "message": "level is required"}, status_code=400)
+    if level == "document":
+        if mode == "produce":
+            result = await produce_document_graph(user_id, knowledge_base_id)
+            return JSONResponse({"status": "ok", "message": "Knowledge base request received"})
+        elif mode == "get":
+            result = await get_documents_graph(user_id, knowledge_base_id)
+            return JSONResponse({"status": "ok", "message": "Knowledge base request received"})
+        else:
+            return JSONResponse({"status": "error", "message": "Unsupported mode: {mode}"}, status_code=400)
+    elif level == "subject":
+        if mode == "produce":
+            return JSONResponse({"status": "ok", "message": "Knowledge base request received"})
+        elif mode == "get":
+            return JSONResponse({"status": "ok", "message": "Knowledge base request received"})
+        else:
+            return JSONResponse({"status": "error", "message": "Unsupported mode: {mode}"}, status_code=400)
+    else:
+        return JSONResponse({"status": "error", "message": "Unsupported level: {level}"}, status_code=400)
+
+
 # 需要确保中间件能下载跨域文件
 middleware = [
     Middleware(CORSMiddleware,         
@@ -402,7 +440,8 @@ app = Starlette(
         Route("/get_supported_file_types", get_supported_file_types,methods=["GET"]),
         Route("/upload_minio", upload_minio,methods=["POST"]),
         Route("/process", process,methods=["POST"]),
-        Route("/delete_file", delete_file,methods=["POST"])
+        Route("/delete_file", delete_file,methods=["POST"]),
+        Route("/graph/knowledge_base", graph_knowledge_base,methods=["POST"])
     ],
     on_startup=[start_up]
 )
