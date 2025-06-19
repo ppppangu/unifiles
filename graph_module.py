@@ -41,7 +41,7 @@ extract_info_template = jinja2.Template("""
 {{ text }}
 {% endif %}
 
-请根据所给信息，生成对应文档的tags标签列表。
+请根据所给信息，生成对应文档的tags标签列表，最多生成6个标签，最少生成1个标签。
 tags标签需要用`json`格式返回，格式如下：
 ```json
 [
@@ -333,13 +333,20 @@ async def produce_document_graph(user_id: str, knowledge_base_id: str):
             updated_count = 0
             for doc, tags in zip(documents, tags_list):
                 if tags:
-                    logger.debug(f"Updating tags for document {doc['id']}: {tags}")
+                    logger.debug(f"Updating tags for document {doc['id']}: {tags} (type: {type(tags)})")
                     await conn.execute(
                         "UPDATE chunk_schema.documents SET tags = $1 WHERE id = $2",
                         tags,
                         doc["id"],
                     )
                     updated_count += 1
+
+                    # 验证更新是否成功 - 立即读回检查
+                    verification = await conn.fetchrow(
+                        "SELECT tags FROM chunk_schema.documents WHERE id = $1",
+                        doc["id"]
+                    )
+                    logger.debug(f"Verification read for document {doc['id']}: {verification['tags']} (type: {type(verification['tags'])})")
                 else:
                     logger.debug(f"No tags generated for document {doc['id']}")
 
@@ -391,7 +398,7 @@ async def get_documents_graph(user_id: str, knowledge_base_id: str):
                 return {"status": "error", "message": "Knowledge base not found"}
             logger.debug(f"Knowledge base validation successful: {knowledge_base_id}")
 
-            # 获取文档列表
+            # 获取文档列表 - 添加更详细的调试信息
             logger.debug(f"Fetching documents for knowledge base: {knowledge_base_id}")
             rows = await conn.fetch(
                 "SELECT id, name, tags FROM chunk_schema.documents WHERE knowledge_base_id = $1",
@@ -401,11 +408,44 @@ async def get_documents_graph(user_id: str, knowledge_base_id: str):
 
             documents = []
             for i, r in enumerate(rows):
-                doc = {"id": r["id"], "name": r["name"], "tags": r["tags"]}
+                # 确保tags字段正确处理 - 处理可能的数据类型问题
+                raw_tags = r["tags"]
+                if raw_tags is None:
+                    tags = []
+                elif isinstance(raw_tags, list):
+                    tags = raw_tags
+                elif isinstance(raw_tags, str):
+                    # 如果tags是字符串，尝试解析为JSON
+                    try:
+                        tags = json.loads(raw_tags) if raw_tags.strip() else []
+                    except (json.JSONDecodeError, AttributeError):
+                        logger.warning(f"Failed to parse tags as JSON for document {r['id']}: {raw_tags}")
+                        tags = []
+                else:
+                    # 其他类型，尝试转换为列表
+                    try:
+                        tags = list(raw_tags)
+                    except (TypeError, ValueError):
+                        logger.warning(f"Unexpected tags type for document {r['id']}: {type(raw_tags)} - {raw_tags}")
+                        tags = []
+
+                doc = {"id": r["id"], "name": r["name"], "tags": tags}
                 documents.append(doc)
-                logger.debug(f"Document {i+1}/{len(rows)}: {doc['id']} - {doc['name']} (tags: {len(doc['tags']) if doc['tags'] else 0})")
+
+                # 添加更详细的调试信息
+                logger.debug(f"Document {i+1}/{len(rows)}: {doc['id']} - {doc['name']}")
+                logger.debug(f"  Raw tags from DB: {raw_tags} (type: {type(raw_tags)})")
+                logger.debug(f"  Processed tags: {tags} (type: {type(tags)}, length: {len(tags)})")
 
             logger.info(f"Successfully retrieved {len(documents)} documents for knowledge base {knowledge_base_id}")
+
+            # 添加最终结果的调试信息
+            for doc in documents:
+                if doc["tags"]:
+                    logger.info(f"Document {doc['id']} has {len(doc['tags'])} tags: {doc['tags']}")
+                else:
+                    logger.warning(f"Document {doc['id']} has no tags (empty or None)")
+
             return {"status": "ok", "documents": documents}
 
     except Exception as e:

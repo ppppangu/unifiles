@@ -5,15 +5,17 @@ Test script for debugging graph module API issues
 
 import asyncio
 import asyncpg
+import sys
+import traceback
 from graph_module import get_documents_graph, produce_document_graph
 from src.tools import read_pg_config
 
 async def test_database_connection():
     """Test basic database connection and schema"""
-    pg_config = read_pg_config()
-    print(f"Connecting to database: {pg_config['host']}:{pg_config['port']}")
-    
     try:
+        pg_config = read_pg_config()
+        print(f"Connecting to database: {pg_config['host']}:{pg_config['port']}", flush=True)
+
         conn = await asyncpg.connect(
             host=pg_config["host"],
             port=pg_config["port"],
@@ -21,28 +23,29 @@ async def test_database_connection():
             password=pg_config["password"],
             database=pg_config["database"]
         )
-        
+
         # Test basic connection
         result = await conn.fetchval("SELECT version()")
-        print(f"Database version: {result}")
-        
+        print(f"Database version: {result}", flush=True)
+
         # Check if schema exists
         schema_exists = await conn.fetchval(
             "SELECT EXISTS(SELECT 1 FROM information_schema.schemata WHERE schema_name = 'chunk_schema')"
         )
-        print(f"chunk_schema exists: {schema_exists}")
-        
+        print(f"chunk_schema exists: {schema_exists}", flush=True)
+
         # Check tables
         tables = await conn.fetch(
             "SELECT table_name FROM information_schema.tables WHERE table_schema = 'chunk_schema'"
         )
-        print(f"Tables in chunk_schema: {[t['table_name'] for t in tables]}")
-        
+        print(f"Tables in chunk_schema: {[t['table_name'] for t in tables]}", flush=True)
+
         await conn.close()
         return True
-        
+
     except Exception as e:
-        print(f"Database connection error: {e}")
+        print(f"Database connection error: {e}", flush=True)
+        traceback.print_exc()
         return False
 
 async def test_user_knowledge_base_data():
@@ -134,25 +137,34 @@ async def test_get_documents_graph():
         print(f"Error calling get_documents_graph: {e}")
 
 async def main():
-    print("=== Graph Module API Debug Test ===\n")
-    
-    # Test 1: Database connection
-    print("1. Testing database connection...")
-    if not await test_database_connection():
-        print("Database connection failed. Exiting.")
-        return
-    
-    print("\n" + "="*50 + "\n")
-    
-    # Test 2: Check data
-    print("2. Testing user and knowledge base data...")
-    await test_user_knowledge_base_data()
-    
-    print("\n" + "="*50 + "\n")
-    
-    # Test 3: Test function
-    print("3. Testing get_documents_graph function...")
-    await test_get_documents_graph()
+    try:
+        print("=== Graph Module API Debug Test ===\n", flush=True)
+
+        # Test 1: Database connection
+        print("1. Testing database connection...", flush=True)
+        if not await test_database_connection():
+            print("Database connection failed. Exiting.", flush=True)
+            return
+
+        print("\n" + "="*50 + "\n", flush=True)
+
+        # Test 2: Check data
+        print("2. Testing user and knowledge base data...", flush=True)
+        await test_user_knowledge_base_data()
+
+        print("\n" + "="*50 + "\n", flush=True)
+
+        # Test 3: Test function
+        print("3. Testing get_documents_graph function...", flush=True)
+        await test_get_documents_graph()
+
+    except Exception as e:
+        print(f"Error in main: {e}", flush=True)
+        traceback.print_exc()
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    try:
+        asyncio.run(main())
+    except Exception as e:
+        print(f"Error running main: {e}", flush=True)
+        traceback.print_exc()
