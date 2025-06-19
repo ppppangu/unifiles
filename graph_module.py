@@ -1,31 +1,25 @@
-from cgitb import text
 import httpx
 import asyncio
-import logging
-import os
 import json
-import time
-import random
-import string
-import traceback
-import asyncpg
-import yaml
 import re
+import asyncpg
+import jinja2
 from loguru import logger
 from src.tools import (
     read_config,
     read_pg_config,
-    read_minio_config,
-    mk_need_path
 )
-import jinja2
 from jsonschema import validate, ValidationError
 from singleton_embedding import get_latest_embedding_instance
 # 导入重试装饰器
 from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
 
+# 初始化配置
 config = read_config()
 pg_config = read_pg_config()
+
+# 模块级别日志
+logger.info("Graph module initialized")
 
 extract_info_template = jinja2.Template("""
 {% if knowledge_base_structure %}
@@ -92,11 +86,11 @@ async def extract_summary(text: str, knowledge_base_structure: str = "", user_in
         logger.error(f"Failed to get language model instance: {e}")
         raise
 
-    async with httpx.AsyncClient(base_url=language_llm_url, timeout=30) as client:
-        logger.debug(f"Making API request to {language_llm_url}/v1/chat/completions")
+    async with httpx.AsyncClient(timeout=30) as client:
+        logger.debug(f"Making API request to {language_llm_url}")
         response = await client.post(
-            url="/v1/chat/completions",
-            headers={"Authorization": f"Bearer {language_llm_key[:10]}..."},
+            url=language_llm_url,
+            headers={"Authorization": f"Bearer {language_llm_key}"},
             json={"model": language_llm_name, "messages": [{"role": "user", "content": prompt}],"stream": False})
 
         logger.info(f"API response status: {response.status_code}")
@@ -230,6 +224,7 @@ async def database_validate(user_id: str, knowledge_base_id: str)->list[dict]:
 
 async def produce_summary_task(user_id: str, knowledge_base_id: str, document_id: str):
     """生成总结任务(当前未使用, 仅保留示例以避免语法错误)"""
+    logger.warning(f"produce_summary_task called with deprecated function - user_id: {user_id}, kb: {knowledge_base_id}, doc: {document_id}")
     try:
         # 这里只是占位实现, 实际业务请使用produce_document_graph
         return {"status": "ok", "message": "Task is deprecated, please use produce_document_graph"}
@@ -239,6 +234,8 @@ async def produce_summary_task(user_id: str, knowledge_base_id: str, document_id
 
 async def get_user_info(user_id: str) -> str:
     """获取用户的一些额外相关信息"""
+    logger.debug(f"Getting user info for user: {user_id}")
+    # 目前返回空字符串，未来可以扩展获取用户相关信息
     return ""
 
 async def produce_document_graph(user_id: str, knowledge_base_id: str):
@@ -287,28 +284,37 @@ async def produce_document_graph(user_id: str, knowledge_base_id: str):
             logger.debug(f"Knowledge base validation successful: {knowledge_base_id}")
 
             # 获取知识库内全部文档
+            logger.debug(f"Fetching documents for knowledge base: {knowledge_base_id}")
             documents: list[asyncpg.Record] = await conn.fetch(
                 "SELECT id, name, text, hierarchy_path, tags FROM chunk_schema.documents WHERE knowledge_base_id = $1",
                 knowledge_base_id,
             )
+            logger.info(f"Found {len(documents)} documents in knowledge base {knowledge_base_id}")
+
             if not documents:
+                logger.warning(f"No documents found in knowledge base {knowledge_base_id}")
                 return {
                     "status": "error",
                     "message": "Document list is empty, please upload documents first",
                 }
 
             # 知识库整体结构
+            logger.debug(f"Fetching hierarchy structure for knowledge base: {knowledge_base_id}")
             hierarchy_row = await conn.fetchrow(
                 "SELECT labels FROM chunk_schema.logical_hierarchy WHERE knowledge_base_id = $1",
                 knowledge_base_id,
             )
             overall_structure = str(hierarchy_row["labels"]) if hierarchy_row and hierarchy_row["labels"] else ""
+            logger.debug(f"Knowledge base structure: {overall_structure[:100]}..." if overall_structure else "No structure found")
 
+            logger.debug(f"Getting user info for user: {user_id}")
             user_info = await get_user_info(user_id)
 
             # 并发生成 tags
+            logger.info(f"Starting concurrent tag generation for {len(documents)} documents")
             tasks = []
-            for doc in documents:
+            for i, doc in enumerate(documents):
+                logger.debug(f"Creating task {i+1}/{len(documents)} for document: {doc['id']}")
                 tasks.append(
                     single_document_summary(
                         text=doc["text"] or "",
@@ -318,28 +324,41 @@ async def produce_document_graph(user_id: str, knowledge_base_id: str):
                         window_size=window_size,
                     )
                 )
+
+            logger.info(f"Executing {len(tasks)} tag generation tasks concurrently")
             tags_list = await asyncio.gather(*tasks)
+            logger.info(f"Completed tag generation for all documents")
 
             # 将 tags 写回数据库
+            updated_count = 0
             for doc, tags in zip(documents, tags_list):
                 if tags:
+                    logger.debug(f"Updating tags for document {doc['id']}: {tags}")
                     await conn.execute(
                         "UPDATE chunk_schema.documents SET tags = $1 WHERE id = $2",
                         tags,
                         doc["id"],
                     )
+                    updated_count += 1
+                else:
+                    logger.debug(f"No tags generated for document {doc['id']}")
 
+            logger.info(f"Successfully updated tags for {updated_count}/{len(documents)} documents")
             return {"status": "ok", "message": "Tags generated successfully"}
     except Exception as e:
-        logger.error(f"produce_document_graph error: {e}")
+        logger.error(f"produce_document_graph error for user {user_id}, kb {knowledge_base_id}: {e}", exc_info=True)
         return {"status": "error", "message": str(e)}
     finally:
         if "conn" in locals():
             await conn.close()
+            logger.debug("Database connection closed")
 
 async def get_documents_graph(user_id: str, knowledge_base_id: str):
     """获取 knowledge_base_id 下所有文档的基本信息(id, name, tags)"""
+    logger.info(f"Starting get_documents_graph - user_id: {user_id}, knowledge_base_id: {knowledge_base_id}")
+
     try:
+        logger.debug(f"Connecting to database: {pg_config['host']}:{pg_config['port']}")
         conn = await asyncpg.connect(
             host=pg_config["host"],
             port=pg_config["port"],
@@ -347,16 +366,21 @@ async def get_documents_graph(user_id: str, knowledge_base_id: str):
             password=pg_config["password"],
             database=pg_config["database"],
         )
+        logger.debug("Database connection established")
+
         async with conn.transaction():
             # 校验用户
+            logger.debug(f"Validating user: {user_id}")
             user_row = await conn.fetchrow(
                 "SELECT 1 FROM chunk_schema.users WHERE id = $1", user_id
             )
             if not user_row:
                 logger.warning(f"User {user_id} not found in chunk_schema.users")
                 return {"status": "error", "message": "User not found"}
+            logger.debug(f"User validation successful: {user_id}")
 
             # 校验知识库
+            logger.debug(f"Validating knowledge base: {knowledge_base_id} for user: {user_id}")
             kb_row = await conn.fetchrow(
                 "SELECT 1 FROM chunk_schema.knowledge_bases WHERE id = $1 AND user_id = $2",
                 knowledge_base_id,
@@ -365,28 +389,43 @@ async def get_documents_graph(user_id: str, knowledge_base_id: str):
             if not kb_row:
                 logger.warning(f"Knowledge base {knowledge_base_id} not found for user {user_id}")
                 return {"status": "error", "message": "Knowledge base not found"}
+            logger.debug(f"Knowledge base validation successful: {knowledge_base_id}")
 
+            # 获取文档列表
+            logger.debug(f"Fetching documents for knowledge base: {knowledge_base_id}")
             rows = await conn.fetch(
                 "SELECT id, name, tags FROM chunk_schema.documents WHERE knowledge_base_id = $1",
                 knowledge_base_id,
             )
             logger.info(f"Found {len(rows)} documents in knowledge base {knowledge_base_id}")
-            documents = [
-                {"id": r["id"], "name": r["name"], "tags": r["tags"]} for r in rows
-            ]
+
+            documents = []
+            for i, r in enumerate(rows):
+                doc = {"id": r["id"], "name": r["name"], "tags": r["tags"]}
+                documents.append(doc)
+                logger.debug(f"Document {i+1}/{len(rows)}: {doc['id']} - {doc['name']} (tags: {len(doc['tags']) if doc['tags'] else 0})")
+
+            logger.info(f"Successfully retrieved {len(documents)} documents for knowledge base {knowledge_base_id}")
             return {"status": "ok", "documents": documents}
+
     except Exception as e:
-        logger.error(f"get_documents_graph error: {e}")
+        logger.error(f"get_documents_graph error for user {user_id}, kb {knowledge_base_id}: {e}", exc_info=True)
         return {"status": "error", "message": str(e)}
     finally:
         if "conn" in locals():
             await conn.close()
+            logger.debug("Database connection closed")
 
 async def produce_subject_graph(user_id: str, knowledge_base_id: str):
+    logger.info(f"produce_subject_graph called - user_id: {user_id}, knowledge_base_id: {knowledge_base_id}")
+    logger.warning("produce_subject_graph is not implemented yet")
     return {"status": "ok", "message": "Knowledge base request received"}
 
 async def get_subject_graph(user_id: str, knowledge_base_id: str):
+    logger.info(f"get_subject_graph called - user_id: {user_id}, knowledge_base_id: {knowledge_base_id}")
+    logger.warning("get_subject_graph is not implemented yet")
     return {"status": "ok", "message": "Knowledge base request received"}
 
 if __name__ == "__main__":
+    logger.info("Running graph_module as main script")
     asyncio.run(produce_document_graph("123", "456"))
