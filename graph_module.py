@@ -78,14 +78,14 @@ async def extract_summary(text: str, knowledge_base_structure: str = "", user_in
     prompt = extract_info_template.render(knowledge_base_structure=knowledge_base_structure, user_info=user_info, text=text, document_location=document_location)
     # 获取语言模型实例
     language_llm_instance = get_latest_embedding_instance(instance_type="language_llm")
-    # 获取语言模型实例的url,key,alias
-    language_llm_url, language_llm_key, language_llm_alias = language_llm_instance
+    # 获取语言模型实例的name,url,key,alias
+    language_llm_name, language_llm_url, language_llm_key, language_llm_alias = language_llm_instance
 
     async with httpx.AsyncClient(base_url=language_llm_url, timeout=30) as client:
         response = await client.post(
             url="/v1/chat/completions",
             headers={"Authorization": f"Bearer {language_llm_key}"},
-            json={"model": language_llm_alias, "messages": [{"role": "user", "content": prompt}],"stream": False})
+            json={"model": language_llm_name, "messages": [{"role": "user", "content": prompt}],"stream": False})
         if response.status_code == 200:
             tags = response.json()["choices"][0]["message"]["content"]
             pattern = r"```json\n(.*?)\n```"
@@ -270,6 +270,7 @@ async def get_documents_graph(user_id: str, knowledge_base_id: str):
                 "SELECT 1 FROM chunk_schema.users WHERE id = $1", user_id
             )
             if not user_row:
+                logger.warning(f"User {user_id} not found in chunk_schema.users")
                 return {"status": "error", "message": "User not found"}
 
             # 校验知识库
@@ -279,12 +280,14 @@ async def get_documents_graph(user_id: str, knowledge_base_id: str):
                 user_id,
             )
             if not kb_row:
+                logger.warning(f"Knowledge base {knowledge_base_id} not found for user {user_id}")
                 return {"status": "error", "message": "Knowledge base not found"}
 
             rows = await conn.fetch(
                 "SELECT id, name, tags FROM chunk_schema.documents WHERE knowledge_base_id = $1",
                 knowledge_base_id,
             )
+            logger.info(f"Found {len(rows)} documents in knowledge base {knowledge_base_id}")
             documents = [
                 {"id": r["id"], "name": r["name"], "tags": r["tags"]} for r in rows
             ]
