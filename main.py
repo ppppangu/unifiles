@@ -405,10 +405,10 @@ async def graph_knowledge_base(request: Request):
     if level == "document":
         if mode == "produce":
             result = await produce_document_graph(user_id, knowledge_base_id)
-            return JSONResponse({"status": "ok", "message": "Knowledge base request received"})
+            return JSONResponse({"status": "ok", "message": "Document graph produced successfully", "data": result})
         elif mode == "get":
             result = await get_documents_graph(user_id, knowledge_base_id)
-            return JSONResponse({"status": "ok", "message": "Knowledge base request received"})
+            return JSONResponse({"status": "ok", "message": "Document graph fetched successfully", "data": result})
         else:
             return JSONResponse({"status": "error", "message": "Unsupported mode: {mode}"}, status_code=400)
     elif level == "subject":
