@@ -72,7 +72,7 @@ def tags_validate(tags: list[str])->bool:
     except ValidationError as e:
         return False
 
-@retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=4, max=15), retry_if_exception_type=(httpx.HTTPStatusError, httpx.TimeoutException, httpx.RequestError))
+@retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=4, max=15), retry=retry_if_exception_type((httpx.HTTPStatusError, httpx.TimeoutException, httpx.RequestError)))
 async def extract_summary(text: str, knowledge_base_structure: str = "", user_info: str = "", document_location: str = "")->list[str]:
     """根据知识库文档内容,知识库逻辑结构,用户的一些额外相关信息，生成这个文档的tags标签列表"""
     prompt = extract_info_template.render(knowledge_base_structure=knowledge_base_structure, user_info=user_info, text=text, document_location=document_location)
