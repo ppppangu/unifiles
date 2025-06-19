@@ -32,7 +32,7 @@ server_components:
     bucket_name: "publicfiles"
     region: "us-east-1"
     use_public_url: true
-    public_url_prefix: "http://1.tcp.cpolar.cn:21729"
+    public_url_prefix: "http://8.tcp.cpolar.cn:11869"
     active: true
   mineru:
     - url: "http://127.0.0.1:8889"
