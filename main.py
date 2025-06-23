@@ -243,7 +243,7 @@ async def convert_document_to_pdf(file_url: str):
         
         # 调用转换服务
         logger.info(f"开始转换文件: {file_url}")
-        convert_url = config["server_components"]["convert_format_server"][0]["url"] + "/convert_document_to_pdf"
+        convert_url = config["server_components"]["convert_format_server"][0]["url"] + "/convert"
         logger.info(f"转换服务URL: {convert_url}")
         
         async with httpx.AsyncClient(timeout=60.0) as client:
