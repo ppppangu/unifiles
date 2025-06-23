@@ -861,12 +861,13 @@ async def mineru_process(file_url: str, knowledge_base_id: str, mode: str, user_
         os.makedirs(tmp_dir, exist_ok=True)
         logger.info(f"----------------第一阶段：下载文件------------------")
         logger.info(f"收到请求：user_id: {user_id}, file_url: {file_url}, knowledge_base_id: {knowledge_base_id}, mode: {mode}, ")
+        file_name = file_url.split('/')[-1]
         file_path = tmp_dir / f"{file_uuid}.{file_url.split('.')[-1]}"
         logger.info(f"开始下载文件到本地: {file_path}")
         await download_file(file_url, file_path)
         logger.info(f"下载文件到本地完成: {file_path}")
         file_url_str = str(file_path)
-        raw_file_name = file_path.name
+        raw_file_name = file_name
         # 使用pdfplumber读取pdf文件
         logger.info(f"----------------第二阶段：读取文本------------------")
         text = await plumber_read_pdf(file_url_str)
