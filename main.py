@@ -312,6 +312,7 @@ async def process(request: Request):
 
         # 文件格式校验
         try:
+            raw_file = file_url
             file_url = await convert_document_to_pdf(file_url)
             if not file_url:
                 logger.error(f"不支持的文件类型或转换失败: {file_url}")
@@ -323,7 +324,7 @@ async def process(request: Request):
         # 处理文件
         try:
             if mode == "simple":
-                return_url = await mineru_process(file_url, knowledge_base_id, mode, user_id)
+                return_url = await mineru_process(file_url, knowledge_base_id, mode, user_id,raw_file_url_to_return=raw_file)
                 if not return_url:
                     logger.error("文件处理失败，未返回markdown_public_url")
                     return JSONResponse({"status": "error", "message": "File processing failed"}, status_code=500)
@@ -335,7 +336,7 @@ async def process(request: Request):
                         "user_id": user_id, 
                         "knowledge_base_id": knowledge_base_id, 
                         "mode": mode, 
-                        "file_url": file_url, 
+                        "file_url": raw_file, 
                         "markdown_public_url": return_url["markdown_public_url"],
                         "pdf_file_public_url": return_url["pdf_file_public_url"],
                         "file_uuid": return_url["file_uuid"]
