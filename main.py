@@ -247,7 +247,7 @@ async def convert_document_to_pdf(file_url: str):
         logger.info(f"转换服务URL: {convert_url}")
         
         async with httpx.AsyncClient(timeout=60.0) as client:
-            response = await client.post(convert_url, files={"file_url": file_url})
+            response = await client.post(convert_url, data={"file_url": file_url})
             response.raise_for_status()
             result = response.json()
             

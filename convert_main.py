@@ -2,6 +2,8 @@
 import os
 import pathlib
 import boto3
+from minio import Minio
+from minio.error import S3Error
 import asyncio
 import aiohttp
 import time
@@ -14,6 +16,7 @@ from starlette.routing import Route
 from starlette.middleware import Middleware
 from starlette.middleware.cors import CORSMiddleware
 from dotenv import load_dotenv
+from urllib.parse import urlparse
 
 # 加载环境变量
 load_dotenv()
@@ -37,27 +40,40 @@ supported_file_types = [
     ".html", ".htm", ".md", ".csv", ".tsv", ".xml"
 ]
 
+# 创建minio客户端的辅助函数
+def create_minio_client():
+    """创建并返回minio客户端"""
+    parsed_url = urlparse(S3_ENDPOINT_URL)
+    endpoint = f"{parsed_url.hostname}:{parsed_url.port}" if parsed_url.port else parsed_url.hostname
+    secure = parsed_url.scheme == 'https'
+    
+    return Minio(
+        endpoint,
+        access_key=S3_ACCESS_KEY_ID,
+        secret_key=S3_SECRET_ACCESS_KEY,
+        secure=secure
+    )
+
 # 编写初始化函数和关闭函数
 async def on_startup():
-    # 初始化 s3 客户端，测试连通性
-    s3_client = boto3.client(
-        "s3",
-        aws_access_key_id=S3_ACCESS_KEY_ID,
-        aws_secret_access_key=S3_SECRET_ACCESS_KEY,
-        region_name=S3_REGION,
-        endpoint_url=S3_ENDPOINT_URL)
+    # 初始化 minio 客户端，测试连通性
     try:
-        s3_client.list_buckets()
-        logger.info(f"S3 连接成功: {S3_ENDPOINT_URL}")
+        minio_client = create_minio_client()
+        
+        # 测试连接
+        buckets = minio_client.list_buckets()
+        logger.info(f"Minio/S3 连接成功: {S3_ENDPOINT_URL}")
+        logger.info(f"可用的存储桶: {[bucket.name for bucket in buckets]}")
+        
+        # 检查目标存储桶是否存在
+        if not minio_client.bucket_exists(S3_BUCKET_NAME):
+            logger.warning(f"存储桶 '{S3_BUCKET_NAME}' 不存在，将在上传时自动创建")
+        else:
+            logger.info(f"存储桶 '{S3_BUCKET_NAME}' 存在且可访问")
+            
     except Exception as e:
-        logger.error(f"S3 server is unusable: {e}")
+        logger.error(f"Minio/S3 server is unusable: {e}")
         logger.warning("将继续启动服务，但S3相关功能可能无法正常工作")
-        # 不再抛出异常，允许服务继续启动
-    finally:
-        try:
-            s3_client.close()
-        except Exception as e:
-            logger.error(f"Failed to close s3 client: {e}")
             
     # 设置 日志文件 位置，每次启动自动生成一个log文件
     log_file = pathlib.Path(__file__).parent / "logs" / f"log_{time.strftime('%Y-%m-%d_%H-%M-%S')}.log"
@@ -86,30 +102,46 @@ async def convert(request: Request):
     form_data = await request.form()
     logger.info(f"client ip is : {client_ip}, time: {time.strftime('%Y-%m-%d %H:%M:%S')}, form data is: {form_data}")
 
-    # 获取文件的s3 url地址，用于下载文件
+    # 支持两种方式：1. 通过file_url下载文件  2. 直接上传文件
     file_url = form_data.get("file_url")
-    if not file_url:
-        return JSONResponse({"error": "file_url is required"}, status_code=400)
+    uploaded_file = form_data.get("file")
+    
+    # 检查是否提供了文件URL或上传的文件
+    if not file_url and not uploaded_file:
+        return JSONResponse({"error": "Either file_url or file upload is required"}, status_code=400)
+    
+    # 如果同时提供了两个参数，优先使用file_url
+    if file_url and uploaded_file:
+        logger.warning("Both file_url and file provided, using file_url")
+        uploaded_file = None
 
-    # 清理URL，移除多余的引号和反斜杠
-    file_url = file_url.strip('"\'\\[]')
+    # 处理文件扩展名和文件名
+    if file_url:
+        # 从URL获取文件信息
+        file_url = file_url.strip('"\'\\[]')
+        file_extension = file_url.split('.')[-1].strip('"\'\\[]')
+        file_name = pathlib.Path(file_url.split("/")[-1].strip('"\'\\[]'))
+        original_source = file_url
+    else:
+        # 从上传文件获取文件信息
+        if not uploaded_file.filename:
+            return JSONResponse({"error": "Uploaded file must have a filename"}, status_code=400)
+        file_name = pathlib.Path(uploaded_file.filename)
+        file_extension = file_name.suffix.lstrip('.').lower()
+        original_source = f"uploaded_file: {uploaded_file.filename}"
 
-    # 提取文件扩展名并清理
-    file_extension = file_url.split('.')[-1].strip('"\'\\[]')
-
+    # 检查文件是否已经是PDF
     if file_extension.lower() == "pdf":
         return JSONResponse({"error": "file is already pdf"}, status_code=400)
 
     # 检查文件扩展名是否在支持的列表中
-    if not any(file_url.lower().endswith(ext) for ext in supported_file_types):
+    file_ext_with_dot = f".{file_extension.lower()}"
+    if file_ext_with_dot not in supported_file_types:
         return JSONResponse({"error": f"file type not supported, given file type is: {file_extension}"}, status_code=400)
 
     # 创建下载tmp文件夹
     download_file_dir = pathlib.Path(__file__).parent / "tmp"
     download_file_dir.mkdir(parents=True, exist_ok=True)
-
-    # 从URL中提取文件名，并清理可能的特殊字符
-    file_name = pathlib.Path(file_url.split("/")[-1].strip('"\'\\[]'))
 
     # 生成唯一的下载文件路径
     timestamp = str(time.time())
@@ -121,21 +153,28 @@ async def convert(request: Request):
     # 结果字典
     result = {
         "status": "success",
-        "original_url": file_url,
+        "original_source": original_source,
         "converted_url": ""
     }
 
     try:
-        # 下载文件
+        # 获取文件内容（下载或保存上传的文件）
         try:
-            async with aiohttp.ClientSession() as session:
-                async with session.get(file_url,timeout=aiohttp.ClientTimeout(total=300)) as response:
-                    with open(download_file_path, "wb") as f:
-                        f.write(await response.read())
-            logger.info(f"File downloaded successfully, file_url: {file_url}, time: {time.strftime('%Y-%m-%d %H:%M:%S')}")
+            if file_url:
+                # 从URL下载文件
+                async with aiohttp.ClientSession() as session:
+                    async with session.get(file_url,timeout=aiohttp.ClientTimeout(total=300)) as response:
+                        with open(download_file_path, "wb") as f:
+                            f.write(await response.read())
+                logger.info(f"File downloaded successfully, file_url: {file_url}, time: {time.strftime('%Y-%m-%d %H:%M:%S')}")
+            else:
+                # 保存上传的文件
+                with open(download_file_path, "wb") as f:
+                    f.write(await uploaded_file.read())
+                logger.info(f"File uploaded successfully, filename: {uploaded_file.filename}, time: {time.strftime('%Y-%m-%d %H:%M:%S')}")
         except Exception as e:
-            logger.error(f"Failed to download file, file_url: {file_url}, error: {e}")
-            return JSONResponse({"error": "Failed to download file"}, status_code=500)
+            logger.error(f"Failed to process file, source: {original_source}, error: {e}")
+            return JSONResponse({"error": "Failed to process file"}, status_code=500)
 
         # 将文件转换为pdf, 并保存到本地
         try:
@@ -156,7 +195,7 @@ async def convert(request: Request):
                                                         stderr=asyncio.subprocess.PIPE)
             stdout, stderr = await process.communicate()
             if process.returncode != 0:
-                logger.error(f"Failed to convert file, file_url: {file_url},abs_download_path: {abs_download_path}, abs_output_dir: {abs_output_dir}, error: {stderr.decode()}")
+                logger.error(f"Failed to convert file, source: {original_source}, abs_download_path: {abs_download_path}, abs_output_dir: {abs_output_dir}, error: {stderr.decode()}")
                 # 记录更详细的错误信息
                 logger.error(f"Conversion command details - File: {abs_download_path}, Output Dir: {abs_output_dir}")
                 logger.error(f"Stdout: {stdout.decode() if stdout else 'None'}")
@@ -164,17 +203,12 @@ async def convert(request: Request):
             else:
                 logger.info(f"File conversion successful. Stdout: {stdout.decode() if stdout else 'None'}")
         except Exception as e:
-            logger.error(f"Failed to convert file, file_url: {file_url}, error: {e}")
+            logger.error(f"Failed to convert file, source: {original_source}, error: {e}")
             return JSONResponse({"error": "Failed to convert file"}, status_code=500)
 
-        # 将文件上传到s3, 并设置过期时间
+        # 将文件上传到minio/s3
         try:
-            s3_client = boto3.client(
-                "s3",
-                aws_access_key_id=S3_ACCESS_KEY_ID,
-                aws_secret_access_key=S3_SECRET_ACCESS_KEY,
-                region_name=S3_REGION,
-                endpoint_url=S3_ENDPOINT_URL)
+            minio_client = create_minio_client()
             s3_upload_file_path = f"convert_file2pdf_server/{str(time.time())}_{str(file_name.with_suffix('.pdf'))}"
             pdf_path = download_file_path.with_suffix(".pdf")
             
@@ -185,32 +219,49 @@ async def convert(request: Request):
                 dir_files = list(download_file_path.parent.glob('*'))
                 logger.info(f"Files in directory: {dir_files}")
                 return JSONResponse({"error": "Converted PDF file not found"}, status_code=500)
-                
-            s3_client.upload_file(str(pdf_path), S3_BUCKET_NAME, str(s3_upload_file_path))
-            # 设置过期时间
+            
+            # 检查存储桶是否存在，如果不存在则创建
+            if not minio_client.bucket_exists(S3_BUCKET_NAME):
+                logger.warning(f"Bucket '{S3_BUCKET_NAME}' does not exist, attempting to create it")
+                try:
+                    minio_client.make_bucket(S3_BUCKET_NAME)
+                    logger.info(f"Successfully created bucket '{S3_BUCKET_NAME}'")
+                except S3Error as e:
+                    logger.error(f"Failed to create bucket '{S3_BUCKET_NAME}': {e}")
+                    return JSONResponse({"error": f"Failed to create bucket: {e}"}, status_code=500)
+            
+            # 准备上传文件的元数据
+            metadata = {}
             if PDF_EXPIRE_TIME > 0:
-                s3_client.put_object_tagging(
-                    Bucket=S3_BUCKET_NAME,
-                    Key=s3_upload_file_path,
-                    Tagging={
-                        'TagSet': [
-                            {
-                                'Key': 'expire_time',
-                                'Value': str(int(time.time()) + PDF_EXPIRE_TIME)
-                            },
-                        ]
-                    }
-                )
+                metadata = {
+                    "expire_time": str(int(time.time()) + PDF_EXPIRE_TIME),
+                    "uploaded_at": str(int(time.time()))
+                }
+            
+            # 上传文件到minio
+            logger.info(f"Uploading file to minio: {pdf_path} -> {S3_BUCKET_NAME}/{s3_upload_file_path}")
+            minio_client.fput_object(
+                bucket_name=S3_BUCKET_NAME,
+                object_name=s3_upload_file_path,
+                file_path=str(pdf_path),
+                content_type="application/pdf",
+                metadata=metadata
+            )
+            
             # 添加转换后的URL到结果字典
             s3_download_url = f"{S3_ENDPOINT_URL}/{S3_BUCKET_NAME}/{s3_upload_file_path}"
             if DOWNLOAD_URL_PREFIX:
                 result["converted_url"] = f"{DOWNLOAD_URL_PREFIX}/{S3_BUCKET_NAME}/{s3_upload_file_path}"
             else:
                 result["converted_url"] = s3_download_url
-            logger.info(f"File converted successfully, upload to s3, original file_url: {file_url}, time: {time.strftime('%Y-%m-%d %H:%M:%S')}")
+            logger.info(f"File converted successfully, uploaded to minio/s3, original source: {original_source}, time: {time.strftime('%Y-%m-%d %H:%M:%S')}")
+            
+        except S3Error as e:
+            logger.error(f"Minio S3 error while uploading file, source: {original_source}, error: {e}")
+            return JSONResponse({"error": f"Failed to upload file to storage: {str(e)}"}, status_code=500)
         except Exception as e:
-            logger.error(f"Failed to upload file to s3, file_url: {file_url}, error: {e}")
-            return JSONResponse({"error": "Failed to upload file to s3"}, status_code=500)
+            logger.error(f"Failed to upload file to minio/s3, source: {original_source}, error: {e}")
+            return JSONResponse({"error": "Failed to upload file to storage"}, status_code=500)
     finally:
         # 删除下载的原始文件
         if download_file_path.exists():

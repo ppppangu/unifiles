@@ -38,7 +38,7 @@ server_components:
     - url: "http://127.0.0.1:8889"
       active: true
   convert_format_server:
-    - url: "http://127.0.0.1:31758"
+    - url: "http://127.0.0.1:7758"
       active: true
 
 text_chunk_strategy:
