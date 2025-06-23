@@ -304,6 +304,7 @@ async def split_text_by_json(json_file_path: str):
 async def save_text_to_vcdb_text_table(
     text: str,
     document_id: str,
+    document_name: str,
     user_id: str,
     knowledge_base_id: str,
     chunk_id: Optional[str] = None,
@@ -419,7 +420,7 @@ async def save_text_to_vcdb_text_table(
                         ON CONFLICT (id) DO NOTHING
                     """
                     await conn.execute(doc_insert_query, document_id, knowledge_base_id,
-                                     f"Document {document_id}", "")
+                                     document_name, "")
                     logger.info(f"Successfully created document {document_id}")
 
                 # 4. 插入文本块到chunks表
@@ -482,6 +483,7 @@ async def save_photo_to_vcdb_photo_table(
     user_id: str,
     knowledge_base_id: str,
     document_id: str,
+    document_name: str,
     position: int,
     text: str,
     photo_id: Optional[str] = None,
@@ -608,7 +610,7 @@ async def save_photo_to_vcdb_photo_table(
                         ON CONFLICT (id) DO NOTHING
                     """
                     await conn.execute(doc_insert_query, document_id, knowledge_base_id,
-                                     f"Document {document_id}", "")
+                                     document_name, "")
                     logger.info(f"Successfully created document {document_id}")
 
                 # 4. 插入图片到photos表
@@ -668,12 +670,12 @@ async def save_photo_to_vcdb_photo_table(
         logger.error(f"Failed to save photo to database: {e}")
         raise Exception(f"Database operation failed: {str(e)}")
 
-async def save_something_to_vcdb(user_id:str,knowledge_base_id:str,document_id:str,position:int,text:str,type:str,embedding:List[float]):
+async def save_something_to_vcdb(user_id:str,knowledge_base_id:str,document_id:str,document_name:str,position:int,text:str,type:str,embedding:List[float]):
     if type == "text":
-        return await save_text_to_vcdb_text_table(text,document_id,user_id,knowledge_base_id,doc_position=position,embedding=embedding)
+        return await save_text_to_vcdb_text_table(text,document_id,document_name,user_id,knowledge_base_id,doc_position=position,embedding=embedding)
     elif type == "image":
         photo_url = extract_photo_url(text)
-        return await save_photo_to_vcdb_photo_table(photo_url=photo_url,user_id=user_id,knowledge_base_id=knowledge_base_id,document_id=document_id,position=position,text=text,embedding=embedding)
+        return await save_photo_to_vcdb_photo_table(photo_url=photo_url,user_id=user_id,knowledge_base_id=knowledge_base_id,document_id=document_id,document_name=document_name,position=position,text=text,embedding=embedding)
     else:
         raise ValueError(f"Invalid type: {type}")
 
@@ -895,7 +897,7 @@ async def mineru_process(file_url: str, knowledge_base_id: str, mode: str, user_
         # 将json文件中的全部类目全部条目存入向量数据库
         async with aiofiles.open(json_file_path, "r", encoding="utf-8") as f:
             results = json.loads(await f.read())
-        tasks = [save_something_to_vcdb(user_id,knowledge_base_id,file_uuid,result["index"],result["content"],result["type"],result["embedding"]) for result in results]
+        tasks = [save_something_to_vcdb(user_id,knowledge_base_id,file_uuid,raw_file_name,result["index"],result["content"],result["type"],result["embedding"]) for result in results]
         await asyncio.gather(*tasks)
         logger.info("将json文件中的全部类目全部条目存入向量数据库完成，共{len(results)}个条目")
         logger.info("----------------第五阶段：做云端存储------------------")
