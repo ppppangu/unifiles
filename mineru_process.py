@@ -872,6 +872,9 @@ async def mineru_process(file_url: str, knowledge_base_id: str, mode: str, user_
         logger.info(f"----------------第二阶段：读取文本------------------")
         text = await plumber_read_pdf(file_url_str)
         logger.info(f"使用simple模式读取pdf文件完成，共{len(text)}个字符")
+        if text == "":
+            text = "这是一个占位符，用于保证边缘情况，需要图片处理走normal模式"
+            logger.info(f"原文件为图片或仅含图片的文档格式，已使用占位符填充保证边缘情况，需要图片处理走normal模式")
         logger.info(f"------------------第三阶段：前处理--------------------")
         # 进行两轮分块策略，第一轮以图片为间隔，第二轮针对文本进行分块
         # 第一轮分块策略
