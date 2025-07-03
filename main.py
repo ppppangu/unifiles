@@ -45,7 +45,8 @@ from src.tools import (
     read_config,
     read_pg_config,
     read_minio_config,
-    mk_need_path
+    mk_need_path,
+    detect_content_type
 )
 
 # 读取相关配置
@@ -170,6 +171,11 @@ async def upload_minio(request: Request):
             minio_client.make_bucket(bucket_name)
             logger.info(f"Created bucket: {bucket_name}")
 
+        # 为上传设置合适的 Content-Type
+        content_type = upload_file.content_type
+        if not content_type or content_type == "application/octet-stream":
+            content_type = detect_content_type(filename)
+
         # 上传文件到MinIO
         file_stream = io.BytesIO(file_content)
         minio_client.put_object(
@@ -177,7 +183,7 @@ async def upload_minio(request: Request):
             object_path,
             file_stream,
             length=len(file_content),
-            content_type=upload_file.content_type or "application/octet-stream"
+            content_type=content_type
         )
 
         logger.info(f"File uploaded successfully to MinIO: {object_path}")

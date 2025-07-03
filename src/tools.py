@@ -44,6 +44,41 @@ def mk_need_path() -> None:
     mk_logs_path()
     mk_temp_path()
 
+# ======================================
+# ===========  MIME 类型相关 ============
+# ======================================
+
+def detect_content_type(file_name: str, default: str = "application/octet-stream") -> str:
+    """根据文件扩展名智能检测 Content-Type。
+
+    参数:
+        file_name: 文件名或路径, 用于提取扩展名
+        default: 无法识别时返回的默认 Content-Type
+
+    返回:
+        合适的 MIME 类型字符串, 失败时返回 default
+    """
+    import mimetypes
+    # 先使用标准库猜测
+    mime_type, _ = mimetypes.guess_type(file_name)
+    if mime_type:
+        return mime_type
+
+    # 扩展自定义映射
+    from pathlib import Path
+    ext = Path(file_name).suffix.lower()
+
+    custom_mapping = {
+        ".md": "text/markdown",
+        ".markdown": "text/markdown",
+        ".csv": "text/csv",
+        ".tsv": "text/tab-separated-values",
+        ".yml": "application/x-yaml",
+        ".yaml": "application/x-yaml",
+    }
+
+    return custom_mapping.get(ext, default)
+
 # 验证用户id在数据库和minio中是否存在
 async def validate_user_id(user_id: str) -> bool:
     pg_config = read_pg_config()

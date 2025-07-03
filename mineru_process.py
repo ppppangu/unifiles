@@ -16,6 +16,7 @@ import json
 import asyncpg
 from typing import Optional, List
 from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
+from src.tools import detect_content_type
 
 with open("config.yaml", "r") as f:
     config = yaml.safe_load(f)
@@ -852,112 +853,147 @@ async def download_file(file_url: str, file_path: str):
         logger.error(f"错误类型: {type(e).__name__}")
         raise Exception(f"下载文件失败: {str(e)}")
 
+async def request_mineru(file_url: str):
+    # 请求mineru，返回存储的md的url
+    
+    pass
+
 async def mineru_process(file_url: str, knowledge_base_id: str, mode: str, user_id: str,raw_file_url_to_return:str = ""):
+    tmp_dir = Path(__file__).parent / "tmp"
+    # 确保tmp目录存在
+    file_uuid = str(uuid.uuid4())
+    os.makedirs(tmp_dir, exist_ok=True)
+    ocr_file_path = tmp_dir / f"{file_uuid}_ocr.md"
+    # 下载文件到本地
+    logger.info(f"----------------第一阶段：下载文件------------------")
+    logger.info(f"收到请求：user_id: {user_id}, file_url: {file_url}, knowledge_base_id: {knowledge_base_id}, mode: {mode}, ")
+    file_name = file_url.split('/')[-1]
+    file_path = tmp_dir / f"{file_uuid}.{file_url.split('.')[-1]}"
+    logger.info(f"开始下载文件到本地: {file_path}")
+    await download_file(file_url, file_path)
+    logger.info(f"下载文件到本地完成: {file_path}")
+    file_url_str = str(file_path)
+    raw_file_name = file_name
+    # 使用pdfplumber读取pdf文件
+    logger.info(f"----------------第二阶段：读取文本------------------")
     if mode == "simple":
-        # 下载文件到本地
-        tmp_dir = Path(__file__).parent / "tmp"
-        # 确保tmp目录存在
-        file_uuid = str(uuid.uuid4())
-        os.makedirs(tmp_dir, exist_ok=True)
-        logger.info(f"----------------第一阶段：下载文件------------------")
-        logger.info(f"收到请求：user_id: {user_id}, file_url: {file_url}, knowledge_base_id: {knowledge_base_id}, mode: {mode}, ")
-        file_name = file_url.split('/')[-1]
-        file_path = tmp_dir / f"{file_uuid}.{file_url.split('.')[-1]}"
-        logger.info(f"开始下载文件到本地: {file_path}")
-        await download_file(file_url, file_path)
-        logger.info(f"下载文件到本地完成: {file_path}")
-        file_url_str = str(file_path)
-        raw_file_name = file_name
-        # 使用pdfplumber读取pdf文件
-        logger.info(f"----------------第二阶段：读取文本------------------")
         text = await plumber_read_pdf(file_url_str)
         logger.info(f"使用simple模式读取pdf文件完成，共{len(text)}个字符")
-        if text == "":
+        if text == "" or not text:
             text = "这是一个占位符，用于保证边缘情况，需要图片处理走normal模式"
             logger.info(f"原文件为图片或仅含图片的文档格式，已使用占位符填充保证边缘情况，需要图片处理走normal模式")
-        logger.info(f"------------------第三阶段：前处理--------------------")
-        # 进行两轮分块策略，第一轮以图片为间隔，第二轮针对文本进行分块
-        # 第一轮分块策略
-        # 将文本进行图片链接替换和分块为列表，列表的元素为(开始索引, 结束索引, 类型)
-        logger.info(f"开始进行第一轮图片边界分块策略，开始分块")
-        text,results = await asyncio.to_thread(find_all_text_and_image_index,text,user_id,knowledge_base_id,file_uuid)
-        logger.info(f"第一轮以图片为分界，分块策略完成，共{len(results)}个条目")
-        # 保存results到json文件，转换后的json除了uuid，_convertedurl.json结尾
-        # 构建JSON文件路径: uuid_convertedurl.json (避免重复UUID)
-        json_file_path = file_path.parent / f"{file_uuid}_convertedurl.json"
-        # 保存初次结果为json文件
-        await save_results_to_json(text, results, str(json_file_path))
-        logger.info(f"保存初次结果为json文件成功，已将图片描述文本替换到[]里，文件路径: {json_file_path}")
-        logger.info("开始进行第二轮文本分块策略，开始分块")
-        # 第二轮分块策略
-        # 将json文件中的文本进行分块策略 
-        await split_text_by_json(str(json_file_path))
-        logger.info(f"第二轮将类型为text的文本进行分块策略完成，共{len(results)}个条目")
-        # 将json文件中的embedding做嵌入
-        logger.info("开始进行第三轮embedding策略，开始embedding")
-        json_file_path = await embedding_json_file(str(json_file_path))
-        logger.info(f"将json文件中的全部类目全部条目embedding做嵌入完成，共{len(results)}个条目，文件路径: {json_file_path}")
-        logger.info("----------------第四阶段：存入向量数据库------------------")
-        # 将json文件中的全部类目全部条目存入向量数据库
-        async with aiofiles.open(json_file_path, "r", encoding="utf-8") as f:
-            results = json.loads(await f.read())
-        tasks = [save_something_to_vcdb(user_id,knowledge_base_id,file_uuid,raw_file_name,result["index"],result["content"],result["type"],result["embedding"]) for result in results]
-        await asyncio.gather(*tasks)
-        logger.info("将json文件中的全部类目全部条目存入向量数据库完成，共{len(results)}个条目")
-        logger.info("----------------第五阶段：做云端存储------------------")
-        logger.info("----------半处理json解析为md文件,存储md用于预览---------")
-        logger.info("-----------------全处理json, 存储json-----------------")   
-        # 写入md文件
-        async with aiofiles.open(file_path.with_suffix(".md"), "w", encoding="utf-8") as f:
-            await f.write(text)
-        try:
-            # 使用miniosdk上传md文件到minio，minio相关配置在config.yaml中
-            host = config["server_components"]["minio"]["host"]
-            port = int(config["server_components"]["minio"]["port"])
-            access_key = config["server_components"]["minio"]["access_key"]
-            secret_key = config["server_components"]["minio"]["secret_key"]
-            region = config["server_components"]["minio"]["region"]
-            bucket_name = config["server_components"]["minio"]["bucket_name"]
-            # MinIO client endpoint should be "host:port" and secure=False for HTTP
-            endpoint = f"{host}:{port}"
-            minio_client = Minio(endpoint, access_key=access_key, secret_key=secret_key, secure=False, region=region)
-            await asyncio.to_thread(minio_client.fput_object, bucket_name, f"{user_id}/knowledgebase/{knowledge_base_id}/{file_uuid}/{file_uuid}.md", file_path.with_suffix(".md"))
-            await asyncio.to_thread(minio_client.fput_object, bucket_name, f"{user_id}/knowledgebase/{knowledge_base_id}/{file_uuid}/{file_uuid}.pdf", file_path)
-            md_file_public_url = f"{config['server_components']['minio']['public_url_prefix']}/{bucket_name}/{user_id}/knowledgebase/{knowledge_base_id}/{file_uuid}/{file_uuid}.md"
-            pdf_file_public_url = f"{config['server_components']['minio']['public_url_prefix']}/{bucket_name}/{user_id}/knowledgebase/{knowledge_base_id}/{file_uuid}/{file_uuid}.pdf"
-            pg_config = config["server_components"]["pg_vector"]
-            conn = await asyncpg.connect(
-            host=pg_config["host"],
-            port=int(pg_config["port"]),
-            user=pg_config["user"],
-            password=pg_config["password"],
-            database=pg_config["database"]
-        )
-            async with conn.transaction():
-                await conn.execute(f"""UPDATE chunk_schema.documents SET markdown_public_url = '{md_file_public_url}', raw_file_public_url = '{raw_file_url_to_return}', name = '{raw_file_name}', upload_time = now() WHERE id = '{file_uuid}'""")
-            logger.info(f"用户{user_id}上传md文件到minio成功: {md_file_public_url},且将源文件的pdf格式上传到minio成功: {pdf_file_public_url},且更新数据库成功")
-
-            # 返回md文件的公网url
-            return {"markdown_public_url": f"{config['server_components']['minio']['public_url_prefix']}/{bucket_name}/{user_id}/knowledgebase/{knowledge_base_id}/{file_uuid}/{file_uuid}.md",
-                "pdf_file_public_url": f"{config['server_components']['minio']['public_url_prefix']}/{bucket_name}/{user_id}/knowledgebase/{knowledge_base_id}/{file_uuid}/{file_uuid}.pdf",
-                "file_uuid": file_uuid
-                }
-
-        except Exception as e:
-            logger.error(f"上传md文件到minio失败: {e}")
-            return None
-        finally:
-            # 删除本地文件，pdf和md文件，json文件
-            await asyncio.to_thread(os.remove, file_path)
-            await asyncio.to_thread(os.remove, file_path.with_suffix(".md"))
-            await asyncio.to_thread(os.remove, json_file_path)
-            # 关闭数据库连接
-            await conn.close()
-            logger.info(f"删除本地文件: {file_path} 和 {file_path.with_suffix('.md')} 和 {json_file_path}")
-
-
     elif mode == "normal":
-        return file_url, user_id
+        ocr_url = await request_mineru(file_url)
+        await download_file(ocr_url, ocr_file_path)
+        logger.info(f"下载文件到本地完成: {ocr_file_path}")
+        # 读取md文件
+        async with aiofiles.open(ocr_file_path, "r", encoding="utf-8") as f:
+            text = await f.read()
+        logger.info(f"读取md文件完成，共{len(text)}个字符")
+        if not text or text == "":
+            text = "这是一个占位符，用于保证边缘情况,文档已经mineru处理"
+            logger.info(f"已经过mineru处理，但text为空，已使用占位符填充保证边缘情况，可能是文档为空文档")
+    else:
+        raise ValueError(f"Invalid mode: {mode}")
+    logger.info(f"------------------第三阶段：前处理--------------------")
+    # 进行两轮分块策略，第一轮以图片为间隔，第二轮针对文本进行分块
+    # 第一轮分块策略
+    # 将文本进行图片链接替换和分块为列表，列表的元素为(开始索引, 结束索引, 类型)
+    logger.info(f"开始进行第一轮图片边界分块策略，开始分块")
+    text,results = await asyncio.to_thread(find_all_text_and_image_index,text,user_id,knowledge_base_id,file_uuid)
+    logger.info(f"第一轮以图片为分界，分块策略完成，共{len(results)}个条目")
+    # 保存results到json文件，转换后的json除了uuid，_convertedurl.json结尾
+    # 构建JSON文件路径: uuid_convertedurl.json (避免重复UUID)
+    json_file_path = file_path.parent / f"{file_uuid}_convertedurl.json"
+    # 保存初次结果为json文件
+    await save_results_to_json(text, results, str(json_file_path))
+    logger.info(f"保存初次结果为json文件成功，已将图片描述文本替换到[]里，文件路径: {json_file_path}")
+    logger.info("开始进行第二轮文本分块策略，开始分块")
+    # 第二轮分块策略
+    # 将json文件中的文本进行分块策略 
+    await split_text_by_json(str(json_file_path))
+    logger.info(f"第二轮将类型为text的文本进行分块策略完成，共{len(results)}个条目")
+    # 将json文件中的embedding做嵌入
+    logger.info("开始进行第三轮embedding策略，开始embedding")
+    json_file_path = await embedding_json_file(str(json_file_path))
+    logger.info(f"将json文件中的全部类目全部条目embedding做嵌入完成，共{len(results)}个条目，文件路径: {json_file_path}")
+    logger.info("----------------第四阶段：存入向量数据库------------------")
+    # 将json文件中的全部类目全部条目存入向量数据库
+    async with aiofiles.open(json_file_path, "r", encoding="utf-8") as f:
+        results = json.loads(await f.read())
+    tasks = [save_something_to_vcdb(user_id,knowledge_base_id,file_uuid,raw_file_name,result["index"],result["content"],result["type"],result["embedding"]) for result in results]
+    await asyncio.gather(*tasks)
+    logger.info("将json文件中的全部类目全部条目存入向量数据库完成，共{len(results)}个条目")
+    logger.info("----------------第五阶段：做云端存储------------------")
+    logger.info("----------半处理json解析为md文件,存储md用于预览---------")
+    logger.info("-----------------全处理json, 存储json-----------------")   
+    # 写入md文件
+    async with aiofiles.open(file_path.with_suffix(".md"), "w", encoding="utf-8") as f:
+        await f.write(text)
+    try:
+        # 使用miniosdk上传md文件到minio，minio相关配置在config.yaml中
+        host = config["server_components"]["minio"]["host"]
+        port = int(config["server_components"]["minio"]["port"])
+        access_key = config["server_components"]["minio"]["access_key"]
+        secret_key = config["server_components"]["minio"]["secret_key"]
+        region = config["server_components"]["minio"]["region"]
+        bucket_name = config["server_components"]["minio"]["bucket_name"]
+        # MinIO client endpoint should be "host:port" and secure=False for HTTP
+        endpoint = f"{host}:{port}"
+        minio_client = Minio(endpoint, access_key=access_key, secret_key=secret_key, secure=False, region=region)
+        # 检测 MIME 类型
+        md_content_type = detect_content_type(str(file_path.with_suffix(".md")))
+        pdf_content_type = detect_content_type(str(file_path))
+
+        # 上传 MD 文件
+        await asyncio.to_thread(
+            minio_client.fput_object,
+            bucket_name,
+            f"{user_id}/knowledgebase/{knowledge_base_id}/{file_uuid}/{file_uuid}.md",
+            str(file_path.with_suffix(".md")),
+            md_content_type
+        )
+        # 上传 PDF 文件
+        await asyncio.to_thread(
+            minio_client.fput_object,
+            bucket_name,
+            f"{user_id}/knowledgebase/{knowledge_base_id}/{file_uuid}/{file_uuid}.pdf",
+            str(file_path),
+            pdf_content_type
+        )
+        md_file_public_url = f"{config['server_components']['minio']['public_url_prefix']}/{bucket_name}/{user_id}/knowledgebase/{knowledge_base_id}/{file_uuid}/{file_uuid}.md"
+        pdf_file_public_url = f"{config['server_components']['minio']['public_url_prefix']}/{bucket_name}/{user_id}/knowledgebase/{knowledge_base_id}/{file_uuid}/{file_uuid}.pdf"
+        pg_config = config["server_components"]["pg_vector"]
+        conn = await asyncpg.connect(
+        host=pg_config["host"],
+        port=int(pg_config["port"]),
+        user=pg_config["user"],
+        password=pg_config["password"],
+        database=pg_config["database"]
+    )
+        async with conn.transaction():
+            await conn.execute(f"""UPDATE chunk_schema.documents SET markdown_public_url = '{md_file_public_url}', raw_file_public_url = '{raw_file_url_to_return}', name = '{raw_file_name}', upload_time = now() WHERE id = '{file_uuid}'""")
+        logger.info(f"用户{user_id}上传md文件到minio成功: {md_file_public_url},且将源文件的pdf格式上传到minio成功: {pdf_file_public_url},且更新数据库成功")
+
+        # 返回md文件的公网url
+        return {"markdown_public_url": f"{config['server_components']['minio']['public_url_prefix']}/{bucket_name}/{user_id}/knowledgebase/{knowledge_base_id}/{file_uuid}/{file_uuid}.md",
+            "pdf_file_public_url": f"{config['server_components']['minio']['public_url_prefix']}/{bucket_name}/{user_id}/knowledgebase/{knowledge_base_id}/{file_uuid}/{file_uuid}.pdf",
+            "file_uuid": file_uuid
+            }
+
+    except Exception as e:
+        logger.error(f"上传md文件到minio失败: {e}")
+        return None
+    finally:
+        # 删除本地文件，pdf和md文件，json文件
+        await asyncio.to_thread(Path(file_path).unlink(missing_ok=True))
+        await asyncio.to_thread(Path(file_path.with_suffix(".md")).unlink(missing_ok=True))
+        await asyncio.to_thread(Path(json_file_path).unlink(missing_ok=True))
+        await asyncio.to_thread(Path(ocr_file_path).unlink(missing_ok=True))
+        # 关闭数据库连接
+        await conn.close()
+        logger.info(f"删除本地文件: {file_path} 和 {file_path.with_suffix('.md')} 和 {json_file_path}")
+       
 
 async def test_download_file(file_url: str):
     """
