@@ -18,35 +18,35 @@ api:
 # server组件
 server_components:
   pg_vector:
-    host: "127.0.0.1"
+    host: "192.168.132.149"
     port: "5437"
     user: "postgres"
     password: "postgres"
     database: "postgres"
     active: true
   minio:
-    host: "127.0.0.1"
+    host: "192.168.132.149"
     port: 9000
     access_key: "[REDACTED]"
     secret_key: "[REDACTED]"
     bucket_name: "publicfiles"
     region: "us-east-1"
     use_public_url: true
-    public_url_prefix: "http://8.tcp.cpolar.cn:11869"
+    public_url_prefix: "https://149min9000.cpolar.cn"
     active: true
   mineru:
     - url: "http://127.0.0.1:8889"
       active: true
   convert_format_server:
-    - url: "http://127.0.0.1:7758"
+    - url: "http://192.168.132.149:7758"
       active: true
 
 text_chunk_strategy:
   SlidingWindow:
     module: "normal"
-    chunk_size: 2000
-    chunk_overlap: 300
+    chunk_size: 500
+    chunk_overlap: 100
 
 graph_module:
   summary_strategy:
-    window_size: 30000
+    window_size: 8000

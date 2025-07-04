@@ -103,7 +103,7 @@ async def get_supported_file_types(request: Request):
 # 上传文件到云端，config桶里的bucket下的default目录，每个文件一个目录（目录名为生成的一个uuid），文件名即文件的原始文件名，不区分用户。返回值为公网url
 async def upload_minio(request: Request):
     try:
-        
+        logger.info("--> enter upload_minio")   
         # 解析和验证表单数据
         form = await request.form()
 
