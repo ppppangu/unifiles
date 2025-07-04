@@ -263,6 +263,21 @@ async def convert_document_to_pdf(file_url: str):
                 
             converted_url = result["converted_url"]
             logger.info(f"文件转换成功: {file_url} -> {converted_url}")
+            # 如果转换服务返回的URL无法访问(通常在cpolar等内网穿透域名下出现问题)，
+            # 则尝试替换为本服务配置中的 minio public_url_prefix 以提升可访问性。
+            try:
+                public_prefix = config["server_components"]["minio"].get("public_url_prefix")
+                if public_prefix:
+                    # 解析返回URL，获取其路径部分
+                    from urllib.parse import urlparse
+                    parsed = urlparse(converted_url)
+                    # 如果域名与配置前缀域名不一致且路径中包含bucket名称，则进行替换
+                    if not converted_url.startswith(public_prefix):
+                        # 仅保留路径部分(以"/"开头)
+                        converted_url = f"{public_prefix}{parsed.path}"
+                        logger.info(f"根据配置 public_url_prefix 修正 converted_url 为: {converted_url}")
+            except Exception as _e:
+                logger.warning(f"修正 converted_url 过程中发生异常: {_e}")
             return converted_url
     
     except httpx.HTTPStatusError as e:
