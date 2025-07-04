@@ -986,10 +986,10 @@ async def mineru_process(file_url: str, knowledge_base_id: str, mode: str, user_
         return None
     finally:
         # 删除本地文件，pdf和md文件，json文件
-        await asyncio.to_thread(Path(file_path).unlink(missing_ok=True))
-        await asyncio.to_thread(Path(file_path.with_suffix(".md")).unlink(missing_ok=True))
-        await asyncio.to_thread(Path(json_file_path).unlink(missing_ok=True))
-        await asyncio.to_thread(Path(ocr_file_path).unlink(missing_ok=True))
+        await asyncio.to_thread(Path(file_path).unlink, missing_ok=True)
+        await asyncio.to_thread(Path(file_path.with_suffix(".md")).unlink, missing_ok=True)
+        await asyncio.to_thread(Path(json_file_path).unlink, missing_ok=True)
+        await asyncio.to_thread(Path(ocr_file_path).unlink, missing_ok=True)
         # 关闭数据库连接
         await conn.close()
         logger.info(f"删除本地文件: {file_path} 和 {file_path.with_suffix('.md')} 和 {json_file_path}")
