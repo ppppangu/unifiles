@@ -216,6 +216,25 @@ async def upload_minio(request: Request):
             status_code=500
         )
 
+# ---------------------- 公共辅助函数 ----------------------
+
+def _fix_public_url(original_url: str) -> str:
+    """如果 original_url 域名与配置的 public_url_prefix 不一致，则替换为配置前缀。"""
+    try:
+        public_prefix = config["server_components"]["minio"].get("public_url_prefix")
+        if not public_prefix:
+            return original_url
+        if original_url.startswith(public_prefix):
+            return original_url
+        from urllib.parse import urlparse
+        parsed = urlparse(original_url)
+        fixed = f"{public_prefix}{parsed.path}"
+        logger.info(f"_fix_public_url: 将 URL 从 {original_url} 修正为 {fixed}")
+        return fixed
+    except Exception as e:
+        logger.warning(f"_fix_public_url 处理异常: {e}")
+        return original_url
+
 @retry(
     stop=stop_after_attempt(3),
     wait=wait_exponential(multiplier=1, min=1, max=10),
@@ -234,7 +253,7 @@ async def convert_document_to_pdf(file_url: str):
         
         if file_url.lower().endswith(".pdf"):
             logger.info(f"文件已经是PDF格式，无需转换: {file_url}")
-            return file_url
+            return _fix_public_url(file_url)
         
         # 检查是否为支持的文档格式
         is_supported = False
@@ -263,21 +282,7 @@ async def convert_document_to_pdf(file_url: str):
                 
             converted_url = result["converted_url"]
             logger.info(f"文件转换成功: {file_url} -> {converted_url}")
-            # 如果转换服务返回的URL无法访问(通常在cpolar等内网穿透域名下出现问题)，
-            # 则尝试替换为本服务配置中的 minio public_url_prefix 以提升可访问性。
-            try:
-                public_prefix = config["server_components"]["minio"].get("public_url_prefix")
-                if public_prefix:
-                    # 解析返回URL，获取其路径部分
-                    from urllib.parse import urlparse
-                    parsed = urlparse(converted_url)
-                    # 如果域名与配置前缀域名不一致且路径中包含bucket名称，则进行替换
-                    if not converted_url.startswith(public_prefix):
-                        # 仅保留路径部分(以"/"开头)
-                        converted_url = f"{public_prefix}{parsed.path}"
-                        logger.info(f"根据配置 public_url_prefix 修正 converted_url 为: {converted_url}")
-            except Exception as _e:
-                logger.warning(f"修正 converted_url 过程中发生异常: {_e}")
+            converted_url = _fix_public_url(converted_url)
             return converted_url
     
     except httpx.HTTPStatusError as e:
