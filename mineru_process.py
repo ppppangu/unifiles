@@ -686,10 +686,23 @@ async def embedding_json_file(file_path:str,alias:str = "bge-m3"):
     async with aiofiles.open(file_path, "r", encoding="utf-8") as f:
         results_dict = json.loads(await f.read())
 
+    # 读取信号量配置，默认为1（串行），>1 时并发
+    concurrency_limit = config.get("embedding_settings", {}).get("semaphore")
+    if not concurrency_limit or concurrency_limit <= 0:
+        concurrency_limit = 1
+    logger.info(f"embedding_json_file 并发信号量设置为: {concurrency_limit}")
+    sem = asyncio.Semaphore(concurrency_limit)
+
     new_results_dict = []
-    # 任务分配
-    tasks = [embedding_text(result["content"],result["index"],result["type"],alias) for result in results_dict]
-    results = await asyncio.gather(*tasks)
+
+    async with httpx.AsyncClient(timeout=30.0) as shared_client:
+        async def _embed(result: dict):
+            async with sem:
+                return await embedding_text(result["content"], result["index"], result["type"], alias, client=shared_client)
+
+        tasks = [_embed(result) for result in results_dict]
+        results = await asyncio.gather(*tasks)
+
     for index,embedding,text,type in results:
         new_results_dict.append({
             "index": index,
@@ -697,7 +710,7 @@ async def embedding_json_file(file_path:str,alias:str = "bge-m3"):
             "type": type,
             "embedding": embedding
         })
-    async with aiofiles.open(file_path, "w", encoding="utf-8") as f:    
+    async with aiofiles.open(file_path, "w", encoding="utf-8") as f:
         await f.write(json.dumps(new_results_dict, ensure_ascii=False, indent=2))
     logger.info(f"将json文件中的全部类目全部条目embedding做嵌入完成，共{len(new_results_dict)}个条目，文件路径: {file_path}")
     # 返回文件路径
@@ -707,18 +720,24 @@ async def embedding_json_file(file_path:str,alias:str = "bge-m3"):
     wait=wait_exponential(multiplier=1, min=1, max=10),
     retry=retry_if_exception_type((httpx.RequestError, httpx.HTTPStatusError))
 )
-async def embedding_text(text: str,index:int,type:str,alias:str = ""):
+async def embedding_text(text: str,index:int,type:str,alias:str = "",client: Optional[httpx.AsyncClient] = None):
     # 使用singleton_embedding.py中的embedding_text函数
     if not alias:
         mode = "language_embedding"
         name,url,key,alias = get_latest_embedding_instance(instance_type=mode)
     else:
         name,url,key,alias = get_latest_embedding_instance(alias=alias)
-    async with httpx.AsyncClient(timeout=30.0) as client:
+
+    # 复用传入的client，否则自行创建
+    if client is None:
+        async with httpx.AsyncClient(timeout=30.0) as _client:
+            response = await _client.post(url, headers={"Authorization": f"Bearer {key}"}, json={"model": name, "input": text})
+    else:
         response = await client.post(url, headers={"Authorization": f"Bearer {key}"}, json={"model": name, "input": text})
-        response.raise_for_status()  # 自动处理HTTP错误，确保HTTP错误触发重试机制
-        embedding = response.json()
-        return index,embedding["data"][0]["embedding"],text,type
+
+    response.raise_for_status()  # 自动处理HTTP错误，确保HTTP错误触发重试机制
+    embedding = response.json()
+    return index,embedding["data"][0]["embedding"],text,type
 
 async def embedding_photo(photo_url:str,index:int,alias:str = ""):
     if not alias:

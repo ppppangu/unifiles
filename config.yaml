@@ -82,3 +82,6 @@ text_chunk_strategy:
 graph_module:
   summary_strategy:
     window_size: 8000
+
+embedding_settings:
+  semaphore: 8
