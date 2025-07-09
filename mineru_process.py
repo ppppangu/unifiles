@@ -681,7 +681,7 @@ async def save_something_to_vcdb(user_id:str,knowledge_base_id:str,document_id:s
         raise ValueError(f"Invalid type: {type}")
 
 # 将json文件做嵌入，存入向量数据库
-async def embedding_json_file(file_path:str,alias:str = ""):
+async def embedding_json_file(file_path:str,alias:str = "bge-m3"):
     # 读取json文件
     async with aiofiles.open(file_path, "r", encoding="utf-8") as f:
         results_dict = json.loads(await f.read())
