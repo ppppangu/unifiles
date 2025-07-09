@@ -47,7 +47,7 @@ async def plumber_read_pdf(file_url: str):
 @retry(
     stop=stop_after_attempt(3),
     wait=wait_exponential(multiplier=1, min=1, max=10),
-    retry=retry_if_exception_type((httpx.RequestError, httpx.HTTPStatusError))
+    retry=retry_if_exception_type((httpx.RequestError, httpx.HTTPStatusError, httpx.ProtocolError))
 )
 async def describe_photo(photo_url: str,index:int,alias:str = ""):
     # 使用多模态大模型，描述图片，需要带重试机制
@@ -56,17 +56,43 @@ async def describe_photo(photo_url: str,index:int,alias:str = ""):
         name,url,key,alias = get_latest_embedding_instance(instance_type=mode)
     else:
         name,url,key,alias = get_latest_embedding_instance(alias=alias)
-    headers = {"Authorization": f"Bearer {key}"}
+    # 准备请求头 - 只有当key不为空时才添加Authorization header
+    headers = {}
+    if key and key.strip():
+        headers["Authorization"] = f"Bearer {key}"
+
     data = {
         "model": name,
         "messages": [{"role": "user", "content": [{"type": "image_url", "image_url": {"url": f"{photo_url}"}}]},{"role": "user", "content": [{"type": "text", "text": "请详细这张图片的内容"}]}],
         "stream": False
     }
-    async with httpx.AsyncClient(timeout=30.0) as client:
-        response = await client.post(url, headers=headers, json=data)
-        response.raise_for_status()  # 自动处理HTTP错误
-        description = response.json()
-        return index,description["choices"][0]["message"]["content"]
+
+    try:
+        # 配置更宽松的HTTP客户端
+        timeout = httpx.Timeout(
+            connect=30.0,
+            read=60.0,
+            write=30.0,
+            pool=30.0
+        )
+        limits = httpx.Limits(
+            max_keepalive_connections=10,
+            max_connections=50,
+            keepalive_expiry=30.0
+        )
+        async with httpx.AsyncClient(
+            timeout=timeout,
+            limits=limits,
+            http2=False,
+            verify=False
+        ) as client:
+            response = await client.post(url, headers=headers, json=data)
+            response.raise_for_status()  # 自动处理HTTP错误
+            description = response.json()
+            return index,description["choices"][0]["message"]["content"]
+    except Exception as e:
+        logger.error(f"图片描述请求失败: {str(e)}, URL: {url}, 错误类型: {type(e).__name__}")
+        raise
         
 def find_all_text_and_image_index(text: str, user_id: str, knowledge_base_id: str, document_id: str,describe_photo:bool=False):
     """
@@ -695,7 +721,26 @@ async def embedding_json_file(file_path:str,alias:str = "bge-m3"):
 
     new_results_dict = []
 
-    async with httpx.AsyncClient(timeout=30.0) as shared_client:
+    # 配置更宽松的HTTP客户端以避免LocalProtocolError
+    timeout = httpx.Timeout(
+        connect=30.0,  # 连接超时
+        read=60.0,     # 读取超时
+        write=30.0,    # 写入超时
+        pool=30.0      # 连接池超时
+    )
+
+    limits = httpx.Limits(
+        max_keepalive_connections=20,  # 减少保持连接数
+        max_connections=100,           # 减少最大连接数
+        keepalive_expiry=30.0
+    )
+
+    async with httpx.AsyncClient(
+        timeout=timeout,
+        limits=limits,
+        http2=False,  # 禁用HTTP/2以避免协议问题
+        verify=False  # 禁用SSL验证
+    ) as shared_client:
         async def _embed(result: dict):
             async with sem:
                 return await embedding_text(result["content"], result["index"], result["type"], alias, client=shared_client)
@@ -718,7 +763,7 @@ async def embedding_json_file(file_path:str,alias:str = "bge-m3"):
 @retry(
     stop=stop_after_attempt(3),
     wait=wait_exponential(multiplier=1, min=1, max=10),
-    retry=retry_if_exception_type((httpx.RequestError, httpx.HTTPStatusError))
+    retry=retry_if_exception_type((httpx.RequestError, httpx.HTTPStatusError, httpx.ProtocolError))
 )
 async def embedding_text(text: str,index:int,type:str,alias:str = "",client: Optional[httpx.AsyncClient] = None):
     # 使用singleton_embedding.py中的embedding_text函数
@@ -728,16 +773,42 @@ async def embedding_text(text: str,index:int,type:str,alias:str = "",client: Opt
     else:
         name,url,key,alias = get_latest_embedding_instance(alias=alias)
 
-    # 复用传入的client，否则自行创建
-    if client is None:
-        async with httpx.AsyncClient(timeout=30.0) as _client:
-            response = await _client.post(url, headers={"Authorization": f"Bearer {key}"}, json={"model": name, "input": text})
-    else:
-        response = await client.post(url, headers={"Authorization": f"Bearer {key}"}, json={"model": name, "input": text})
+    try:
+        # 准备请求头 - 只有当key不为空时才添加Authorization header
+        headers = {}
+        if key and key.strip():
+            headers["Authorization"] = f"Bearer {key}"
 
-    response.raise_for_status()  # 自动处理HTTP错误，确保HTTP错误触发重试机制
-    embedding = response.json()
-    return index,embedding["data"][0]["embedding"],text,type
+        # 复用传入的client，否则自行创建
+        if client is None:
+            # 配置更宽松的HTTP客户端
+            timeout = httpx.Timeout(
+                connect=30.0,
+                read=60.0,
+                write=30.0,
+                pool=30.0
+            )
+            limits = httpx.Limits(
+                max_keepalive_connections=10,
+                max_connections=50,
+                keepalive_expiry=30.0
+            )
+            async with httpx.AsyncClient(
+                timeout=timeout,
+                limits=limits,
+                http2=False,
+                verify=False
+            ) as _client:
+                response = await _client.post(url, headers=headers, json={"model": name, "input": text})
+        else:
+            response = await client.post(url, headers=headers, json={"model": name, "input": text})
+
+        response.raise_for_status()  # 自动处理HTTP错误，确保HTTP错误触发重试机制
+        embedding = response.json()
+        return index,embedding["data"][0]["embedding"],text,type
+    except Exception as e:
+        logger.error(f"Embedding请求失败: {str(e)}, URL: {url}, 错误类型: {type(e).__name__}")
+        raise
 
 async def embedding_photo(photo_url:str,index:int,alias:str = ""):
     if not alias:
