@@ -84,4 +84,4 @@ graph_module:
     window_size: 8000
 
 embedding_settings:
-  semaphore: 8
+  semaphore: 10
