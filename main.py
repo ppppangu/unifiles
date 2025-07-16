@@ -234,38 +234,18 @@ async def upload_minio(
 # ---------------------- 公共辅助函数 ----------------------
 
 def _fix_public_url(original_url: str) -> str:
-    """如果 original_url 指向 MinIO 内网地址，则替换为配置的 public_url_prefix。
-
-    处理逻辑:
-    1. 若未配置 public_url_prefix，直接返回 original_url。
-    2. 若 original_url 已经是 public_url_prefix 开头，直接返回。
-    3. 仅当 original_url 的 host 与 MinIO 内部 host (host:port) 完全一致时，才执行替换。
-       其他外部 URL 保持不变。
-    """
+    """如果 original_url 域名与配置的 public_url_prefix 不一致，则替换为配置前缀。"""
     try:
-        minio_cfg = config["server_components"]["minio"]
-        public_prefix = minio_cfg.get("public_url_prefix")
+        public_prefix = config["server_components"]["minio"].get("public_url_prefix")
         if not public_prefix:
             return original_url
-
-        # 已经使用公网前缀，直接返回
         if original_url.startswith(public_prefix):
             return original_url
-
         from urllib.parse import urlparse
-
-        parsed_original = urlparse(original_url)
-        # 内部 MinIO 地址（带端口）
-        internal_host = f"{minio_cfg.get('host')}:{minio_cfg.get('port')}"
-
-        # 仅当原始链接指向 MinIO 内网地址时才替换
-        if parsed_original.netloc == internal_host:
-            fixed_url = f"{public_prefix.rstrip('/')}{parsed_original.path}"
-            logger.info(f"_fix_public_url: 将 URL 从 {original_url} 修正为 {fixed_url}")
-            return fixed_url
-
-        # 其他情况保持不变
-        return original_url
+        parsed = urlparse(original_url)
+        fixed = f"{public_prefix}{parsed.path}"
+        logger.info(f"_fix_public_url: 将 URL 从 {original_url} 修正为 {fixed}")
+        return fixed
     except Exception as e:
         logger.warning(f"_fix_public_url 处理异常: {e}")
         return original_url
