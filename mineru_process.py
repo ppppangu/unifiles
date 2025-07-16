@@ -16,7 +16,7 @@ import json
 import asyncpg
 from typing import Optional, List
 from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
-from src.tools import detect_content_type
+from src.tools import detect_content_type, convert_to_internal_minio_url
 
 with open("config.yaml", "r") as f:
     config = yaml.safe_load(f)
@@ -855,93 +855,118 @@ async def embedding_all_text(text: str,alias:str):
     retry=retry_if_exception_type((httpx.RequestError, httpx.HTTPStatusError))
 )
 async def download_file(file_url: str, file_path: str):
-    # 检查URL是否有效
-    if not file_url or not file_url.startswith(('http://', 'https://')):
-        logger.error(f"无效的文件URL: {file_url}")
-        raise ValueError(f"无效的文件URL: {file_url}")
+    # 增加一次兜底机会：如果第一次请求使用公网前缀失败，则转换为内网地址再试一次
 
+    # 保留最初的 URL，用于判断前缀
+    original_url = file_url
+
+    # 封装一次真正执行 HTTP 下载的内部函数，避免代码重复
+    async def _do_request(target_url: str):
+        """执行一次真实的 HTTP 下载"""
+        # 检查URL是否有效
+        if not target_url or not target_url.startswith(('http://', 'https://')):
+            logger.error(f"无效的文件URL: {target_url}")
+            raise ValueError(f"无效的文件URL: {target_url}")
+
+        try:
+            logger.info(f"开始下载文件: {target_url} 到 {file_path}")
+
+            # 增强的HTTP客户端配置
+            headers = {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+                'Accept': '*/*',
+                'Accept-Language': 'en-US,en;q=0.9',
+                'Accept-Encoding': 'gzip, deflate, br',
+                'Connection': 'keep-alive',
+                'Upgrade-Insecure-Requests': '1'
+            }
+
+            # 配置更宽松的超时和限制
+            timeout = httpx.Timeout(
+                connect=30.0,  # 连接超时
+                read=120.0,    # 读取超时
+                write=30.0,    # 写入超时
+                pool=30.0      # 连接池超时
+            )
+
+            # 配置更宽松的限制
+            limits = httpx.Limits(
+                max_keepalive_connections=50,
+                max_connections=300,
+                keepalive_expiry=30.0
+            )
+
+            async with httpx.AsyncClient(
+                timeout=timeout,
+                limits=limits,
+                headers=headers,
+                follow_redirects=True,
+                verify=False  # 暂时禁用SSL验证以排除证书问题
+            ) as client:
+
+                # 先进行HEAD请求检查文件是否存在
+                try:
+                    logger.info(f"检查文件可访问性: {target_url}")
+                    head_response = await client.head(target_url)
+                    logger.info(f"HEAD请求成功: {head_response.status_code}, Content-Length: {head_response.headers.get('content-length', 'unknown')}")
+                except Exception as head_error:
+                    logger.warning(f"HEAD请求失败，继续尝试GET请求: {head_error}")
+
+                # 执行GET请求下载文件
+                logger.info(f"开始GET请求下载文件: {target_url}")
+                response = await client.get(target_url)
+
+                # 详细记录响应信息
+                logger.info(f"GET响应状态: {response.status_code}")
+                logger.info(f"响应头: {dict(response.headers)}")
+
+                response.raise_for_status()
+
+                # 检查响应内容是否为空
+                if not response.content:
+                    logger.error(f"下载的文件内容为空: {target_url}")
+                    raise ValueError(f"下载的文件内容为空: {target_url}")
+
+                # 确保目标目录存在
+                os.makedirs(os.path.dirname(file_path), exist_ok=True)
+
+                async with aiofiles.open(file_path, "wb") as f:
+                    await f.write(response.content)
+
+                logger.info(f"文件下载成功: {file_path}, 大小: {len(response.content)} 字节")
+                return file_path
+
+        except httpx.HTTPStatusError as e:
+            logger.error(f"HTTP状态错误: {e.response.status_code} - {e.response.reason_phrase}")
+            logger.error(f"响应头: {dict(e.response.headers)}")
+            logger.error(f"响应内容: {e.response.text[:500]}...")  # 只记录前500字符
+            logger.error(f"请求URL: {target_url}")
+            raise
+        except httpx.RequestError as e:
+            logger.error(f"请求错误: {str(e)}, URL: {target_url}")
+            logger.error(f"错误类型: {type(e).__name__}")
+            raise
+        except Exception as e:
+            logger.error(f"下载文件时发生未预期的错误: {str(e)}, URL: {target_url}")
+            logger.error(f"错误类型: {type(e).__name__}")
+            raise Exception(f"下载文件失败: {str(e)}")
+
+    # ---------- 主逻辑 ----------
     try:
-        logger.info(f"开始下载文件: {file_url} 到 {file_path}")
-
-        # 增强的HTTP客户端配置
-        headers = {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
-            'Accept': '*/*',
-            'Accept-Language': 'en-US,en;q=0.9',
-            'Accept-Encoding': 'gzip, deflate, br',
-            'Connection': 'keep-alive',
-            'Upgrade-Insecure-Requests': '1'
-        }
-
-        # 配置更宽松的超时和限制
-        timeout = httpx.Timeout(
-            connect=30.0,  # 连接超时
-            read=120.0,    # 读取超时
-            write=30.0,    # 写入超时
-            pool=30.0      # 连接池超时
-        )
-
-        # 配置更宽松的限制
-        limits = httpx.Limits(
-            max_keepalive_connections=50,
-            max_connections=300,
-            keepalive_expiry=30.0
-        )
-
-        async with httpx.AsyncClient(
-            timeout=timeout,
-            limits=limits,
-            headers=headers,
-            follow_redirects=True,
-            verify=False  # 暂时禁用SSL验证以排除证书问题
-        ) as client:
-
-            # 先进行HEAD请求检查文件是否存在
+        return await _do_request(file_url)
+    except Exception as first_error:
+        # 如果失败且符合公网前缀，则尝试内网 URL 一次
+        internal_url = convert_to_internal_minio_url(original_url)
+        if internal_url != original_url:
+            logger.warning(f"首次下载失败，将公网 URL 切换为内网地址重试: {internal_url}")
             try:
-                logger.info(f"检查文件可访问性: {file_url}")
-                head_response = await client.head(file_url)
-                logger.info(f"HEAD请求成功: {head_response.status_code}, Content-Length: {head_response.headers.get('content-length', 'unknown')}")
-            except Exception as head_error:
-                logger.warning(f"HEAD请求失败，继续尝试GET请求: {head_error}")
-
-            # 执行GET请求下载文件
-            logger.info(f"开始GET请求下载文件: {file_url}")
-            response = await client.get(file_url)
-
-            # 详细记录响应信息
-            logger.info(f"GET响应状态: {response.status_code}")
-            logger.info(f"响应头: {dict(response.headers)}")
-
-            response.raise_for_status()
-
-            # 检查响应内容是否为空
-            if not response.content:
-                logger.error(f"下载的文件内容为空: {file_url}")
-                raise ValueError(f"下载的文件内容为空: {file_url}")
-
-            # 确保目标目录存在
-            os.makedirs(os.path.dirname(file_path), exist_ok=True)
-
-            async with aiofiles.open(file_path, "wb") as f:
-                await f.write(response.content)
-
-            logger.info(f"文件下载成功: {file_path}, 大小: {len(response.content)} 字节")
-            return file_path
-
-    except httpx.HTTPStatusError as e:
-        logger.error(f"HTTP状态错误: {e.response.status_code} - {e.response.reason_phrase}")
-        logger.error(f"响应头: {dict(e.response.headers)}")
-        logger.error(f"响应内容: {e.response.text[:500]}...")  # 只记录前500字符
-        logger.error(f"请求URL: {file_url}")
-        raise
-    except httpx.RequestError as e:
-        logger.error(f"请求错误: {str(e)}, URL: {file_url}")
-        logger.error(f"错误类型: {type(e).__name__}")
-        raise
-    except Exception as e:
-        logger.error(f"下载文件时发生未预期的错误: {str(e)}, URL: {file_url}")
-        logger.error(f"错误类型: {type(e).__name__}")
-        raise Exception(f"下载文件失败: {str(e)}")
+                return await _do_request(internal_url)
+            except Exception as second_error:
+                logger.error("使用内网地址兜底下载仍然失败")
+                # 将第一次异常链保留以便排查
+                raise second_error from first_error
+        # 若前缀不匹配或其他原因，直接抛出第一次异常
+        raise first_error
 
 async def request_mineru(file_url: str):
     # 请求mineru，返回存储的md的url
