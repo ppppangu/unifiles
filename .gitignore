@@ -6,3 +6,6 @@ logs/
 .env
 job.db
 tmp/
+__pycache__/
+.claude/
+CLAUDE.md
