@@ -1,1 +1,0 @@
-Please think carefully and design according to the above requirements, create design documents and checklists in the /documents directory, and execute them step by step. After each small step is completed, update the checklist status.
