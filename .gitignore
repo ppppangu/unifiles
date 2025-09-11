@@ -113,3 +113,7 @@ tmp/
 # Claude files
 .claude/
 claude.md
+
+uv.lock
+.python-version
+config backup.yaml

@@ -65,35 +65,43 @@ class SupportedFileTypes(BaseModel):
     code_types: List[str] = Field(description="代码类型")
     all_types: List[str] = Field(description="所有支持类型")
 
+# ========== Files 资源相关模型（内容提取）==========
+class FileExtractRequest(BaseModel):
+    """文件内容提取请求"""
+    mode: str = Field(default="simple", description="提取模式: simple|normal|ocr")
+    
+class ExtractedContent(BaseModel):
+    """提取的文件内容"""
+    file_id: str = Field(description="文件ID")
+    extraction_id: str = Field(description="提取任务ID")
+    content_type: str = Field(description="内容类型")
+    extracted_text: Optional[str] = Field(description="提取的文本内容")
+    markdown_content: Optional[str] = Field(description="Markdown格式内容")
+    structured_data: Optional[Dict[str, Any]] = Field(description="结构化数据")
+    extraction_metadata: Dict[str, Any] = Field(description="提取元数据")
+    status: str = Field(description="提取状态")
+    created_at: str = Field(description="提取时间")
+    
+class FileExtractResponse(BaseModel):
+    """文件内容提取响应"""
+    success: bool = Field(description="是否成功")
+    message: str = Field(description="响应消息")
+    extracted_content: ExtractedContent = Field(description="提取的内容信息")
+
 # ========== Knowledge Bases 资源相关模型 ==========
 class ProcessDocumentRequest(BaseModel):
     """处理文档到知识库请求"""
-    file_id: Optional[str] = Field(default=None, description="已存储的文件ID")
-    file_url: Optional[str] = Field(default=None, description="外部文件URL（会先上传存储）")
-    mode: str = Field(default="simple", description="处理模式: simple|normal")
-    
-    class Config:
-        # 添加验证：file_id 和 file_url 必须提供其中一个
-        @staticmethod
-        def validate_file_source(cls, values):
-            file_id = values.get('file_id')
-            file_url = values.get('file_url')
-            if not file_id and not file_url:
-                raise ValueError('Either file_id or file_url must be provided')
-            if file_id and file_url:
-                raise ValueError('Cannot specify both file_id and file_url')
-            return values
+    extraction_id: str = Field(description="文件提取结果ID")
+    knowledge_base_id: str = Field(description="目标知识库ID")
+    chunk_strategy: str = Field(default="semantic", description="分块策略: semantic|fixed|sliding")
 
 class ProcessedDocument(BaseModel):
     """已处理的文档信息"""
     document_id: str = Field(description="文档ID")
-    file_id: str = Field(description="文件ID")
-    original_file_url: str = Field(description="原始文件URL")
-    markdown_url: Optional[str] = Field(description="Markdown文件URL")
-    pdf_url: Optional[str] = Field(description="PDF文件URL")
-    mode: str = Field(description="处理模式")
-    status: str = Field(description="处理状态")
+    extraction_id: str = Field(description="提取结果ID")
     knowledge_base_id: str = Field(description="知识库ID")
+    chunk_count: int = Field(description="分块数量")
+    indexing_status: str = Field(description="索引状态")
     created_at: str = Field(description="处理时间")
 
 class ProcessDocumentResponse(BaseModel):
@@ -477,6 +485,98 @@ async def get_file_info(
         )
 
 
+@app.post("/files/{file_id}/extract", response_model=FileExtractResponse, tags=["Files"])
+async def extract_file_content(
+    request: Request,
+    file_id: str = FastAPIPath(..., description="文件ID"),
+    extract_request: FileExtractRequest = FileExtractRequest()
+):
+    """
+    提取文件内容
+    
+    支持多种提取模式：
+    - simple: 基础文本提取
+    - normal: 标准文档解析 
+    - ocr: OCR图像文字识别
+    
+    支持多种输出格式：
+    - text: 纯文本
+    - markdown: Markdown格式
+    - structured: 结构化数据
+    """
+    try:
+        client_ip = request.state.client_ip
+        user_id = request.state.user_id
+        logger.info(f"POST /files/{file_id}/extract from {client_ip}, user: {user_id}")
+        logger.info(f"Extract request: {extract_request.dict()}")
+        
+        # 获取文件信息
+        conn = await asyncpg.connect(**pg_config)
+        try:
+            file_record = await conn.fetchrow(
+                """
+                SELECT id, filename, raw_file_public_url, user_id, mime_type
+                FROM chunk_schema.files 
+                WHERE id = $1
+                """,
+                file_id
+            )
+            
+            if not file_record:
+                raise HTTPException(
+                    status_code=404,
+                    detail=f"File not found: {file_id}"
+                )
+                
+            # 验证用户权限
+            if file_record['user_id'] != user_id:
+                raise HTTPException(
+                    status_code=403,
+                    detail="Access denied: file belongs to another user"
+                )
+                
+        finally:
+            await conn.close()
+        
+        # TODO: 实现实际的内容提取逻辑
+        # 这里应该调用 OCR Pipeline 或文档解析服务
+        # 根据 extract_request.mode 和 extract_request.extract_type 选择处理方式
+        
+        # 暂时返回模拟响应
+        extraction_id = f"extract_{str(uuid.uuid4())[:8]}"
+        
+        extracted_content = ExtractedContent(
+            file_id=file_id,
+            extraction_id=extraction_id,
+            content_type=extract_request.extract_type,
+            extracted_text=f"[模拟提取内容] 文件 {file_record['filename']} 的文本内容",
+            markdown_content=None if extract_request.extract_type != "markdown" else f"# {file_record['filename']}\n\n模拟Markdown内容",
+            structured_data=None if extract_request.extract_type != "structured" else {"pages": 1, "words": 100},
+            extraction_metadata={
+                "mode": extract_request.mode,
+                "file_type": file_record['mime_type'],
+                "processing_time": "0.5s"
+            },
+            status="completed",
+            created_at=datetime.now().isoformat()
+        )
+        
+        return FileExtractResponse(
+            success=True,
+            message="File content extracted successfully",
+            extracted_content=extracted_content
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error extracting file content: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Content extraction failed: {str(e)}"
+        )
+
+
 @app.delete("/files/{file_id}", response_model=StandardResponse, tags=["Files"])
 async def delete_file(
     request: Request,
@@ -584,123 +684,56 @@ async def get_knowledge_base_info(
 
 
 @app.post("/knowledge-bases/{kb_id}/documents", response_model=ProcessDocumentResponse, tags=["Knowledge Bases"])
-async def process_document_to_knowledge_base(
+async def index_extracted_content_to_knowledge_base(
     request: Request,
     process_request: ProcessDocumentRequest,
     kb_id: str = FastAPIPath(..., description="知识库ID")
 ):
     """
-    处理文档到知识库
+    将已提取的内容索引到知识库
     
-    支持两种方式：
-    1. 使用file_id处理已存储的文件
-    2. 使用file_url先上传存储再处理
+    基于文件提取结果，将内容分块并索引到指定知识库
     
-    - **file_id**: 已存储文件的ID（优先级高）
-    - **file_url**: 外部文件URL，会先上传到文件系统
-    - **mode**: 处理模式 (simple|normal)
+    - **extraction_id**: 文件提取结果ID
+    - **knowledge_base_id**: 目标知识库ID
+    - **chunk_strategy**: 分块策略 (semantic|fixed|sliding)
     """
     try:
         client_ip = request.state.client_ip
-        user_id = request.state.user_id  # 从Bearer token中解析
+        user_id = request.state.user_id
         
         logger.info(f"POST /knowledge-bases/{kb_id}/documents from {client_ip}, user: {user_id}")
         logger.info(f"Process request: {process_request.dict()}")
         
-        # 验证请求参数
-        if not process_request.file_id and not process_request.file_url:
-            raise HTTPException(
-                status_code=400,
-                detail="Either file_id or file_url must be provided"
-            )
-        
-        if process_request.file_id and process_request.file_url:
-            raise HTTPException(
-                status_code=400,
-                detail="Cannot specify both file_id and file_url"
-            )
-        
-        # 处理逻辑
-        file_id = None
-        file_info = None
-        
-        if process_request.file_id:
-            # 方式1：处理已存储的文件
-            file_id = process_request.file_id
-            
-            # 获取文件信息
-            conn = await asyncpg.connect(**pg_config)
-            try:
-                # 设置用户上下文以启用RLS
-                await conn.execute("SET LOCAL app.user_id = $1", user_id)
-                
-                file_record = await conn.fetchrow(
-                    """
-                    SELECT id, filename, raw_file_public_url, user_id
-                    FROM chunk_schema.files 
-                    WHERE id = $1
-                    """,
-                    file_id
-                )
-                
-                if not file_record:
-                    raise HTTPException(
-                        status_code=404,
-                        detail=f"File not found: {file_id}"
-                    )
-                    
-                file_info = {
-                    'file_id': file_record['id'],
-                    'filename': file_record['filename'],
-                    'file_url': file_record['raw_file_public_url']
-                }
-                
-            finally:
-                await conn.close()
-                
-        elif process_request.file_url:
-            # 方式2：先上传外部URL文件
-            logger.info(f"处理外部URL: {process_request.file_url}")
-            
-            # TODO: 实现从外部URL下载并上传到文件系统的逻辑
-            # 这里应该调用 upload_file 的逻辑来存储文件
-            raise HTTPException(
-                status_code=501,
-                detail="External file URL processing not implemented yet"
-            )
-        
-        # TODO: 调用既有的文档处理服务
-        # 从 legacy/mineru_process.py 中集成 mineru_process 函数
-        # 或者使用新的模块化组件
+        # TODO: 验证 extraction_id 是否存在
+        # TODO: 验证 knowledge_base_id 是否存在且用户有权限
+        # TODO: 实现实际的分块和索引逻辑
         
         # 暂时返回模拟响应
         document_id = f"doc_{str(uuid.uuid4())[:8]}"
         
         processed_doc = ProcessedDocument(
             document_id=document_id,
-            file_id=file_id,
-            original_file_url=file_info['file_url'],
-            markdown_url=None,  # TODO: 实际处理后填充
-            pdf_url=None,       # TODO: 实际处理后填充
-            mode=process_request.mode,
-            status="processing", # TODO: 实际状态
+            extraction_id=process_request.extraction_id,
             knowledge_base_id=kb_id,
+            chunk_count=0,  # TODO: 实际分块数量
+            indexing_status="processing",
             created_at=datetime.now().isoformat()
         )
         
         return ProcessDocumentResponse(
             success=True,
-            message="Document processing started successfully",
+            message="Document indexing started successfully",
             document=processed_doc
         )
         
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Error processing document: {str(e)}")
+        logger.error(f"Error indexing document: {str(e)}")
         raise HTTPException(
             status_code=500,
-            detail=f"Document processing failed: {str(e)}"
+            detail=f"Document indexing failed: {str(e)}"
         )
 
 
