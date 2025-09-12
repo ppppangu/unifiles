@@ -51,7 +51,6 @@ curl -X GET "http://localhost:8088/health"
 
 ---
 
-
 ### 文件接口 (Files)
 
 文件层负责文件的上传、下载和元数据管理。
@@ -167,7 +166,6 @@ curl -X DELETE "http://localhost:8088/files/file-a1b2c3d4-e5f6-7890-abcd-ef12345
 
 ---
 
-
 ### 处理接口 (Processors)
 
 处理层负责对已上传的文件进行内容提取和分析。
@@ -187,7 +185,7 @@ curl -X DELETE "http://localhost:8088/files/file-a1b2c3d4-e5f6-7890-abcd-ef12345
   "mode": "simple"
 }
 ```
-- `mode` (string): 提取模式，支持 `simple` (基础文本提取), `normal` (标准文档解析), `ocr` (OCR图像文字识别)。默认为 `simple`。
+- `mode` (string): 提取模式，支持 `simple` (基础文本提取), `normal` (标准文档解析)。默认为 `simple`。
 
 **请求示例:**
 ```bash
@@ -201,19 +199,16 @@ curl -X POST "http://localhost:8088/files/file-a1b2c3d4/extract" \
 ```json
 {
   "success": true,
-  "message": "File content extracted successfully",
-  "extracted_content": {
+  "message": "File content extraction started successfully",
+  "document": {
     "file_id": "file-a1b2c3d4",
     "extraction_id": "extract-e8f7g6h5-i4j3-k2l1-m0n9-o8p7q6r5s4t3",
     "content_type": "text/markdown",
-    "extracted_text": "这是提取出的纯文本内容...",
-    "markdown_content": "# 标题\n\n这是提取出的Markdown内容...",
-    "structured_data": null,
+    "status": "processing",
     "extraction_metadata": {
       "engine": "core-processor-v1.1",
       "mode": "normal"
     },
-    "status": "completed",
     "created_at": "2024-09-12T11:00:00.567890"
   }
 }
@@ -221,7 +216,6 @@ curl -X POST "http://localhost:8088/files/file-a1b2c3d4/extract" \
 **状态:** 🚧 开发中 (核心逻辑待实现)
 
 ---
-
 
 ### 知识库接口 (Knowledge Bases)
 
@@ -387,18 +381,15 @@ curl -X DELETE "http://localhost:8088/knowledge-bases/my_kb/documents/doc_a1b2c3
 }
 ```
 
-### ExtractedContent
-提取的文件内容模型
+### ExtractionDocument
+提取的文档信息模型
 ```json
 {
   "file_id": "string",
   "extraction_id": "string",
   "content_type": "string",
-  "extracted_text": "string",
-  "markdown_content": "string",
-  "structured_data": {},
-  "extraction_metadata": {},
   "status": "string",
+  "extraction_metadata": {},
   "created_at": "string"
 }
 ```
@@ -433,15 +424,15 @@ curl -X DELETE "http://localhost:8088/knowledge-bases/my_kb/documents/doc_a1b2c3
 
 ## 错误代码
 
-| HTTP状态码 | 说明 |
-|-----------|------|
-| 200 | 请求成功 |
-| 400 | 请求参数错误 |
-| 401 | 认证失败 |
-| 403 | 权限不足 |
-| 404 | 资源不存在 |
-| 500 | 服务器内部错误 |
-| 501 | 功能未实现 |
+| HTTP状态码 | 说明           |
+| ---------- | -------------- |
+| 200        | 请求成功       |
+| 400        | 请求参数错误   |
+| 401        | 认证失败       |
+| 403        | 权限不足       |
+| 404        | 资源不存在     |
+| 500        | 服务器内部错误 |
+| 501        | 功能未实现     |
 
 ---
 

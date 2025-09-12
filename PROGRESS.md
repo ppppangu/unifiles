@@ -1,0 +1,58 @@
+# 开发进度报告
+
+## 🔭 项目愿景
+
+**让复杂的文档处理变得简单。**
+
+我们的最终愿景是，用户只需通过几行代码调用一个简洁的SDK，就能轻松地将本地或云端的文档上传至Unifiles服务。服务端将自动完成所有复杂的处理工作，包括OCR、内容提取、多模态分析、向量化和知识图谱构建。用户无需关心底层实现，即可直接获取结构化、可检索的知识，赋能下游的智能应用。
+
+## 🎯 阶段目标
+
+为实现上述愿景，当前阶段的目标是构建一个**健壮、高效且易于扩展的后端服务**。该服务需具备清晰的抽象层次、设计合理的API以及为未来SDK开发奠定坚实基础的数据模型。
+
+## ✨ 用户可用功能
+
+当前版本为开发者预览版，核心功能已通过API暴露，用户可以：
+
+1.  **启动和访问服务**：按照 `README.md` 的指引，可以快速启动API服务。
+2.  **浏览API文档**：访问 `http://localhost:8088/docs` 查看所有可用的API接口及其详细说明。
+3.  **进行API调用**：使用 `examples/` 目录中的示例代码，或自行编写脚本，与文件管理和知识库处理等核心API进行交互。
+
+## ✅ 已完成工作
+
+1.  **分层数据库架构设计与实现**：
+    *   基于 `scripts/sql/` 中的设计，完成了层次清晰的数据库表结构，涵盖**文件层 -> 提取层 -> 知识库层 -> 组件层**。
+    *   通过SQL脚本实现了用户、文件、提取内容、知识库、组件（文本/图片）等核心表的创建和关联逻辑，为上层抽象提供了坚实的数据基础。
+
+2.  **API接口定义与文档**：
+    *   设计了遵循 `RESTful` 风格的V1 API，将核心功能划分为 `files`, `processors`, `knowledge_bases` 三大资源域，结构清晰。
+    *   利用 `FastAPI` 和 `unifiles/app/v1/schemas.py` 中的数据模型，自动生成了完整的、可交互的API文档。
+    *   已实现详细的数据模型定义，包括文件信息、提取内容、知识库文档等核心实体的完整Schema。
+
+3.  **核心抽象层与文档**：
+    *   在 `unifiles/core/` 目录下完成了分层架构：`database/`（数据抽象）、`pipelines/`（处理管道）、`services/`（业务服务）、`utils/`（工具函数）。
+    *   在 `docs/` 目录中撰写了包括架构设计、API参考、开发指南在内的系列文档，为后续开发和协作奠定了基础。
+    *   已建立清晰的项目结构：核心模块（`unifiles/core/`）可复用，应用层（`unifiles/app/`）处理HTTP请求。
+
+## 🚧 未完成工作及开发计划
+
+接下来的核心任务是**实现核心业务逻辑**并**构建易用的SDK**，将已设计的蓝图变为现实。
+
+### 1. 核心抽象层实现
+当前 `unifiles/core/` 已建立了基本框架，但部分服务需要完善业务逻辑。需要按照分层设计的思想，自底向上填充核心逻辑：
+*   **文件层 (`File Layer`)**：完善 `services/storage_service.py` 中的 `StorageService`，强化MinIO集成，实现文件存储、读取和删除的高级操作。
+*   **提取层 (`Extraction Layer`)**：完善 `pipelines/pdf_processor.py` 中的处理逻辑，集成OCR等工具，将上传的文件统一处理为标准的Markdown内容。
+*   **知识库层 (`Knowledge Base Layer`)**：完善 `services/document_processor.py` 和 `services/embedding_service.py`，实现对Markdown内容的分层分块策略（Chunking）、向量化，并最终存入数据库。
+
+### 2. API路由实现
+当前 `unifiles/app/v1/routers/` 中包含三个主要路由模块：`unifiles.py`（文件管理）、`processors.py`（内容提取）、`knowledge_bases.py`（知识库）。需要将每个API端点与 `unifiles/core/` 中实现的服务逻辑连接起来，完成端到端的完整功能。
+
+### 3. Python SDK 开发
+这是实现项目愿景的关键一步，旨在为开发者提供最便捷的调用方式。
+*   **目标**：创建一个独立的Python包，封装所有对Unifiles API的调用。用户通过`pip install unifiles-sdk`即可安装。
+*   **数据模型**：SDK的数据类将基于 `unifiles/app/v1/schemas.py` 和 `unifiles/core/database/models.py` 中已定义的模型，确保客户端与服务端的数据结构一致。
+*   **功能**：提供如 `client.kb("my-kb").upload("path/to/doc.pdf")` 的高级抽象接口，隐藏底层的HTTP请求、轮询和错误处理。`examples/` 中的脚本是SDK早期设计的原型。
+
+### 4. 测试
+*   **单元测试**：为 `unifiles/core/` 中的每一个服务和工具函数编写单元测试。
+*   **集成测试**：在API路由实现后，编写集成测试，模拟从文件上传到内容检索的全过程，确保各层协作正确。
