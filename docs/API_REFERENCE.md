@@ -1,8 +1,8 @@
-# File Server v1 API 参考文档
+# Unifiles v1 API 参考文档
 
 ## 概述
 
-File Server v1 提供RESTful API，用于企业级文件存储、内容处理和知识库管理。本API采用三层架构设计（文件、处理、知识库），符合REST标准，支持Bearer Token认证。
+Unifiles v1 提供RESTful API，用于企业级文件存储、内容处理和知识库管理。本API采用三层架构设计（文件、处理、知识库），符合REST标准，支持Bearer Token认证。
 
 ### 基本信息
 

@@ -52,7 +52,7 @@ uv run uvicorn server.app.legacy.main:app --http httptools --host 0.0.0.0 --port
 ```
 INFO:     Uvicorn running on http://0.0.0.0:8087
 Graph module initialized
-File server started successfully
+Unifiles server started successfully
 数据库修复检查完成
 ```
 

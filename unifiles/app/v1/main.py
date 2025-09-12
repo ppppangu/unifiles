@@ -1,6 +1,6 @@
 """
-File Server v1 API - RESTful Architecture
-符合RESTful和Python Web标准的文件服务器API
+Unifiles v1 API - RESTful Architecture
+符合RESTful和Python Web标准的Unifiles API
 
 主要资源域：
 1. Files - 文件存储和管理
@@ -34,7 +34,7 @@ async def lifespan(app: FastAPI):
     try:
         # 创建必要的目录
         mk_need_path()
-        logger.info("File server v1 started successfully")
+        logger.info("Unifiles v1 started successfully")
     except Exception as e:
         logger.error(f"Startup initialization failed: {str(e)}")
         # Allow startup to continue
@@ -42,7 +42,7 @@ async def lifespan(app: FastAPI):
     yield
 
     # 关闭时执行
-    logger.info("File server v1 shutting down")
+    logger.info("Unifiles v1 shutting down")
 
 
 def create_app() -> FastAPI:
@@ -54,8 +54,8 @@ def create_app() -> FastAPI:
     logger.add(log_path / f"{datetime.now().strftime('%Y-%m-%d')}.log", rotation="100 MB")
 
     app = FastAPI(
-        title="File Server v1 API",
-        description="A refactored, modular file server API.",
+        title="Unifiles v1 API",
+        description="A refactored, modular unifiles API.",
         version="1.1.0",
         lifespan=lifespan,
         docs_url="/docs",
@@ -89,7 +89,7 @@ def create_app() -> FastAPI:
         return StandardResponse(
             success=True,
             message="Service is healthy",
-            data={"version": app.version, "service": "file-server-v1"},
+            data={"version": app.version, "service": "unifiles-v1"},
         )
 
     return app

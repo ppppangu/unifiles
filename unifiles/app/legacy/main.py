@@ -74,7 +74,7 @@ async def start_up():
     """应用启动时执行的初始化操作"""
     # 创建必要的目录
     mk_need_path()
-    logger.info("File server started successfully")
+    logger.info("Unifiles server started successfully")
     # 检查chunk_schema.documents表的raw_file_public_url字段
     try:
         await fixpg_public_url_250613()
@@ -98,11 +98,8 @@ async def lifespan(app: FastAPI):
 
 # 重新创建FastAPI应用实例，使用lifespan
 app = FastAPI(
-    title="File Server API",
-    description="文件服务器API - 支持文件上传、处理和管理",
-    version="1.0.0",
-    lifespan=lifespan,
-)
+    title="Unifiles API",
+    description="Unifiles API - 支持文件上传、处理和管理",
 
 # 添加CORS中间件
 app.add_middleware(
