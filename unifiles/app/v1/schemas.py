@@ -36,11 +36,28 @@ class SupportedFileTypes(BaseModel):
     all_types: List[str] = Field(description="所有支持类型")
 
 
+class FileListRequest(BaseModel):
+    """文件列表请求参数"""
+
+    limit: Optional[int] = Field(default=50, description="返回数量限制", ge=1, le=100)
+    offset: Optional[int] = Field(default=0, description="分页偏移量", ge=0)
+
+
+class FileListResponse(BaseModel):
+    """文件列表响应模型"""
+
+    success: bool = Field(description="是否成功")
+    message: str = Field(description="响应消息")
+    files: List[FileInfo] = Field(description="文件列表")
+    total_count: Optional[int] = Field(description="总文件数量")
+    has_more: bool = Field(description="是否有更多文件")
+
+
 # ========== Files 资源相关模型（内容提取）==========
 class FileExtractRequest(BaseModel):
     """文件内容提取请求"""
 
-    mode: str = Field(default="simple", description="提取模式: simple|normal|ocr")
+    mode: str = Field(default="simple", description="提取模式: simple|normalr")
 
 
 class ExtractedContent(BaseModel):
@@ -76,15 +93,37 @@ class ProcessDocumentRequest(BaseModel):
     )
 
 
+class KnowledgeBaseInfo(BaseModel):
+    """知识库信息"""
+
+    kb_id: str = Field(description="知识库ID")
+    name: str = Field(description="知识库名称")
+    description: Optional[str] = Field(description="知识库描述")
+    user_id: str = Field(description="所属用户ID")
+    document_count: int = Field(description="文档数量")
+    created_at: str = Field(description="创建时间")
+    updated_at: str = Field(description="更新时间")
+
+
+class KnowledgeBaseListResponse(BaseModel):
+    """知识库列表响应"""
+
+    success: bool = Field(description="是否成功")
+    message: str = Field(description="响应消息")
+    knowledge_bases: List[KnowledgeBaseInfo] = Field(description="知识库列表")
+    total_count: int = Field(description="总数量")
+    has_more: bool = Field(description="是否有更多数据")
+
+
 class ProcessedDocument(BaseModel):
-    """已处理的文档信息"""
+    """处理后的文档信息"""
 
     document_id: str = Field(description="文档ID")
-    extraction_id: str = Field(description="提取结果ID")
+    extraction_id: str = Field(description="提取ID")
     knowledge_base_id: str = Field(description="知识库ID")
     chunk_count: int = Field(description="分块数量")
     indexing_status: str = Field(description="索引状态")
-    created_at: str = Field(description="处理时间")
+    created_at: str = Field(description="创建时间")
 
 
 class ProcessDocumentResponse(BaseModel):
@@ -93,16 +132,6 @@ class ProcessDocumentResponse(BaseModel):
     success: bool = Field(description="是否成功")
     message: str = Field(description="响应消息")
     document: ProcessedDocument = Field(description="处理后的文档信息")
-
-
-class KnowledgeBaseInfo(BaseModel):
-    """知识库信息"""
-
-    kb_id: str = Field(description="知识库ID")
-    user_id: str = Field(description="所属用户ID")
-    document_count: int = Field(description="文档数量")
-    created_at: str = Field(description="创建时间")
-    updated_at: str = Field(description="更新时间")
 
 
 # ========== 通用响应模型 ==========

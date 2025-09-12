@@ -24,7 +24,7 @@ from .schemas import StandardResponse
 from server.core.utils.tools import mk_need_path
 
 # 导入API路由
-from .routers import files, knowledge_bases, processors
+from .routers import unifiles, knowledge_bases, processors
 
 
 @asynccontextmanager
@@ -78,7 +78,7 @@ def create_app() -> FastAPI:
     app.add_middleware(FileValidationMiddleware)
 
     # 包含API路由
-    app.include_router(files.router)
+    app.include_router(unifiles.router)
     app.include_router(processors.router)
     app.include_router(knowledge_bases.router)
 

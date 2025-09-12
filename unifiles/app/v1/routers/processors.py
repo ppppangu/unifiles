@@ -26,7 +26,6 @@ async def extract_file_content(
     支持多种提取模式：
     - simple: 基础文本提取
     - normal: 标准文档解析
-    - ocr: OCR图像文字识别
     """
     try:
         user_id = request.state.user_id

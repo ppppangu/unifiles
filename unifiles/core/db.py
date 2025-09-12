@@ -90,6 +90,33 @@ async def get_file_record(file_id: str):
             await conn.close()
 
 
+async def get_user_files(user_id: str, limit: int = 50, offset: int = 0):
+    """获取用户的所有文件记录。"""
+    conn = None
+    try:
+        conn = await asyncpg.connect(**pg_config)
+        file_records = await conn.fetch(
+            """
+            SELECT id, filename, bytes, mime_type, raw_file_public_url,
+                   file_path, created_at, user_id
+            FROM chunk_schema.files
+            WHERE user_id = $1
+            ORDER BY created_at DESC
+            LIMIT $2 OFFSET $3
+            """,
+            user_id,
+            limit,
+            offset,
+        )
+        return file_records
+    except Exception as e:
+        logger.error(f"Error getting user files from DB: {e}")
+        raise
+    finally:
+        if conn:
+            await conn.close()
+
+
 async def delete_file_record(file_id: str) -> None:
     """根据文件ID从数据库删除文件记录。"""
     conn = None

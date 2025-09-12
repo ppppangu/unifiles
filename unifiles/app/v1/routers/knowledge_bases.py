@@ -10,8 +10,9 @@ from fastapi import (
 )
 from loguru import logger
 
-from server.app.v1.schemas import (
+from unifiles.app.v1.schemas import (
     KnowledgeBaseInfo,
+    KnowledgeBaseListResponse,
     ProcessDocumentRequest,
     ProcessDocumentResponse,
     ProcessedDocument,
@@ -19,6 +20,38 @@ from server.app.v1.schemas import (
 )
 
 router = APIRouter(prefix="/knowledge-bases", tags=["Knowledge Bases"])
+
+
+@router.get("", response_model=KnowledgeBaseListResponse)
+async def get_knowledge_bases(
+    request: Request,
+    limit: int = 50,
+    offset: int = 0,
+):
+    """获取用户的知识库列表"""
+    user_id = request.state.user_id
+    logger.info(f"GET /knowledge-bases request from user: {user_id}")
+    logger.info(f"Query parameters: limit={limit}, offset={offset}")
+    
+    # TODO: Implement logic to get user's knowledge bases from database
+    # For now, return mock data
+    mock_kb = KnowledgeBaseInfo(
+        kb_id="kb_sample_001",
+        name="示例知识库",
+        description="这是一个示例知识库",
+        user_id=user_id,
+        document_count=0,
+        created_at=datetime.now().isoformat(),
+        updated_at=datetime.now().isoformat(),
+    )
+    
+    return KnowledgeBaseListResponse(
+        success=True,
+        message="Knowledge bases retrieved successfully",
+        knowledge_bases=[mock_kb],
+        total_count=1,
+        has_more=False,
+    )
 
 
 @router.get("/{kb_id}", response_model=KnowledgeBaseInfo)

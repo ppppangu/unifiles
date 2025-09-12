@@ -142,7 +142,7 @@ CREATE TABLE IF NOT EXISTS chunk_schema.access_keys (
     
     -- 确保access_key的唯一性和安全性
     CONSTRAINT chk_access_keys_length CHECK (length(access_key) >= 32),
-    CONSTRAINT chk_access_keys_format CHECK (access_key ~ '^[a-zA-Z0-9_-]+)
+    CONSTRAINT chk_access_keys_format CHECK (access_key ~ '^[a-zA-Z0-9_-]+$')
 );
 
 -- ================================

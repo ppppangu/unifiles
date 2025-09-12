@@ -7,6 +7,7 @@ from fastapi import (
     File,
     HTTPException,
     Path as FastAPIPath,
+    Query,
     Request,
     UploadFile,
 )
@@ -14,6 +15,8 @@ from loguru import logger
 
 from server.app.v1.schemas import (
     FileInfo,
+    FileListRequest,
+    FileListResponse,
     FileUploadResponse,
     StandardResponse,
     SupportedFileTypes,
@@ -119,6 +122,48 @@ async def upload_file(request: Request, file: UploadFile = File(...)):
         raise HTTPException(status_code=500, detail=f"Upload failed: {str(e)}")
 
 
+@router.get("", response_model=FileListResponse)
+async def list_user_files(
+    request: Request,
+    limit: int = Query(default=50, description="返回数量限制", ge=1, le=100),
+    offset: int = Query(default=0, description="分页偏移量", ge=0),
+):
+    """获取当前用户的所有文件列表"""
+    try:
+        user_id = request.state.user_id
+        logger.info(f"GET /files request from user: {user_id}, limit: {limit}, offset: {offset}")
+
+        file_records = await db.get_user_files(user_id, limit, offset)
+        
+        files = []
+        for record in file_records:
+            file_info = FileInfo(
+                file_id=record["id"],
+                filename=record["filename"],
+                file_size=record["bytes"],
+                content_type=record["mime_type"],
+                public_url=record["raw_file_public_url"],
+                object_path=record["file_path"],
+                created_at=record["created_at"].isoformat(),
+            )
+            files.append(file_info)
+
+        # Check if there are more files
+        has_more = len(file_records) == limit
+
+        return FileListResponse(
+            success=True,
+            message="Files retrieved successfully",
+            files=files,
+            total_count=None,  # We could add a count query if needed
+            has_more=has_more,
+        )
+
+    except Exception as e:
+        logger.error(f"Error getting user files: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to get files: {str(e)}")
+
+
 @router.get("/{file_id}", response_model=FileInfo)
 async def get_file_info(request: Request, file_id: str = FastAPIPath(..., description="文件ID")):
     """获取文件信息"""
@@ -128,10 +173,6 @@ async def get_file_info(request: Request, file_id: str = FastAPIPath(..., descri
         file_record = await db.get_file_record(file_id)
         if not file_record:
             raise HTTPException(status_code=404, detail=f"File not found: {file_id}")
-
-        # Authorization is implicitly handled by middlewares or can be added here
-        # if file_record["user_id"] != request.state.user_id:
-        #     raise HTTPException(status_code=403, detail="Access denied")
 
         return FileInfo(
             file_id=file_record["id"],

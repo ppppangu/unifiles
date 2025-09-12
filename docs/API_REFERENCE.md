@@ -77,7 +77,53 @@ curl -X GET "http://localhost:8088/files/types" \
 }
 ```
 
-#### 2. 上传文件
+#### 2. 获取用户文件列表
+
+**GET** `/files`
+
+获取当前用户的所有文件列表，支持分页。
+
+**查询参数 (可选):**
+- `limit`: 返回数量限制 (默认: 50, 范围: 1-100)
+- `offset`: 分页偏移量 (默认: 0)
+
+**请求示例:**
+```bash
+curl -X GET "http://localhost:8088/files?limit=20&offset=0" \
+  -H "Authorization: Bearer [REDACTED]"
+```
+
+**响应示例:**
+```json
+{
+  "success": true,
+  "message": "Files retrieved successfully",
+  "files": [
+    {
+      "file_id": "file-a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+      "filename": "document.pdf",
+      "file_size": 1024768,
+      "content_type": "application/pdf",
+      "public_url": "http://localhost:9000/bucket-name/user-id/default_file_space/file-id/document.pdf",
+      "object_path": "user-id/default_file_space/file-id/document.pdf",
+      "created_at": "2024-09-12T10:30:00.123456"
+    },
+    {
+      "file_id": "file-b2c3d4e5-f6g7-8901-bcde-f23456789012",
+      "filename": "presentation.pptx",
+      "file_size": 2048576,
+      "content_type": "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+      "public_url": "http://localhost:9000/bucket-name/user-id/default_file_space/file-id/presentation.pptx",
+      "object_path": "user-id/default_file_space/file-id/presentation.pptx", 
+      "created_at": "2024-09-12T09:15:00.987654"
+    }
+  ],
+  "total_count": null,
+  "has_more": true
+}
+```
+
+#### 3. 上传文件
 
 **POST** `/files`
 
@@ -110,7 +156,7 @@ curl -X POST "http://localhost:8088/files" \
 }
 ```
 
-#### 3. 获取文件信息
+#### 4. 获取文件信息
 
 **GET** `/files/{file_id}`
 
@@ -138,7 +184,7 @@ curl -X GET "http://localhost:8088/files/file-a1b2c3d4-e5f6-7890-abcd-ef12345678
 }
 ```
 
-#### 4. 删除文件
+#### 5. 删除文件
 
 **DELETE** `/files/{file_id}`
 
@@ -221,7 +267,45 @@ curl -X POST "http://localhost:8088/files/file-a1b2c3d4/extract" \
 
 知识库层负责将已处理的内容进行分块、向量化并存入知识库以供检索。
 
-#### 1. 获取知识库信息
+#### 1. 获取用户知识库列表
+
+**GET** `/knowledge-bases`
+
+获取当前用户的所有知识库列表，支持分页。
+
+**查询参数 (可选):**
+- `limit`: 返回数量限制 (默认: 50)
+- `offset`: 分页偏移量 (默认: 0)
+
+**请求示例:**
+```bash
+curl -X GET "http://localhost:8088/knowledge-bases?limit=20&offset=0" \
+  -H "Authorization: Bearer [REDACTED]"
+```
+
+**响应示例:**
+```json
+{
+  "success": true,
+  "message": "Knowledge bases retrieved successfully",
+  "knowledge_bases": [
+    {
+      "kb_id": "kb_sample_001",
+      "name": "示例知识库",
+      "description": "这是一个示例知识库",
+      "user_id": "user-abc-123",
+      "document_count": 5,
+      "created_at": "2024-01-15T10:30:00.123456",
+      "updated_at": "2024-01-15T15:45:00.123456"
+    }
+  ],
+  "total_count": 1,
+  "has_more": false
+}
+```
+**状态:** 🚧 开发中 (返回示例数据)
+
+#### 2. 获取知识库信息
 
 **GET** `/knowledge-bases/{kb_id}`
 
@@ -248,7 +332,7 @@ curl -X GET "http://localhost:8088/knowledge-bases/my_knowledge_base" \
 ```
 **状态:** 🚧 开发中 (501 Not Implemented)
 
-#### 2. 索引内容到知识库
+#### 3. 索引内容到知识库
 
 **POST** `/knowledge-bases/{kb_id}/documents`
 
@@ -299,7 +383,7 @@ curl -X POST "http://localhost:8088/knowledge-bases/my_kb/documents" \
 ```
 **状态:** 🚧 开发中 (501 Not Implemented)
 
-#### 3. 获取知识库文档列表
+#### 4. 获取知识库文档列表
 
 **GET** `/knowledge-bases/{kb_id}/documents`
 
@@ -333,7 +417,7 @@ curl -X GET "http://localhost:8088/knowledge-bases/my_kb/documents?limit=20" \
 ```
 **状态:** 🚧 开发中 (501 Not Implemented)
 
-#### 4. 删除知识库文档
+#### 5. 删除知识库文档
 
 **DELETE** `/knowledge-bases/{kb_id}/documents/{doc_id}`
 
@@ -381,6 +465,28 @@ curl -X DELETE "http://localhost:8088/knowledge-bases/my_kb/documents/doc_a1b2c3
 }
 ```
 
+### FileListResponse
+文件列表响应模型
+```json
+{
+  "success": true,
+  "message": "string",
+  "files": [
+    {
+      "file_id": "string",
+      "filename": "string",
+      "file_size": 0,
+      "content_type": "string",
+      "public_url": "string",
+      "object_path": "string",
+      "created_at": "string"
+    }
+  ],
+  "total_count": 0,
+  "has_more": true
+}
+```
+
 ### ExtractionDocument
 提取的文档信息模型
 ```json
@@ -412,10 +518,34 @@ curl -X DELETE "http://localhost:8088/knowledge-bases/my_kb/documents/doc_a1b2c3
 ```json
 {
   "kb_id": "string",
+  "name": "string",
+  "description": "string",
   "user_id": "string",
   "document_count": 0,
   "created_at": "string",
   "updated_at": "string"
+}
+```
+
+### KnowledgeBaseListResponse
+知识库列表响应模型
+```json
+{
+  "success": true,
+  "message": "string",
+  "knowledge_bases": [
+    {
+      "kb_id": "string",
+      "name": "string", 
+      "description": "string",
+      "user_id": "string",
+      "document_count": 0,
+      "created_at": "string",
+      "updated_at": "string"
+    }
+  ],
+  "total_count": 0,
+  "has_more": true
 }
 ```
 
