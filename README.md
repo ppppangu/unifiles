@@ -1,11 +1,8 @@
-# 📁 File Server
+# 📁 Unifiles
 
 > 企业级文档处理系统 - 支持文件存储、OCR处理、向量化和知识图谱生成
 
-[![Python](https://img.shields.io/badge/Python-3.8+-blue.svg)](https://python.org)
-[![FastAPI](https://img.shields.io/badge/FastAPI-Latest-green.svg)](https://fastapi.tiangolo.com)
-[![PostgreSQL](https://img.shields.io/badge/PostgreSQL-12+-blue.svg)](https://postgresql.org)
-[![MinIO](https://img.shields.io/badge/MinIO-Latest-orange.svg)](https://min.io)
+[![Python](https://img.shields.io/badge/Python-3.8+-blue.svg)](https://python.org) [![FastAPI](https://img.shields.io/badge/FastAPI-Latest-green.svg)](https://fastapi.tiangolo.com) [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-12+-blue.svg)](https://postgresql.org) [![MinIO](https://img.shields.io/badge/MinIO-Latest-orange.svg)](https://min.io)
 
 ## ⚡ 快速开始
 
@@ -32,7 +29,7 @@ open http://localhost:8088/docs
 ## 🏗️ 架构概览
 
 ```
-file_server/
+Unifiles/
 ├── server/
 │   ├── core/           # 🎯 核心模块（可复用）
 │   │   ├── database/   # 数据库抽象层
@@ -105,11 +102,11 @@ docker run -d --name minio -p 9000:9000 -p 9001:9001 \
   minio/minio server /data --console-address ":9001"
 
 docker run -d --name postgres -p 5432:5432 \
-  -e POSTGRES_DB=file_server -e POSTGRES_USER=postgres \
+  -e POSTGRES_DB=Unifiles -e POSTGRES_USER=postgres \
   -e POSTGRES_PASSWORD=password pgvector/pgvector:pg16
 
 # 初始化数据库
-psql -h localhost -U postgres -d file_server -f 数据库建表逻辑/021-create-document-table.sql
+psql -h localhost -U postgres -d Unifiles -f 数据库建表逻辑/021-create-document-table.sql
 ```
 
 ### 生产环境
@@ -122,12 +119,12 @@ services:
     build: .
     ports: ["8088:8088"]
     environment:
-      - DATABASE_URL=postgresql://postgres:password@postgres:5432/file_server
+      - DATABASE_URL=postgresql://postgres:password@postgres:5432/Unifiles
     depends_on: [postgres, minio]
     
   postgres:
     image: pgvector/pgvector:pg16
-    environment: {POSTGRES_DB: file_server, POSTGRES_USER: postgres, POSTGRES_PASSWORD: password}
+    environment: {POSTGRES_DB: Unifiles, POSTGRES_USER: postgres, POSTGRES_PASSWORD: password}
     
   minio:
     image: minio/minio
@@ -143,13 +140,13 @@ services:
 
 ## 🤝 技术栈
 
-| 组件 | 技术 | 用途 |
-|------|------|------|
-| **Web框架** | FastAPI | API服务 |
-| **数据库** | PostgreSQL + pgvector | 结构化数据 + 向量存储 |
-| **对象存储** | MinIO | 文件存储 |
-| **认证** | Bearer Token + RLS | 安全认证 |
-| **OCR** | 可插拔架构 | 文档识别 |
+| 组件         | 技术                  | 用途                  |
+| ------------ | --------------------- | --------------------- |
+| **Web框架**  | FastAPI               | API服务               |
+| **数据库**   | PostgreSQL + pgvector | 结构化数据 + 向量存储 |
+| **对象存储** | MinIO                 | 文件存储              |
+| **认证**     | Bearer Token + RLS    | 安全认证              |
+| **OCR**      | 可插拔架构            | 文档识别              |
 
 ## 📊 系统要求
 
@@ -177,6 +174,6 @@ MIT License - 详见 [LICENSE](LICENSE) 文件
 
 感谢所有贡献者和开源社区的支持！
 
----
+--- 
 
 **⭐ 觉得有用？给个Star支持一下！**

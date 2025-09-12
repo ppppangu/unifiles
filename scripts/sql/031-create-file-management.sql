@@ -1,0 +1,187 @@
+/*
+ * 文件名: 031-create-file-management.sql
+ * 作用: 创建文件管理层表结构
+ * 分类: 文件管理层
+ * 执行顺序: 第三步 - 在用户表创建后执行
+ * 
+ * 功能说明:
+ * 1. files表: 存储上传文件的基本信息和元数据
+ * 2. file_processing_logs表: 记录文件处理的详细日志和进度
+ * 3. 支持文件去重、状态跟踪、错误处理
+ * 4. 为后续的内容提取和知识库构建提供基础
+ * 
+ * 设计原则:
+ * - 文件哈希用于去重和完整性校验
+ * - 详细的处理阶段和状态跟踪
+ * - 灵活的元数据存储（JSONB）
+ * - 完善的约束和外键关系
+ */
+
+-- ================================
+-- 存储配置表 (Storage Configuration) - 简化版
+-- ================================
+
+-- 存储配置表（只区分本地存储和对象存储）
+CREATE TABLE IF NOT EXISTS chunk_schema.storage_configs (
+    -- 主键标识
+    id TEXT PRIMARY KEY,                                    -- 配置唯一标识
+    
+    -- 存储类型（简化为两种）
+    storage_type TEXT NOT NULL,                            -- 存储类型：'local' 或 'object_storage'
+    storage_name TEXT NOT NULL,                            -- 存储名称（用于显示）
+    
+    -- 对象存储连接配置（仅对象存储使用）
+    endpoint TEXT,                                         -- 访问端点
+    bucket_name TEXT,                                      -- 存储桶名称
+    region TEXT,                                           -- 区域
+    
+    -- 认证配置（对象存储专用）
+    access_key_id TEXT,                                    -- 访问密钥ID
+    secret_access_key TEXT,                               -- 访问密钥Secret
+    
+    -- 路径和URL配置
+    base_path TEXT DEFAULT '',                             -- 基础路径前缀
+    public_url_prefix TEXT,                               -- 公网URL前缀（用于拼接访问地址）
+    
+    -- 状态信息
+    is_active BOOLEAN DEFAULT TRUE,                       -- 是否启用
+    is_default BOOLEAN DEFAULT FALSE,                     -- 是否默认存储
+    
+    -- 时间戳
+    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,     -- 创建时间
+    updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,     -- 更新时间
+    
+    -- 检查约束
+    CONSTRAINT chk_storage_configs_storage_type 
+        CHECK (storage_type IN ('local', 'object_storage'))
+);
+
+-- ================================
+-- 文件基础管理表 (File Management)
+-- ================================
+
+-- 文件表
+CREATE TABLE IF NOT EXISTS chunk_schema.files (
+    -- 主键标识
+    id TEXT PRIMARY KEY,                                    -- 文件唯一标识
+    
+    -- 用户关联
+    user_id TEXT NOT NULL,                                 -- 文件所有者
+    
+    -- 文件基本信息
+    filename TEXT NOT NULL,                                -- 原始文件名
+    original_filename TEXT,                                -- 完整原始文件名（包含路径）
+    mime_type TEXT,                                        -- MIME类型
+    file_extension TEXT,                                   -- 文件扩展名
+    
+    -- 文件大小和存储
+    bytes INTEGER NOT NULL,                                -- 文件大小（字节）
+    file_size_readable TEXT,                               -- 可读的文件大小（如：1.2MB）
+    
+    -- 文件校验和存储信息
+    file_hash TEXT,                                        -- 文件哈希（用于去重）
+    hash_algorithm TEXT DEFAULT 'sha256',                  -- 哈希算法
+    
+    -- 存储信息（简化存储配置）
+    storage_config_id TEXT,                                -- 存储配置ID（关联storage_configs表）
+    storage_path TEXT NOT NULL,                           -- 存储路径（相对于配置的base_path）
+    
+    -- 访问地址（自动生成，不存储在数据库）
+    -- public_url 将通过 storage_config + storage_path 动态生成
+    
+    -- 文件状态管理
+    status TEXT DEFAULT 'uploaded',                        -- 文件处理状态
+    upload_source TEXT DEFAULT 'web',                     -- 上传来源
+    is_deleted BOOLEAN DEFAULT FALSE,                      -- 软删除标记
+    
+    -- 文件分类和标签
+    file_category TEXT,                                    -- 文件分类
+    tags TEXT[] DEFAULT '{}',                              -- 文件标签
+    
+    -- 元数据信息
+    metadata JSONB DEFAULT '{}',                           -- 文件元数据
+    processing_config JSONB DEFAULT '{}',                 -- 处理配置
+    
+    -- 时间戳
+    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,      -- 创建时间
+    updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,      -- 更新时间
+    uploaded_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,     -- 上传时间
+    processed_at TIMESTAMPTZ,                              -- 处理完成时间
+    
+    -- 外键约束
+    CONSTRAINT fk_files_user_id 
+        FOREIGN KEY (user_id) REFERENCES chunk_schema.users(id) ON DELETE CASCADE,
+    CONSTRAINT fk_files_storage_config_id 
+        FOREIGN KEY (storage_config_id) REFERENCES chunk_schema.storage_configs(id) ON DELETE SET NULL,
+    
+    -- 检查约束
+    CONSTRAINT chk_files_status 
+        CHECK (status IN ('uploaded', 'validating', 'processing', 'processed', 'error', 'deleted')),
+    CONSTRAINT chk_files_upload_source 
+        CHECK (upload_source IN ('web', 'api', 'batch', 'sync')),
+    CONSTRAINT chk_files_bytes_positive 
+        CHECK (bytes > 0),
+    CONSTRAINT chk_files_hash_algorithm 
+        CHECK (hash_algorithm IN ('md5', 'sha1', 'sha256', 'sha512'))
+);
+
+-- ================================
+-- 文件处理日志表 (Processing Logs)
+-- ================================
+
+-- 文件处理日志表（简化版）
+CREATE TABLE IF NOT EXISTS chunk_schema.file_processing_logs (
+    -- 主键标识
+    id TEXT PRIMARY KEY,                                    -- 日志唯一标识
+    
+    -- 文件关联
+    file_id TEXT NOT NULL,                                 -- 关联的文件ID
+    
+    -- 处理信息
+    stage TEXT NOT NULL,                                   -- 处理阶段
+    status TEXT NOT NULL,                                  -- 处理状态
+    message TEXT,                                          -- 处理消息
+    error_details JSONB,                                   -- 错误详情
+    
+    -- 时间戳
+    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,      -- 创建时间
+    
+    -- 外键约束
+    CONSTRAINT fk_file_processing_logs_file_id 
+        FOREIGN KEY (file_id) REFERENCES chunk_schema.files(id) ON DELETE CASCADE,
+    
+    -- 检查约束
+    CONSTRAINT chk_file_processing_logs_status 
+        CHECK (status IN ('pending', 'running', 'completed', 'failed', 'cancelled')),
+    CONSTRAINT chk_file_processing_logs_stage 
+        CHECK (stage IN ('upload', 'validation', 'ocr_extraction', 'markdown_generation'))
+);
+
+
+
+-- ================================
+-- 触发器 (Triggers)
+-- ================================
+
+-- 为storage_configs表添加更新时间戳触发器
+CREATE TRIGGER trigger_storage_configs_updated_at
+    BEFORE UPDATE ON chunk_schema.storage_configs
+    FOR EACH ROW
+    EXECUTE FUNCTION chunk_schema.update_updated_at_column();
+
+-- 为files表添加更新时间戳触发器
+CREATE TRIGGER trigger_files_updated_at
+    BEFORE UPDATE ON chunk_schema.files
+    FOR EACH ROW
+    EXECUTE FUNCTION chunk_schema.update_updated_at_column();
+
+-- ================================
+-- 初始数据 (Initial Data)
+-- ================================
+
+-- 插入默认存储配置
+INSERT INTO chunk_schema.storage_configs (id, storage_type, storage_name, is_active, is_default, base_path, public_url_prefix)
+VALUES 
+    ('default-local', 'local', 'Local Storage', true, true, '/uploads', 'http://localhost:8000/files'),
+    ('example-minio', 'object_storage', 'MinIO Object Storage', false, false, '', 'https://minio.example.com/bucket')
+ON CONFLICT (id) DO NOTHING;

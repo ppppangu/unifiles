@@ -1,0 +1,702 @@
+/*
+ * 文件名: 081-create-triggers.sql
+ * 作用: 创建触发器和自动化逻辑
+ * 分类: 触发器和自动化
+ * 执行顺序: 第八步 - 在所有表和索引创建后执行
+ * 
+ * 功能说明:
+ * 1. 数据同步触发器: 维护统计数据和关联关系的一致性
+ * 2. 全文搜索触发器: 自动更新搜索向量和索引
+ * 3. 审计触发器: 记录重要数据变更
+ * 4. 业务逻辑触发器: 实现自动化的业务规则
+ * 5. 缓存更新触发器: 维护缓存数据的一致性
+ * 
+ * 设计原则:
+ * - 最小化触发器复杂度，避免性能影响
+ * - 使用条件触发，只在必要时执行
+ * - 错误处理和日志记录
+ * - 支持触发器的启用和禁用
+ */
+
+-- ================================
+-- 工具函数 (Utility Functions)
+-- ================================
+
+-- 生成UUID函数
+CREATE OR REPLACE FUNCTION chunk_schema.generate_uuid() 
+RETURNS TEXT AS $$
+BEGIN
+    RETURN gen_random_uuid()::TEXT;
+END;
+$$ LANGUAGE plpgsql;
+
+-- 更新统计信息函数
+CREATE OR REPLACE FUNCTION chunk_schema.update_statistics(
+    table_name TEXT,
+    record_id TEXT,
+    operation TEXT,
+    delta_value INTEGER DEFAULT 1
+) 
+RETURNS VOID AS $$
+BEGIN
+    -- 这里可以实现统计更新逻辑
+    -- 为了简化，现在只是一个占位符
+    -- 实际使用时可以根据需要扩展
+    NULL;
+END;
+$$ LANGUAGE plpgsql;
+
+-- ================================
+-- 云端存储URL生成函数 (Cloud Storage URL Functions)
+-- ================================
+
+-- 根据存储配置生成URL的函数
+CREATE OR REPLACE FUNCTION chunk_schema.generate_storage_urls(
+    storage_config_id_param TEXT,
+    storage_path_param TEXT,
+    storage_url_param TEXT
+) 
+RETURNS TABLE (
+    internal_url TEXT,
+    public_url TEXT,
+    cdn_url TEXT,
+    download_url TEXT
+) AS $$
+DECLARE
+    config_rec RECORD;
+    generated_internal_url TEXT;
+    generated_public_url TEXT;
+    generated_cdn_url TEXT;
+    generated_download_url TEXT;
+BEGIN
+    -- 如果没有配置ID，使用默认配置
+    IF storage_config_id_param IS NULL THEN
+        SELECT * INTO config_rec
+        FROM chunk_schema.storage_configs
+        WHERE is_default = true AND is_active = true
+        LIMIT 1;
+    ELSE
+        SELECT * INTO config_rec
+        FROM chunk_schema.storage_configs
+        WHERE id = storage_config_id_param AND is_active = true;
+    END IF;
+    
+    -- 如果找不到配置，返回NULL
+    IF config_rec IS NULL THEN
+        internal_url := NULL;
+        public_url := NULL;
+        cdn_url := NULL;
+        download_url := storage_url_param;
+        RETURN NEXT;
+        RETURN;
+    END IF;
+    
+    -- 根据URL模式生成各种URL
+    IF config_rec.endpoint_internal IS NOT NULL THEN
+        generated_internal_url := config_rec.endpoint_internal || '/' || COALESCE(config_rec.bucket_name, '') || '/' || COALESCE(storage_path_param, '');
+    END IF;
+    
+    IF config_rec.endpoint_public IS NOT NULL THEN
+        generated_public_url := config_rec.endpoint_public || '/' || COALESCE(config_rec.bucket_name, '') || '/' || COALESCE(storage_path_param, '');
+    END IF;
+    
+    IF config_rec.endpoint_cdn IS NOT NULL THEN
+        generated_cdn_url := config_rec.endpoint_cdn || '/' || COALESCE(config_rec.bucket_name, '') || '/' || COALESCE(storage_path_param, '');
+    END IF;
+    
+    -- 设置download_url优先级：CDN > Public > Internal > storage_url
+    generated_download_url := COALESCE(generated_cdn_url, generated_public_url, generated_internal_url, storage_url_param);
+    
+    internal_url := generated_internal_url;
+    public_url := generated_public_url;
+    cdn_url := generated_cdn_url;
+    download_url := generated_download_url;
+    
+    RETURN NEXT;
+END;
+$$ LANGUAGE plpgsql;
+
+-- ================================
+-- 文本搜索向量更新触发器 (Full-Text Search Triggers)
+-- ================================
+
+-- 已经简化了组件表，移除了search_vector字段和相关触发器
+-- 现在使用简单的全文搜索索引
+
+-- ================================
+-- 统计数据同步触发器 (Statistics Sync Triggers)
+-- ================================
+
+-- 更新知识库统计信息的函数（基于简化后的结构）
+CREATE OR REPLACE FUNCTION chunk_schema.update_knowledge_base_stats()
+RETURNS TRIGGER AS $$
+DECLARE
+    kb_id TEXT;
+    doc_count INTEGER;
+    comp_count INTEGER;
+    chunk_count INTEGER;
+    photo_count INTEGER;
+BEGIN
+    -- 确定要更新的知识库ID
+    IF TG_OP = 'DELETE' THEN
+        kb_id := OLD.knowledge_base_id;
+    ELSE
+        kb_id := NEW.knowledge_base_id;
+    END IF;
+    
+    -- 计算统计数据
+    SELECT COUNT(*) INTO doc_count 
+    FROM chunk_schema.documents 
+    WHERE knowledge_base_id = kb_id;
+    
+    SELECT COUNT(*) INTO comp_count
+    FROM chunk_schema.components c
+    INNER JOIN chunk_schema.documents d ON c.document_id = d.id
+    WHERE d.knowledge_base_id = kb_id;
+    
+    SELECT COUNT(*) INTO chunk_count
+    FROM chunk_schema.components c
+    INNER JOIN chunk_schema.documents d ON c.document_id = d.id
+    WHERE d.knowledge_base_id = kb_id AND c.component_type = 'chunk';
+    
+    SELECT COUNT(*) INTO photo_count
+    FROM chunk_schema.components c
+    INNER JOIN chunk_schema.documents d ON c.document_id = d.id
+    WHERE d.knowledge_base_id = kb_id AND c.component_type = 'photo';
+    
+    -- 更新知识库的document_ids字段（保留基本统计信息）
+    UPDATE chunk_schema.knowledge_bases 
+    SET 
+        updated_at = CURRENT_TIMESTAMP
+    WHERE id = kb_id;
+    
+    IF TG_OP = 'DELETE' THEN
+        RETURN OLD;
+    ELSE
+        RETURN NEW;
+    END IF;
+END;
+$$ LANGUAGE plpgsql;
+
+-- 为文档表添加知识库统计更新触发器
+CREATE TRIGGER trigger_documents_update_kb_stats
+    AFTER INSERT OR UPDATE OR DELETE ON chunk_schema.documents
+    FOR EACH ROW
+    EXECUTE FUNCTION chunk_schema.update_knowledge_base_stats();
+
+-- 更新文档统计信息的函数（基于简化后的结构）
+CREATE OR REPLACE FUNCTION chunk_schema.update_document_stats()
+RETURNS TRIGGER AS $$
+DECLARE
+    doc_id TEXT;
+    comp_count INTEGER;
+    chunk_count INTEGER;
+    photo_count INTEGER;
+BEGIN
+    -- 确定要更新的文档ID
+    IF TG_OP = 'DELETE' THEN
+        doc_id := OLD.document_id;
+    ELSE
+        doc_id := NEW.document_id;
+    END IF;
+    
+    -- 计算统计数据
+    SELECT COUNT(*) INTO comp_count
+    FROM chunk_schema.components
+    WHERE document_id = doc_id;
+    
+    SELECT COUNT(*) INTO chunk_count
+    FROM chunk_schema.components
+    WHERE document_id = doc_id AND component_type = 'chunk';
+    
+    SELECT COUNT(*) INTO photo_count
+    FROM chunk_schema.components
+    WHERE document_id = doc_id AND component_type = 'photo';
+    
+    -- 更新文档统计（对于简化后的文档表，只更新updated_at）
+    UPDATE chunk_schema.documents 
+    SET 
+        updated_at = CURRENT_TIMESTAMP
+    WHERE id = doc_id;
+    
+    IF TG_OP = 'DELETE' THEN
+        RETURN OLD;
+    ELSE
+        RETURN NEW;
+    END IF;
+END;
+$$ LANGUAGE plpgsql;
+
+-- 为组件表添加文档统计更新触发器
+CREATE TRIGGER trigger_components_update_doc_stats
+    AFTER INSERT OR UPDATE OR DELETE ON chunk_schema.components
+    FOR EACH ROW
+    EXECUTE FUNCTION chunk_schema.update_document_stats();
+
+-- ================================
+-- 文件统计同步触发器 (File Statistics Triggers)
+-- ================================
+
+-- 文件统计表已被移除，无需同步触发器
+
+-- ================================
+-- 审计日志触发器 (Audit Log Triggers)
+-- ================================
+
+-- 记录用户活动的函数
+CREATE OR REPLACE FUNCTION chunk_schema.log_user_activity()
+RETURNS TRIGGER AS $$
+DECLARE
+    action_desc TEXT;
+    resource_type_val TEXT;
+    resource_id_val TEXT;
+    user_id_val TEXT;
+BEGIN
+    -- 确定操作描述和资源信息
+    IF TG_TABLE_NAME = 'knowledge_bases' THEN
+        resource_type_val := 'knowledge_base';
+        IF TG_OP = 'INSERT' THEN
+            action_desc := 'Created knowledge base: ' || NEW.name;
+            resource_id_val := NEW.id;
+            user_id_val := NEW.user_id;
+        ELSIF TG_OP = 'UPDATE' THEN
+            action_desc := 'Updated knowledge base: ' || NEW.name;
+            resource_id_val := NEW.id;
+            user_id_val := NEW.user_id;
+        ELSIF TG_OP = 'DELETE' THEN
+            action_desc := 'Deleted knowledge base: ' || OLD.name;
+            resource_id_val := OLD.id;
+            user_id_val := OLD.user_id;
+        END IF;
+    ELSIF TG_TABLE_NAME = 'documents' THEN
+        resource_type_val := 'document';
+        IF TG_OP = 'INSERT' THEN
+            action_desc := 'Added document: ' || COALESCE(NEW.title, 'Untitled');
+            resource_id_val := NEW.id;
+            -- 需要通过知识库获取用户ID
+            SELECT user_id INTO user_id_val 
+            FROM chunk_schema.knowledge_bases 
+            WHERE id = NEW.knowledge_base_id;
+        ELSIF TG_OP = 'DELETE' THEN
+            action_desc := 'Removed document: ' || COALESCE(OLD.title, 'Untitled');
+            resource_id_val := OLD.id;
+            SELECT user_id INTO user_id_val 
+            FROM chunk_schema.knowledge_bases 
+            WHERE id = OLD.knowledge_base_id;
+        END IF;
+    ELSIF TG_TABLE_NAME = 'files' THEN
+        resource_type_val := 'file';
+        IF TG_OP = 'INSERT' THEN
+            action_desc := 'Uploaded file: ' || NEW.filename;
+            resource_id_val := NEW.id;
+            user_id_val := NEW.user_id;
+        ELSIF TG_OP = 'UPDATE' AND OLD.status != NEW.status THEN
+            action_desc := 'File status changed from ' || OLD.status || ' to ' || NEW.status || ': ' || NEW.filename;
+            resource_id_val := NEW.id;
+            user_id_val := NEW.user_id;
+        ELSIF TG_OP = 'DELETE' THEN
+            action_desc := 'Deleted file: ' || OLD.filename;
+            resource_id_val := OLD.id;
+            user_id_val := OLD.user_id;
+        END IF;
+    END IF;
+    
+    -- 用户活动日志表已被移除，无法记录活动日志
+    -- 如果需要，可以在应用层记录日志
+    IF action_desc IS NOT NULL AND user_id_val IS NOT NULL THEN
+        RAISE NOTICE 'Activity: %', action_desc;
+    END IF;
+    
+    IF TG_OP = 'DELETE' THEN
+        RETURN OLD;
+    ELSE
+        RETURN NEW;
+    END IF;
+END;
+$$ LANGUAGE plpgsql;
+
+-- 由于没有用户活动日志表，暂时禁用活动日志触发器
+-- 如果需要记录活动，建议在应用层处理
+/*
+CREATE TRIGGER trigger_knowledge_bases_activity_log
+    AFTER INSERT OR UPDATE OR DELETE ON chunk_schema.knowledge_bases
+    FOR EACH ROW
+    EXECUTE FUNCTION chunk_schema.log_user_activity();
+
+CREATE TRIGGER trigger_documents_activity_log
+    AFTER INSERT OR DELETE ON chunk_schema.documents
+    FOR EACH ROW
+    EXECUTE FUNCTION chunk_schema.log_user_activity();
+
+CREATE TRIGGER trigger_files_activity_log
+    AFTER INSERT OR UPDATE OR DELETE ON chunk_schema.files
+    FOR EACH ROW
+    EXECUTE FUNCTION chunk_schema.log_user_activity();
+*/
+
+-- ================================
+-- 云端存储URL自动生成触发器 (Cloud Storage URL Generation Triggers)
+-- ================================
+
+-- 文件URL自动生成和更新函数
+CREATE OR REPLACE FUNCTION chunk_schema.update_file_urls()
+RETURNS TRIGGER AS $$
+DECLARE
+    url_result RECORD;
+BEGIN
+    -- 只在storage_url或storage_config_id发生变化时更新URL
+    IF TG_OP = 'INSERT' OR 
+       (TG_OP = 'UPDATE' AND (OLD.storage_url IS DISTINCT FROM NEW.storage_url OR 
+                              OLD.storage_config_id IS DISTINCT FROM NEW.storage_config_id OR
+                              OLD.storage_path IS DISTINCT FROM NEW.storage_path)) THEN
+        
+        -- 生成各种URL
+        SELECT * INTO url_result
+        FROM chunk_schema.generate_storage_urls(
+            NEW.storage_config_id,
+            NEW.storage_path,
+            NEW.storage_url
+        );
+        
+        -- 更新URL字段
+        NEW.internal_url := url_result.internal_url;
+        NEW.public_url := url_result.public_url;
+        NEW.cdn_url := url_result.cdn_url;
+        NEW.download_url := url_result.download_url;
+    END IF;
+    
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+-- 为files表添加URL自动生成触发器
+CREATE TRIGGER trigger_files_update_urls
+    BEFORE INSERT OR UPDATE ON chunk_schema.files
+    FOR EACH ROW
+    EXECUTE FUNCTION chunk_schema.update_file_urls();
+
+-- 提取资源URL自动生成和更新函数
+CREATE OR REPLACE FUNCTION chunk_schema.update_asset_urls()
+RETURNS TRIGGER AS $$
+DECLARE
+    url_result RECORD;
+BEGIN
+    -- 只在storage_url或storage_config_id发生变化时更新URL
+    IF TG_OP = 'INSERT' OR 
+       (TG_OP = 'UPDATE' AND (OLD.storage_url IS DISTINCT FROM NEW.storage_url OR 
+                              OLD.storage_config_id IS DISTINCT FROM NEW.storage_config_id OR
+                              OLD.storage_path IS DISTINCT FROM NEW.storage_path)) THEN
+        
+        -- 生成各种URL
+        SELECT * INTO url_result
+        FROM chunk_schema.generate_storage_urls(
+            NEW.storage_config_id,
+            NEW.storage_path,
+            NEW.storage_url
+        );
+        
+        -- 更新URL字段
+        NEW.internal_url := url_result.internal_url;
+        NEW.public_url := url_result.public_url;
+        NEW.cdn_url := url_result.cdn_url;
+        NEW.download_url := url_result.download_url;
+    END IF;
+    
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+-- 为extracted_assets表添加URL自动生成触发器
+CREATE TRIGGER trigger_assets_update_urls
+    BEFORE INSERT OR UPDATE ON chunk_schema.extracted_assets
+    FOR EACH ROW
+    EXECUTE FUNCTION chunk_schema.update_asset_urls();
+
+-- 存储配置变更时更新相关文件URL的函数
+CREATE OR REPLACE FUNCTION chunk_schema.update_files_on_config_change()
+RETURNS TRIGGER AS $$
+BEGIN
+    -- 当存储配置的关键信息发生变化时，更新相关文件的URL
+    IF TG_OP = 'UPDATE' AND (
+        OLD.endpoint_internal IS DISTINCT FROM NEW.endpoint_internal OR
+        OLD.endpoint_public IS DISTINCT FROM NEW.endpoint_public OR
+        OLD.endpoint_cdn IS DISTINCT FROM NEW.endpoint_cdn OR
+        OLD.bucket_name IS DISTINCT FROM NEW.bucket_name OR
+        OLD.base_path IS DISTINCT FROM NEW.base_path OR
+        OLD.url_pattern IS DISTINCT FROM NEW.url_pattern OR
+        OLD.is_active IS DISTINCT FROM NEW.is_active
+    ) THEN
+        -- 更新files表中使用此配置的记录
+        UPDATE chunk_schema.files 
+        SET updated_at = CURRENT_TIMESTAMP
+        WHERE storage_config_id = NEW.id;
+        
+        -- 更新extracted_assets表中使用此配置的记录
+        UPDATE chunk_schema.extracted_assets 
+        SET created_at = created_at  -- 触发触发器但不改变时间戳
+        WHERE storage_config_id = NEW.id;
+        
+        RAISE NOTICE 'Updated URLs for files and assets using storage config: %', NEW.id;
+    END IF;
+    
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+-- 为storage_configs表添加配置变更触发器
+CREATE TRIGGER trigger_storage_configs_update_urls
+    AFTER UPDATE ON chunk_schema.storage_configs
+    FOR EACH ROW
+    EXECUTE FUNCTION chunk_schema.update_files_on_config_change();
+
+-- ================================
+-- 数据完整性维护触发器 (Data Integrity Triggers)
+-- ================================
+
+-- 维护文档ID列表的函数
+CREATE OR REPLACE FUNCTION chunk_schema.maintain_document_ids()
+RETURNS TRIGGER AS $$
+DECLARE
+    kb_id TEXT;
+    doc_ids TEXT[];
+BEGIN
+    -- 确定要更新的知识库ID
+    IF TG_OP = 'DELETE' THEN
+        kb_id := OLD.knowledge_base_id;
+    ELSE
+        kb_id := NEW.knowledge_base_id;
+    END IF;
+    
+    -- 获取当前知识库的所有文档ID
+    SELECT array_agg(id ORDER BY created_at) INTO doc_ids
+    FROM chunk_schema.documents
+    WHERE knowledge_base_id = kb_id;
+    
+    -- 更新知识库的文档ID列表
+    UPDATE chunk_schema.knowledge_bases
+    SET 
+        document_ids = COALESCE(doc_ids, '{}'),
+        updated_at = CURRENT_TIMESTAMP
+    WHERE id = kb_id;
+    
+    IF TG_OP = 'DELETE' THEN
+        RETURN OLD;
+    ELSE
+        RETURN NEW;
+    END IF;
+END;
+$$ LANGUAGE plpgsql;
+
+-- 为文档表添加文档ID列表维护触发器
+CREATE TRIGGER trigger_documents_maintain_ids
+    AFTER INSERT OR DELETE ON chunk_schema.documents
+    FOR EACH ROW
+    EXECUTE FUNCTION chunk_schema.maintain_document_ids();
+
+-- ================================
+-- 缓存无效化触发器 (Cache Invalidation Triggers)
+-- ================================
+
+-- 缓存无效化函数
+CREATE OR REPLACE FUNCTION chunk_schema.invalidate_cache()
+RETURNS TRIGGER AS $$
+BEGIN
+    -- 这里可以实现缓存无效化逻辑
+    -- 例如：通知应用程序缓存需要更新
+    -- 或者删除Redis中的相关缓存键
+    
+    -- 为了演示，我们只是记录一个简单的日志
+    RAISE NOTICE 'Cache invalidation needed for table: %, operation: %', TG_TABLE_NAME, TG_OP;
+    
+    IF TG_OP = 'DELETE' THEN
+        RETURN OLD;
+    ELSE
+        RETURN NEW;
+    END IF;
+END;
+$$ LANGUAGE plpgsql;
+
+-- 为关键表添加缓存无效化触发器
+CREATE TRIGGER trigger_components_cache_invalidation
+    AFTER INSERT OR UPDATE OR DELETE ON chunk_schema.components
+    FOR EACH ROW
+    EXECUTE FUNCTION chunk_schema.invalidate_cache();
+
+-- ================================
+-- 组件链关系维护触发器 (Component Chain Triggers)
+-- ================================
+
+-- 维护文本块链关系的函数
+CREATE OR REPLACE FUNCTION chunk_schema.maintain_chunk_chain()
+RETURNS TRIGGER AS $$
+DECLARE
+    prev_chunk_id TEXT;
+    next_chunk_id TEXT;
+BEGIN
+    IF TG_OP = 'INSERT' THEN
+        -- 为新插入的文本块设置链关系
+        -- 查找同一文档中前一个组件对应的文本块
+        SELECT c.id INTO prev_chunk_id
+        FROM chunk_schema.chunks c
+        INNER JOIN chunk_schema.components comp ON c.component_id = comp.id
+        INNER JOIN chunk_schema.components new_comp ON new_comp.id = NEW.component_id
+        WHERE comp.document_id = new_comp.document_id 
+        AND comp.component_index < new_comp.component_index
+        AND comp.component_type = 'chunk'
+        ORDER BY comp.component_index DESC
+        LIMIT 1;
+        
+        -- 查找同一文档中后一个组件对应的文本块
+        SELECT c.id INTO next_chunk_id
+        FROM chunk_schema.chunks c
+        INNER JOIN chunk_schema.components comp ON c.component_id = comp.id
+        INNER JOIN chunk_schema.components new_comp ON new_comp.id = NEW.component_id
+        WHERE comp.document_id = new_comp.document_id 
+        AND comp.component_index > new_comp.component_index
+        AND comp.component_type = 'chunk'
+        ORDER BY comp.component_index ASC
+        LIMIT 1;
+        
+        -- 更新当前文本块的链关系
+        UPDATE chunk_schema.chunks
+        SET 
+            previous_chunk_id = prev_chunk_id,
+            next_chunk_id = next_chunk_id
+        WHERE id = NEW.id;
+        
+        -- 更新前一个文本块的next指针
+        IF prev_chunk_id IS NOT NULL THEN
+            UPDATE chunk_schema.chunks
+            SET next_chunk_id = NEW.id
+            WHERE id = prev_chunk_id;
+        END IF;
+        
+        -- 更新后一个文本块的previous指针
+        IF next_chunk_id IS NOT NULL THEN
+            UPDATE chunk_schema.chunks
+            SET previous_chunk_id = NEW.id
+            WHERE id = next_chunk_id;
+        END IF;
+    END IF;
+    
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+-- 为文本块表添加链关系维护触发器
+CREATE TRIGGER trigger_chunks_maintain_chain
+    AFTER INSERT ON chunk_schema.chunks
+    FOR EACH ROW
+    EXECUTE FUNCTION chunk_schema.maintain_chunk_chain();
+
+-- ================================
+-- 触发器管理函数 (Trigger Management Functions)
+-- ================================
+
+-- 禁用所有统计触发器的函数（用于批量数据操作）
+CREATE OR REPLACE FUNCTION chunk_schema.disable_stats_triggers()
+RETURNS VOID AS $$
+BEGIN
+    ALTER TABLE chunk_schema.documents DISABLE TRIGGER trigger_documents_update_kb_stats;
+    ALTER TABLE chunk_schema.components DISABLE TRIGGER trigger_components_update_doc_stats;
+    -- 文件统计同步触发器已被移除
+    RAISE NOTICE 'Statistics triggers disabled';
+END;
+$$ LANGUAGE plpgsql;
+
+-- 启用所有统计触发器的函数
+CREATE OR REPLACE FUNCTION chunk_schema.enable_stats_triggers()
+RETURNS VOID AS $$
+BEGIN
+    ALTER TABLE chunk_schema.documents ENABLE TRIGGER trigger_documents_update_kb_stats;
+    ALTER TABLE chunk_schema.components ENABLE TRIGGER trigger_components_update_doc_stats;
+    -- 文件统计同步触发器已被移除
+    RAISE NOTICE 'Statistics triggers enabled';
+END;
+$$ LANGUAGE plpgsql;
+
+-- 禁用URL生成触发器的函数（用于批量数据迁移）
+CREATE OR REPLACE FUNCTION chunk_schema.disable_url_triggers()
+RETURNS VOID AS $$
+BEGIN
+    ALTER TABLE chunk_schema.files DISABLE TRIGGER trigger_files_update_urls;
+    ALTER TABLE chunk_schema.extracted_assets DISABLE TRIGGER trigger_assets_update_urls;
+    ALTER TABLE chunk_schema.storage_configs DISABLE TRIGGER trigger_storage_configs_update_urls;
+    RAISE NOTICE 'URL generation triggers disabled';
+END;
+$$ LANGUAGE plpgsql;
+
+-- 启用URL生成触发器的函数
+CREATE OR REPLACE FUNCTION chunk_schema.enable_url_triggers()
+RETURNS VOID AS $$
+BEGIN
+    ALTER TABLE chunk_schema.files ENABLE TRIGGER trigger_files_update_urls;
+    ALTER TABLE chunk_schema.extracted_assets ENABLE TRIGGER trigger_assets_update_urls;
+    ALTER TABLE chunk_schema.storage_configs ENABLE TRIGGER trigger_storage_configs_update_urls;
+    RAISE NOTICE 'URL generation triggers enabled';
+END;
+$$ LANGUAGE plpgsql;
+
+-- 批量更新文件URL的函数（用于存储迁移）
+CREATE OR REPLACE FUNCTION chunk_schema.batch_update_file_urls(
+    storage_config_id_param TEXT DEFAULT NULL
+)
+RETURNS INTEGER AS $$
+DECLARE
+    updated_files_count INTEGER := 0;
+    updated_assets_count INTEGER := 0;
+BEGIN
+    -- 禁用URL触发器以避免递归调用
+    PERFORM chunk_schema.disable_url_triggers();
+    
+    -- 更新files表
+    UPDATE chunk_schema.files 
+    SET updated_at = CURRENT_TIMESTAMP
+    WHERE (storage_config_id_param IS NULL OR storage_config_id = storage_config_id_param);
+    
+    GET DIAGNOSTICS updated_files_count = ROW_COUNT;
+    
+    -- 更新extracted_assets表
+    UPDATE chunk_schema.extracted_assets 
+    SET created_at = created_at  -- 触发URL更新但不改变时间戳
+    WHERE (storage_config_id_param IS NULL OR storage_config_id = storage_config_id_param);
+    
+    GET DIAGNOSTICS updated_assets_count = ROW_COUNT;
+    
+    -- 重新启用URL触发器
+    PERFORM chunk_schema.enable_url_triggers();
+    
+    RAISE NOTICE 'Batch updated URLs: % files, % assets', updated_files_count, updated_assets_count;
+    
+    RETURN updated_files_count + updated_assets_count;
+END;
+$$ LANGUAGE plpgsql;
+
+-- 审计触发器已被禁用，无需管理函数
+-- 如果需要，可以在应用层实现审计日志
+
+-- ================================
+-- 触发器状态监控视图 (Trigger Status Views)
+-- ================================
+
+-- 创建触发器状态监控视图
+CREATE OR REPLACE VIEW chunk_schema.trigger_status AS
+SELECT 
+    schemaname,
+    tablename,
+    triggername,
+    tgtype,
+    tgenabled,
+    CASE tgenabled
+        WHEN 'O' THEN 'ENABLED'
+        WHEN 'D' THEN 'DISABLED'
+        WHEN 'R' THEN 'REPLICA_ONLY'
+        WHEN 'A' THEN 'ALWAYS'
+        ELSE 'UNKNOWN'
+    END as status
+FROM pg_trigger t
+INNER JOIN pg_class c ON t.tgrelid = c.oid
+INNER JOIN pg_namespace n ON c.relnamespace = n.oid
+WHERE n.nspname = 'chunk_schema'
+AND NOT t.tgisinternal
+ORDER BY schemaname, tablename, triggername;

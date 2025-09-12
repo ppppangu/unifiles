@@ -1,6 +1,6 @@
 # 🤝 贡献指南
 
-感谢你对 File Server 项目的关注！我们欢迎任何形式的贡献。
+感谢你对 Unifiles 项目的关注！我们欢迎任何形式的贡献。
 
 ## 🚀 快速开始
 
@@ -8,8 +8,8 @@
 
 ```bash
 # 1. Fork 并克隆项目
-git clone https://github.com/your-username/file_server.git
-cd file_server
+git clone https://github.com/your-username/Unifiles.git
+cd Unifiles
 
 # 2. 安装开发依赖
 pip install -e ".[dev]"
