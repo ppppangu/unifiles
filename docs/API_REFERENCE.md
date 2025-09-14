@@ -349,11 +349,13 @@ curl -X GET "http://localhost:8088/knowledge-bases/my_knowledge_base" \
   "chunk_strategy": "semantic"
 }
 ```
-- `extraction_id` (string, required): 内容提取任务的ID。
+
+- `extraction_id` (string, required): 内容提取文件的ID。
 - `knowledge_base_id` (string, required): 目标知识库ID。
 - `chunk_strategy` (string): 分块策略，支持 `semantic` (语义分块), `fixed` (固定大小), `sliding` (滑动窗口)。默认为 `semantic`。
 
 **请求示例:**
+
 ```bash
 curl -X POST "http://localhost:8088/knowledge-bases/my_kb/documents" \
   -H "Authorization: Bearer [REDACTED]" \
@@ -447,9 +449,7 @@ curl -X DELETE "http://localhost:8088/knowledge-bases/my_kb/documents/doc_a1b2c3
 
 ---
 
-
 ## 数据模型
-
 
 ### FileInfo
 文件信息模型
@@ -487,8 +487,8 @@ curl -X DELETE "http://localhost:8088/knowledge-bases/my_kb/documents/doc_a1b2c3
 }
 ```
 
-### ExtractionDocument
-提取的文档信息模型
+### ExtractionFile
+提取的文件信息模型
 ```json
 {
   "file_id": "string",
@@ -551,7 +551,6 @@ curl -X DELETE "http://localhost:8088/knowledge-bases/my_kb/documents/doc_a1b2c3
 
 ---
 
-
 ## 错误代码
 
 | HTTP状态码 | 说明           |
@@ -566,7 +565,6 @@ curl -X DELETE "http://localhost:8088/knowledge-bases/my_kb/documents/doc_a1b2c3
 
 ---
 
-
 ## 开发状态
 
 ### ✅ 已实现接口框架
@@ -579,12 +577,11 @@ curl -X DELETE "http://localhost:8088/knowledge-bases/my_kb/documents/doc_a1b2c3
 
 ### 🚧 待实现核心逻辑
 
-- **内容提取**: `simple`, `normal`, `ocr` 模式的实际处理逻辑。
+- **内容提取**: `simple`, `normal`, 模式的实际处理逻辑。
 - **知识库索引**: 文档分块、向量化和存储的实际逻辑。
 - **数据库持久化**: 所有 `501 Not Implemented` 接口的数据库操作。
 
 ---
-
 
 ## 更多信息
 

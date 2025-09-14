@@ -6,7 +6,7 @@
 
 ### 以Markdown为核心
 
-新架构的核心思想是**以Markdown作为内容的单一真实来源（Single Source of Truth）**。所有不同格式的输入文件（如PDF, Word, 图片）都会被统一处理和转换为标准化的Markdown格式。
+架构的核心思想是**以Markdown作为内容的单一真实来源（Single Source of Truth）**。所有不同格式的输入文件（如PDF, Word, 图片）都会被统一处理和转换为标准化的Markdown格式。
 
 这种设计的优势在于：
 - **内容统一性**: 消除多格式带来的不一致性，所有内容处理都基于统一的Markdown结构。
