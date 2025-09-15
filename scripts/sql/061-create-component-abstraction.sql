@@ -36,6 +36,11 @@ CREATE TABLE IF NOT EXISTS chunk_schema.components (
     -- 组件内容（统一字段）
     content TEXT,                                          -- 组件内容（文本或图片描述）
     
+    -- 搜索优化字段
+    searchable_text TEXT,                                  -- 经过清洗和优化的搜索文本（去除markdown标记等）
+    search_keywords TEXT[],                                -- 提取的关键词数组
+    content_language TEXT DEFAULT 'mixed',                 -- 内容语言（zh/en/mixed）
+    
     -- 向量索引（统一）
     embedding vector,                                      -- 向量嵌入
     
@@ -52,6 +57,8 @@ CREATE TABLE IF NOT EXISTS chunk_schema.components (
         CHECK (component_type IN ('chunk', 'photo')),
     CONSTRAINT chk_components_component_index_positive 
         CHECK (component_index >= 0),
+    CONSTRAINT chk_components_content_language 
+        CHECK (content_language IN ('zh', 'en', 'mixed', 'unknown')),
     
     -- 确保组件在文档中的序号唯一
     UNIQUE (document_id, component_index)
@@ -139,6 +146,94 @@ CREATE TABLE IF NOT EXISTS chunk_schema.photos (
     -- 确保组件和图片1:1关系
     UNIQUE (component_id)
 );
+
+-- ================================
+-- 搜索优化函数和触发器
+-- ================================
+
+-- 清理文本内容，去除markdown标记和多余空白
+CREATE OR REPLACE FUNCTION chunk_schema.clean_text_for_search(input_text TEXT)
+RETURNS TEXT AS $$
+BEGIN
+    IF input_text IS NULL THEN
+        RETURN NULL;
+    END IF;
+    
+    -- 去除markdown标记、多余空白和特殊字符
+    RETURN trim(regexp_replace(
+        regexp_replace(
+            regexp_replace(
+                regexp_replace(input_text, '#+\s*', '', 'g'),  -- 移除标题标记
+                '\*{1,2}([^*]+)\*{1,2}', '\1', 'g'),           -- 移除加粗/斜体标记
+            '`([^`]+)`', '\1', 'g'),                           -- 移除代码标记
+        '\s+', ' ', 'g'));                                     -- 合并多个空白字符
+END;
+$$ LANGUAGE plpgsql IMMUTABLE;
+
+-- 检测文本主要语言
+CREATE OR REPLACE FUNCTION chunk_schema.detect_content_language(input_text TEXT)
+RETURNS TEXT AS $$
+DECLARE
+    chinese_chars INTEGER;
+    total_chars INTEGER;
+    chinese_ratio FLOAT;
+BEGIN
+    IF input_text IS NULL OR length(input_text) = 0 THEN
+        RETURN 'unknown';
+    END IF;
+    
+    -- 统计中文字符数量
+    chinese_chars := length(input_text) - length(regexp_replace(input_text, '[\u4e00-\u9fff]', '', 'g'));
+    total_chars := length(regexp_replace(input_text, '\s', '', 'g'));
+    
+    IF total_chars = 0 THEN
+        RETURN 'unknown';
+    END IF;
+    
+    chinese_ratio := chinese_chars::float / total_chars::float;
+    
+    IF chinese_ratio > 0.3 THEN
+        RETURN 'mixed';
+    ELSIF chinese_ratio > 0.1 THEN
+        RETURN 'mixed';
+    ELSE
+        RETURN 'en';
+    END IF;
+END;
+$$ LANGUAGE plpgsql IMMUTABLE;
+
+-- 自动更新组件搜索字段的触发器函数
+CREATE OR REPLACE FUNCTION chunk_schema.update_component_search_fields()
+RETURNS TRIGGER AS $$
+BEGIN
+    -- 清理和优化搜索文本
+    NEW.searchable_text := chunk_schema.clean_text_for_search(NEW.content);
+    
+    -- 检测内容语言
+    NEW.content_language := chunk_schema.detect_content_language(NEW.content);
+    
+    -- 提取关键词（简单实现，可以后续优化）
+    IF NEW.searchable_text IS NOT NULL AND length(NEW.searchable_text) > 0 THEN
+        NEW.search_keywords := string_to_array(
+            regexp_replace(lower(NEW.searchable_text), '[^\w\u4e00-\u9fff]+', ' ', 'g'), 
+            ' '
+        );
+        -- 过滤掉短词和空值
+        NEW.search_keywords := array_remove(
+            array(SELECT word FROM unnest(NEW.search_keywords) AS word WHERE length(word) >= 2), 
+            ''
+        );
+    END IF;
+    
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+-- 创建触发器
+CREATE TRIGGER trigger_update_component_search_fields
+    BEFORE INSERT OR UPDATE ON chunk_schema.components
+    FOR EACH ROW
+    EXECUTE FUNCTION chunk_schema.update_component_search_fields();
 
 
 -- ================================

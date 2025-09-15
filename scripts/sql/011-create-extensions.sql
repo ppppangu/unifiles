@@ -20,6 +20,9 @@ CREATE EXTENSION IF NOT EXISTS vector;
 -- 启用 ltree 扩展 - 用于层级结构管理
 CREATE EXTENSION IF NOT EXISTS ltree;
 
+-- 倒排检索
+CREATE EXTENSION IF NOT EXISTS pgroonga;
+
 -- 创建主要的数据库模式
 CREATE SCHEMA IF NOT EXISTS chunk_schema;
 

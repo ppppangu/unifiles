@@ -235,7 +235,7 @@ echo "数据库建表完成！"
 -- 检查扩展是否可用
 SELECT name, default_version, installed_version 
 FROM pg_available_extensions 
-WHERE name IN ('vector', 'ltree', 'rum');
+WHERE name IN ('vector', 'ltree');
 ```
 
 ### 3. 内存和性能配置

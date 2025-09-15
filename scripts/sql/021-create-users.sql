@@ -159,15 +159,15 @@ CREATE INDEX IF NOT EXISTS idx_access_keys_active ON chunk_schema.access_keys(is
 -- ================================
 
 -- 生成安全的access_key
-CREATE OR REPLACE FUNCTION generate_access_key() RETURNS TEXT AS $
+CREATE OR REPLACE FUNCTION generate_access_key() RETURNS TEXT AS $$
 BEGIN
     -- 生成64字符的安全随机字符串
     RETURN 'sk_' || encode(gen_random_bytes(32), 'hex');
 END;
-$ LANGUAGE plpgsql SECURITY DEFINER;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
 
 -- 验证并获取用户ID通过access_key
-CREATE OR REPLACE FUNCTION validate_access_key(token TEXT) RETURNS TEXT AS $
+CREATE OR REPLACE FUNCTION validate_access_key(token TEXT) RETURNS TEXT AS $$
 DECLARE
     user_id_result TEXT;
 BEGIN
@@ -187,10 +187,10 @@ BEGIN
     
     RETURN user_id_result;
 END;
-$ LANGUAGE plpgsql SECURITY DEFINER;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
 
 -- 清理过期的access_key
-CREATE OR REPLACE FUNCTION cleanup_expired_access_keys() RETURNS INTEGER AS $
+CREATE OR REPLACE FUNCTION cleanup_expired_access_keys() RETURNS INTEGER AS $$
 DECLARE
     deleted_count INTEGER;
 BEGIN
@@ -201,10 +201,10 @@ BEGIN
     GET DIAGNOSTICS deleted_count = ROW_COUNT;
     RETURN deleted_count;
 END;
-$ LANGUAGE plpgsql SECURITY DEFINER;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
 
 -- 自动生成access_key触发器函数
-CREATE OR REPLACE FUNCTION auto_generate_access_key() RETURNS TRIGGER AS $
+CREATE OR REPLACE FUNCTION auto_generate_access_key() RETURNS TRIGGER AS $$
 BEGIN
     -- 如果没有提供access_key，自动生成一个
     IF NEW.access_key IS NULL OR NEW.access_key = '' THEN
@@ -213,7 +213,7 @@ BEGIN
     
     RETURN NEW;
 END;
-$ LANGUAGE plpgsql;
+$$ LANGUAGE plpgsql;
 
 -- 触发器：自动生成access_key
 CREATE TRIGGER access_keys_auto_generate
