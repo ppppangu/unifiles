@@ -14,7 +14,6 @@ from pathlib import Path
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from loguru import logger
 
 # 导入中间件和 schemas
 from .middlewares import AuthMiddleware, ClientIPMiddleware, FileValidationMiddleware
@@ -22,9 +21,10 @@ from .schemas import StandardResponse
 
 # 导入核心工具
 from server.core.utils.tools import mk_need_path
+from server.core.utils.logging import init_logger, get_logger, cleanup_logger
 
 # 导入API路由
-from .routers import unifiles, knowledge_bases, processors
+from .routers import unifiles, knowledge_bases, processors, manager
 
 
 @asynccontextmanager
@@ -32,26 +32,36 @@ async def lifespan(app: FastAPI):
     """应用生命周期管理"""
     # 启动时执行
     try:
+        # 初始化日志系统
+        log_path = Path(__file__).parent / "logs"
+        init_logger(
+            logger_type="loguru",
+            service_name="unifiles-v1",
+            log_dir=log_path,
+            level="INFO",
+            rotation="100 MB",
+            retention="30 days"
+        )
+        app_logger = get_logger()
+        
         # 创建必要的目录
         mk_need_path()
-        logger.info("Unifiles v1 started successfully")
+        app_logger.info("Unifiles v1 started successfully", {"version": "1.1.0"})
     except Exception as e:
-        logger.error(f"Startup initialization failed: {str(e)}")
+        app_logger = get_logger()
+        app_logger.error(f"Startup initialization failed: {str(e)}", {"error_type": "startup_error"})
         # Allow startup to continue
 
     yield
 
     # 关闭时执行
-    logger.info("Unifiles v1 shutting down")
+    app_logger = get_logger()
+    app_logger.info("Unifiles v1 shutting down")
+    cleanup_logger()
 
 
 def create_app() -> FastAPI:
     """创建并配置FastAPI应用实例"""
-
-    # 日志配置
-    log_path = Path(__file__).parent / "logs"
-    log_path.mkdir(exist_ok=True)
-    logger.add(log_path / f"{datetime.now().strftime('%Y-%m-%d')}.log", rotation="100 MB")
 
     app = FastAPI(
         title="Unifiles v1 API",
@@ -81,6 +91,7 @@ def create_app() -> FastAPI:
     app.include_router(unifiles.router)
     app.include_router(processors.router)
     app.include_router(knowledge_bases.router)
+    app.include_router(manager.router)
 
     # 顶级健康检查路由
     @app.get("/health", response_model=StandardResponse, tags=["System"])

@@ -4,10 +4,10 @@ This document explains how to set up automated deployment for the Unifiles proje
 
 ## Overview
 
-We have two deployment workflows:
+We have deployment workflows:
 
 1. **Basic SSH Deployment** (`deploy.yml`) - Deploys directly to a server via SSH
-2. **Docker Deployment** (`docker-deploy.yml`) - Builds Docker images and deploys containers
+
 
 ## Prerequisites
 
@@ -17,11 +17,6 @@ We have two deployment workflows:
 2. Python 3.11+ and uv installed on the server
 3. A systemd service for the application
 
-### For Docker Deployment
-
-1. A server with Docker installed
-2. GitHub Container Registry access
-3. Nginx for reverse proxy (optional but recommended)
 
 ## Setup Instructions
 
@@ -36,19 +31,6 @@ USERNAME                # SSH username
 SSH_PRIVATE_KEY         # SSH private key content
 PORT                    # SSH port (default: 22)
 PROJECT_PATH            # Path to project on server (default: /var/www/unifiles)
-```
-
-#### For Docker Deployment:
-```
-STAGING_HOST            # Staging server IP
-STAGING_USERNAME        # Staging SSH username  
-STAGING_SSH_KEY         # Staging SSH private key
-STAGING_PORT            # Staging SSH port
-
-PROD_HOST               # Production server IP
-PROD_USERNAME           # Production SSH username
-PROD_SSH_KEY            # Production SSH private key
-PROD_PORT               # Production SSH port
 ```
 
 ### 2. Server Setup
@@ -97,48 +79,10 @@ sudo systemctl enable unifiles
 sudo systemctl start unifiles
 ```
 
-#### Docker Deployment Setup:
-
-```bash
-# 1. Install Docker
-curl -fsSL https://get.docker.com | sh
-sudo usermod -aG docker $USER
-
-# 2. Create environment files
-sudo mkdir -p /var/log/unifiles
-echo "DATABASE_URL=postgresql://..." > .env.staging
-echo "DATABASE_URL=postgresql://..." > .env.production
-
-# 3. Setup nginx (optional)
-sudo apt install nginx
-sudo nano /etc/nginx/sites-available/unifiles
-```
-
-**nginx configuration:**
-```nginx
-server {
-    listen 80;
-    server_name your-domain.com;
-    
-    location / {
-        proxy_pass http://localhost:8000;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
-    }
-}
-```
-
 ### 3. Workflow Triggers
 
 #### Basic SSH Deployment:
-- **Automatic**: Triggers on push to `main` or `master` branch
-- **Manual**: Can be triggered manually from GitHub Actions tab
-
-#### Docker Deployment:
-- **Staging**: Triggers on push to `main` or `master` branch
-- **Production**: Triggers on version tags (e.g., `v1.0.0`)
+- **Automatic**: Triggers on push to `main`, `master`, `nbfile` branch
 - **Manual**: Can be triggered manually from GitHub Actions tab
 
 ### 4. Creating a Release
@@ -158,18 +102,7 @@ This will:
 
 ## Local Development
 
-### Using Docker Compose
 
-```bash
-# Start all services
-docker-compose up -d
-
-# View logs
-docker-compose logs -f unifiles
-
-# Stop services
-docker-compose down
-```
 
 ### Using uv
 

@@ -21,13 +21,7 @@
 - **部署方式**: 直接在服务器运行Python应用
 - **优点**: 配置简单，适合小项目
 - **文件**: `.github/workflows/deploy.yml`
-
-### 2. Docker部署（推荐生产环境）
-- **Staging**: 推送到 `main` 分支自动部署
-- **Production**: 创建版本标签时部署
-- **优点**: 环境一致性，支持零停机更新
-- **文件**: `.github/workflows/docker-deploy.yml`
-
+=
 ## 📋 前置要求
 
 ### 服务器要求
@@ -52,25 +46,13 @@ GitHub仓库 → Settings → Secrets and variables → Actions → New reposito
 ### Step 2: 添加必要的Secrets
 
 #### 基础SSH部署需要：
-| Secret名称 | 说明 | 示例 |
-|-----------|------|------|
-| `HOST` | 服务器IP地址 | `192.168.1.100` |
-| `USERNAME` | SSH用户名 | `ubuntu` |
-| `SSH_PRIVATE_KEY` | SSH私钥内容 | `-----BEGIN OPENSSH PRIVATE KEY-----...` |
-| `PORT` | SSH端口（可选） | `22` |
-| `PROJECT_PATH` | 项目路径（可选） | `/var/www/unifiles` |
-
-#### Docker部署需要：
-| Secret名称 | 说明 |
-|-----------|------|
-| `STAGING_HOST` | 测试服务器IP |
-| `STAGING_USERNAME` | 测试服务器SSH用户名 |
-| `STAGING_SSH_KEY` | 测试服务器SSH私钥 |
-| `STAGING_PORT` | 测试服务器SSH端口（可选） |
-| `PROD_HOST` | 生产服务器IP |
-| `PROD_USERNAME` | 生产服务器SSH用户名 |
-| `PROD_SSH_KEY` | 生产服务器SSH私钥 |
-| `PROD_PORT` | 生产服务器SSH端口（可选） |
+| Secret名称        | 说明             | 示例                                     |
+| ----------------- | ---------------- | ---------------------------------------- |
+| `HOST`            | 服务器IP地址     | `192.168.1.100`                          |
+| `USERNAME`        | SSH用户名        | `ubuntu`                                 |
+| `SSH_PRIVATE_KEY` | SSH私钥内容      | `-----BEGIN OPENSSH PRIVATE KEY-----...` |
+| `PORT`            | SSH端口（可选）  | `22`                                     |
+| `PROJECT_PATH`    | 项目路径（可选） | `/var/www/unifiles`                      |
 
 ### Step 3: 生成SSH密钥
 
@@ -212,61 +194,6 @@ sudo nginx -t
 sudo systemctl restart nginx
 ```
 
-### 方式2: Docker部署
-
-#### 1. 安装Docker
-
-```bash
-# 安装Docker
-curl -fsSL https://get.docker.com | sh
-
-# 添加用户到docker组
-sudo usermod -aG docker $USER
-
-# 重新登录使权限生效
-newgrp docker
-
-# 测试Docker安装
-docker run hello-world
-```
-
-#### 2. 配置环境文件
-
-```bash
-# 创建staging环境配置
-cat > .env.staging << EOF
-DATABASE_URL=postgresql://user:password@localhost:5432/unifiles_staging
-MINIO_ENDPOINT=localhost:9000
-MINIO_ACCESS_KEY=minioadmin
-MINIO_SECRET_KEY=minioadmin
-DEBUG=True
-EOF
-
-# 创建production环境配置
-cat > .env.production << EOF
-DATABASE_URL=postgresql://user:password@localhost:5432/unifiles_prod
-MINIO_ENDPOINT=localhost:9000
-MINIO_ACCESS_KEY=minioadmin
-MINIO_SECRET_KEY=minioadmin
-DEBUG=False
-EOF
-```
-
-#### 3. 配置Nginx（可选）
-
-创建适合Docker的Nginx配置，支持动态端口切换。
-
-## 🚀 测试部署
-
-### 1. 测试SSH连接
-
-```bash
-# 从本地测试SSH连接
-ssh -i ~/.ssh/id_rsa username@your_server_ip
-
-# 测试sudo权限（如果workflow需要）
-sudo systemctl status unifiles
-```
 
 ### 2. 测试自动部署
 
@@ -280,16 +207,6 @@ git push origin main
 
 # 2. 检查GitHub Actions
 # 访问：https://github.com/你的用户名/Unifiles/actions
-```
-
-#### Docker部署测试：
-```bash
-# 1. 测试staging部署
-git push origin main
-
-# 2. 测试production部署
-git tag v0.1.0
-git push origin v0.1.0
 ```
 
 ### 3. 验证部署结果
@@ -507,4 +424,3 @@ git log --oneline v1.0.0..v1.1.0
 ---
 
 **最后更新**: 2025-09-16
-**维护者**: 项目团队
