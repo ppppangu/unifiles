@@ -45,8 +45,10 @@ def main():
     # 1. 运行单元测试
     print("\n🧪 运行单元测试...")
     test_commands = [
-        ["python", "-m", "pytest", "tests/", "-v", "--tb=short"],
+        ["uv", "run", "python", "-m", "pytest", "tests/", "-v", "--tb=short"],
         [
+            "uv",
+            "run",
             "python",
             "-m",
             "pytest",
@@ -57,22 +59,35 @@ def main():
     ]
 
     for cmd in test_commands:
-        if not run_command(cmd, f"运行测试: {' '.join(cmd)}"):
+        if not run_command(cmd, f"运行测试: {' '.join(cmd[2:])}"):
             print("⚠️  测试命令失败，尝试下一个...")
+            success = False
 
     # 2. 运行集成测试（如果存在）
     integration_tests = project_root / "tests" / "integration"
-    if integration_tests.exists():
+    if integration_tests.exists() and any(integration_tests.glob("test_*.py")):
         print("\n🔗 运行集成测试...")
         if not run_command(
-            ["python", "-m", "pytest", str(integration_tests), "-v"], "集成测试"
+            ["uv", "run", "python", "-m", "pytest", str(integration_tests), "-v"],
+            "集成测试",
         ):
             success = False
+    else:
+        print("\n📝 跳过集成测试（目录不存在或无测试文件）")
 
     # 3. 检查测试覆盖率
     print("\n📊 生成覆盖率报告...")
     run_command(
-        ["python", "-m", "pytest", "tests/", "--cov=unifiles", "--cov-report=html"],
+        [
+            "uv",
+            "run",
+            "python",
+            "-m",
+            "pytest",
+            "tests/",
+            "--cov=unifiles",
+            "--cov-report=html",
+        ],
         "覆盖率报告",
     )
 
