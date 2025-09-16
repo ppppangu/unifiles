@@ -8,7 +8,6 @@ from pathlib import Path
 from typing import List, Optional
 
 import aiofiles
-import aiohttp
 import asyncpg
 import httpx
 import pdfplumber
@@ -992,8 +991,7 @@ async def embedding_all_text(text: str, alias: str):
     pattern = r"!\[([^\]]*)\]\(([^)]+)\)"
 
     # text_list和image_list的元素均为元组，元组第一个元素为alltext中的"分块的块索引"，元组第二个元素为text或图片的![]()内容
-    text_list = re.split(pattern, text)
-    image_list = []
+    re.split(pattern, text)
     # 找到所有匹配项及其位置
     matches = []
     for match in re.finditer(pattern, text):
@@ -1153,7 +1151,7 @@ async def mineru_process(
     os.makedirs(tmp_dir, exist_ok=True)
     ocr_file_path = tmp_dir / f"{file_uuid}_ocr.md"
     # 下载文件到本地
-    logger.info(f"----------------第一阶段：下载文件------------------")
+    logger.info("----------------第一阶段：下载文件------------------")
     logger.info(
         f"收到请求：user_id: {user_id}, file_url: {file_url}, knowledge_base_id: {knowledge_base_id}, mode: {mode}, "
     )
@@ -1165,14 +1163,14 @@ async def mineru_process(
     file_url_str = str(file_path)
     raw_file_name = file_name
     # 使用pdfplumber读取pdf文件
-    logger.info(f"----------------第二阶段：读取文本------------------")
+    logger.info("----------------第二阶段：读取文本------------------")
     if mode == "simple":
         text = await plumber_read_pdf(file_url_str)
         logger.info(f"使用simple模式读取pdf文件完成，共{len(text)}个字符")
         if text == "" or not text:
             text = "这是一个占位符，用于保证边缘情况，需要图片处理走normal模式"
             logger.info(
-                f"原文件为图片或仅含图片的文档格式，已使用占位符填充保证边缘情况，需要图片处理走normal模式"
+                "原文件为图片或仅含图片的文档格式，已使用占位符填充保证边缘情况，需要图片处理走normal模式"
             )
     elif mode == "normal":
         ocr_url = await request_mineru(file_url)
@@ -1185,15 +1183,15 @@ async def mineru_process(
         if not text or text == "":
             text = "这是一个占位符，用于保证边缘情况,文档已经mineru处理"
             logger.info(
-                f"已经过mineru处理，但text为空，已使用占位符填充保证边缘情况，可能是文档为空文档"
+                "已经过mineru处理，但text为空，已使用占位符填充保证边缘情况，可能是文档为空文档"
             )
     else:
         raise ValueError(f"Invalid mode: {mode}")
-    logger.info(f"------------------第三阶段：前处理--------------------")
+    logger.info("------------------第三阶段：前处理--------------------")
     # 进行两轮分块策略，第一轮以图片为间隔，第二轮针对文本进行分块
     # 第一轮分块策略
     # 将文本进行图片链接替换和分块为列表，列表的元素为(开始索引, 结束索引, 类型)
-    logger.info(f"开始进行第一轮图片边界分块策略，开始分块")
+    logger.info("开始进行第一轮图片边界分块策略，开始分块")
     text, results = await asyncio.to_thread(
         find_all_text_and_image_index, text, user_id, knowledge_base_id, file_uuid
     )

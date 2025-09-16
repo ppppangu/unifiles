@@ -3,9 +3,6 @@
 提供文本和图片的嵌入处理，支持可替换的嵌入提供者
 """
 
-import asyncio
-import json
-import uuid
 from typing import Any, Dict, List, Optional, Protocol, Tuple
 
 import httpx

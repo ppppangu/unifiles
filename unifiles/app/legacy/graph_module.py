@@ -417,7 +417,7 @@ async def produce_document_graph(user_id: str, knowledge_base_id: str):
 
             logger.info(f"Executing {len(tasks)} tag generation tasks concurrently")
             tags_list = await asyncio.gather(*tasks)
-            logger.info(f"Completed tag generation for all documents")
+            logger.info("Completed tag generation for all documents")
 
             # 将 tags 写回数据库
             updated_count = 0

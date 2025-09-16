@@ -4,11 +4,11 @@
 这是基于app/legacy/main.py中mineru_process函数的重构版本
 """
 
-import asyncio
 import uuid
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, Optional
 
+import aiofiles
 from loguru import logger
 
 from ..pipelines.format_validator import FormatValidationPipeline
@@ -77,12 +77,12 @@ class DocumentProcessingService:
 
             document_id = str(uuid.uuid4())
 
-            logger.info(f"=== Starting file processing ===")
+            logger.info("=== Starting file processing ===")
             logger.info(f"User: {user_id}, KB: {knowledge_base_id}, Mode: {mode}")
             logger.info(f"File: {filename}, Size: {len(file_content)} bytes")
 
             # 第一步：格式验证和PDF转换
-            logger.info(f"=== Stage 1: Format validation and PDF conversion ===")
+            logger.info("=== Stage 1: Format validation and PDF conversion ===")
 
             # 创建临时文件URL（实际应用中这应该是真实的文件URL）
             temp_file_path = self.tmp_dir / f"{document_id}_{filename}"
@@ -114,7 +114,7 @@ class DocumentProcessingService:
                 self.set_ocr_provider("mineru")
 
             # 第二步：PDF处理和内容提取
-            logger.info(f"=== Stage 2: PDF processing and content extraction ===")
+            logger.info("=== Stage 2: PDF processing and content extraction ===")
 
             structured_content = (
                 await self.pdf_pipeline.process_pdf_to_structured_content(
@@ -131,7 +131,7 @@ class DocumentProcessingService:
             )
 
             # 第三步：嵌入处理
-            logger.info(f"=== Stage 3: Embedding processing ===")
+            logger.info("=== Stage 3: Embedding processing ===")
 
             embedded_content = await self.embedding_service.embed_content_batch(
                 structured_content
@@ -141,7 +141,7 @@ class DocumentProcessingService:
             )
 
             # 第四步：存储处理结果
-            logger.info(f"=== Stage 4: Storage processing ===")
+            logger.info("=== Stage 4: Storage processing ===")
 
             # 重新构建markdown内容
             markdown_content = ""
@@ -177,7 +177,7 @@ class DocumentProcessingService:
                 },
             }
 
-            logger.info(f"=== File processing completed successfully ===")
+            logger.info("=== File processing completed successfully ===")
             logger.info(
                 f"Document ID: {document_id}, Components: {storage_result['component_count']}"
             )
@@ -224,12 +224,12 @@ class DocumentProcessingService:
             document_id = str(uuid.uuid4())
             filename = file_url.split("/")[-1] if "/" in file_url else "document.pdf"
 
-            logger.info(f"=== Starting URL file processing ===")
+            logger.info("=== Starting URL file processing ===")
             logger.info(f"User: {user_id}, KB: {knowledge_base_id}, Mode: {mode}")
             logger.info(f"File URL: {file_url}")
 
             # 第一步：格式验证和PDF转换
-            logger.info(f"=== Stage 1: Format validation and PDF conversion ===")
+            logger.info("=== Stage 1: Format validation and PDF conversion ===")
 
             validation_result = await self.format_pipeline.process_file_url_only(
                 file_url
@@ -249,7 +249,7 @@ class DocumentProcessingService:
                 self.set_ocr_provider("mineru")
 
             # 第二步：PDF处理和内容提取
-            logger.info(f"=== Stage 2: PDF processing and content extraction ===")
+            logger.info("=== Stage 2: PDF processing and content extraction ===")
 
             structured_content = (
                 await self.pdf_pipeline.process_pdf_to_structured_content(
@@ -266,7 +266,7 @@ class DocumentProcessingService:
             )
 
             # 第三步：嵌入处理
-            logger.info(f"=== Stage 3: Embedding processing ===")
+            logger.info("=== Stage 3: Embedding processing ===")
 
             embedded_content = await self.embedding_service.embed_content_batch(
                 structured_content
@@ -276,7 +276,7 @@ class DocumentProcessingService:
             )
 
             # 第四步：存储到向量数据库
-            logger.info(f"=== Stage 4: Vector database storage ===")
+            logger.info("=== Stage 4: Vector database storage ===")
 
             component_ids = (
                 await self.storage_service.store_structured_content_to_vector_db(
@@ -293,7 +293,7 @@ class DocumentProcessingService:
             )
 
             # 第五步：云端存储处理结果
-            logger.info(f"=== Stage 5: Cloud storage ===")
+            logger.info("=== Stage 5: Cloud storage ===")
 
             # 重新构建markdown内容
             markdown_content = ""
@@ -341,7 +341,7 @@ class DocumentProcessingService:
                 "file_uuid": document_id,
             }
 
-            logger.info(f"=== URL file processing completed successfully ===")
+            logger.info("=== URL file processing completed successfully ===")
             logger.info(f"Document ID: {document_id}, Components: {len(component_ids)}")
             logger.info(f"Markdown URL: {file_urls['markdown_public_url']}")
             logger.info(f"PDF URL: {file_urls['pdf_file_public_url']}")

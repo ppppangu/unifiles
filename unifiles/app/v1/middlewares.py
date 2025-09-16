@@ -3,12 +3,11 @@ V1 API 中间件模块
 包含各种中间件的实现
 """
 
-import os
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any, Dict, List, Optional
 
 import asyncpg
-from fastapi import HTTPException, Request, UploadFile
+from fastapi import Request, UploadFile
 from fastapi.responses import JSONResponse
 
 # 导入数据库配置

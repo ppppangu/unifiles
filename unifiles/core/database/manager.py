@@ -4,9 +4,8 @@
 """
 
 import json
-import uuid
 from datetime import datetime
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, Optional
 
 import asyncpg
 from loguru import logger
@@ -20,7 +19,6 @@ from .models import (
     KnowledgeBaseModel,
     PhotoModel,
     ProcessingLogModel,
-    ProcessingStage,
     ProcessingStatus,
     UserModel,
 )

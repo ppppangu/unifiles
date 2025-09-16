@@ -10,7 +10,6 @@ uv run python server/app/legacy/start_legacy_server.py
 uv run uvicorn server.app.legacy.main:app --http httptools --host 0.0.0.0 --port 8087 --log-level debug --access-log
 """
 
-import os
 import sys
 from pathlib import Path
 

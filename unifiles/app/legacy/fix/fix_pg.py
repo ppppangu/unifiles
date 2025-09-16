@@ -2,8 +2,6 @@
 
 import asyncio
 
-import asyncpg
-from loguru import logger
 
 # 导入配置
 from server.core.utils.tools import read_pg_config

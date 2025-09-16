@@ -9,6 +9,7 @@
 
 import io
 import uuid
+from contextlib import asynccontextmanager
 from datetime import datetime
 from pathlib import Path
 
@@ -85,7 +86,6 @@ async def start_up():
 
 
 # 注册启动事件
-from contextlib import asynccontextmanager
 
 
 @asynccontextmanager
@@ -100,6 +100,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title="Unifiles API",
     description="Unifiles API - 支持文件上传、处理和管理",
+)
 
 # 添加CORS中间件
 app.add_middleware(
@@ -346,7 +347,7 @@ async def convert_document_to_pdf(file_url: str):
             try:
                 error_detail = e.response.json()
                 logger.error(f"转换服务错误详情: {error_detail}")
-            except:
+            except Exception:
                 pass
         raise
     except httpx.RequestError as e:

@@ -2,7 +2,6 @@ from pathlib import Path
 
 import asyncpg
 import yaml
-from asyncpg import Connection
 from loguru import logger
 from minio import Minio
 

@@ -56,7 +56,7 @@ async def cloud_example():
     print(f"✅ 文档实例初始化完成 (ID: {document.id})")
 
     # 9. 获取文档内容
-    content = await doc_instance.get_content()
+    await doc_instance.get_content()
     print("✅ 文档内容获取成功: ")
 
 

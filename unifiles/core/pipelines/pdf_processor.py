@@ -5,12 +5,10 @@ PDF处理流水线
 """
 
 import asyncio
-import json
 import os
 import re
-import uuid
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Protocol, Tuple, Union
+from typing import Any, Dict, List, Optional, Protocol, Tuple
 
 import aiofiles
 import httpx
@@ -605,10 +603,10 @@ class PDFProcessingPipeline:
         """
         try:
             file_uuid = document_id
-            file_name = pdf_url.split("/")[-1]
+            pdf_url.split("/")[-1]
             local_file_path = self.tmp_dir / f"{file_uuid}.{pdf_url.split('.')[-1]}"
 
-            logger.info(f"=== Stage 1: Download file ===")
+            logger.info("=== Stage 1: Download file ===")
             logger.info(
                 f"Request: user_id={user_id}, file_url={pdf_url}, knowledge_base_id={knowledge_base_id}, mode={mode}"
             )
@@ -617,7 +615,7 @@ class PDFProcessingPipeline:
             await self.downloader.download_file(pdf_url, str(local_file_path))
             logger.info(f"File downloaded successfully: {local_file_path}")
 
-            logger.info(f"=== Stage 2: Extract text ===")
+            logger.info("=== Stage 2: Extract text ===")
 
             # 根据模式处理PDF
             if mode == "simple":
@@ -629,7 +627,7 @@ class PDFProcessingPipeline:
 
             logger.info(f"Text extraction completed, {len(text)} characters")
 
-            logger.info(f"=== Stage 3: Process content structure ===")
+            logger.info("=== Stage 3: Process content structure ===")
 
             # 处理文本内容结构
             structured_content = await self.text_processor.process_text_content(

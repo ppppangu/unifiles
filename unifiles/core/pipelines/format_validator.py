@@ -4,9 +4,8 @@
 """
 
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, Optional
 
-import aiofiles
 import httpx
 from loguru import logger
 from tenacity import (
@@ -231,7 +230,7 @@ class PDFConverter:
                 try:
                     error_detail = e.response.json()
                     logger.error(f"Conversion service error details: {error_detail}")
-                except:
+                except Exception:
                     pass
             raise
         except httpx.RequestError as e:

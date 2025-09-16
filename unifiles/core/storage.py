@@ -1,6 +1,5 @@
 import io
-from datetime import datetime, timedelta
-from urllib.parse import urlencode
+from datetime import timedelta
 
 from loguru import logger
 from minio import Minio

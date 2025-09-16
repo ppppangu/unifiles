@@ -5,18 +5,15 @@
 
 import asyncio
 import io
-import json
 import uuid
-from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional
 
-import aiofiles
 from loguru import logger
 from minio import Minio
 
 from ..database.manager import DatabaseManager
-from ..database.models import ChunkModel, DocumentModel, PhotoModel
+from ..database.models import ChunkModel, PhotoModel
 from ..utils.tools import detect_content_type, read_config, read_minio_config
 
 
@@ -284,7 +281,7 @@ class VectorStorageManager:
 
                     pattern = r"!\[([^\]]*)\]\(([^)]+)\)"
                     match = re.search(pattern, item["content"])
-                    photo_url = match.group(2) if match else ""
+                    match.group(2) if match else ""
 
                     task = self.save_image_data(
                         photo_id=component_id,
