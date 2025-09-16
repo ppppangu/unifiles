@@ -5,7 +5,7 @@ API使用示例
 
 import asyncio
 
-from file_server_core.client import Document, FileClient
+from unifiles.client import Document, FileClient
 
 
 async def cloud_example():

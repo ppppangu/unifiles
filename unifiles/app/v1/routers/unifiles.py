@@ -21,7 +21,7 @@ from server.app.v1.schemas import (
     StandardResponse,
     SupportedFileTypes,
 )
-from server.core import db
+from server.core.database import file_db_manager
 from server.core.storage import storage_manager
 
 # Constants from the original main.py
@@ -49,11 +49,16 @@ async def get_supported_file_types():
 
 
 @router.post("", response_model=FileUploadResponse)
-async def upload_file(request: Request, file: UploadFile = File(...)):
+async def upload_file(
+    request: Request, 
+    file: UploadFile = File(...),
+    is_public: bool = Query(default=False, description="是否设置为公开访问")
+):
     """
     上传文件到存储
 
     - **file**: 要上传的文件
+    - **is_public**: 是否设置为公开访问，默认为False
     - 用户ID会从请求状态中自动解析 (由AuthMiddleware提供)
     """
     try:
@@ -62,13 +67,6 @@ async def upload_file(request: Request, file: UploadFile = File(...)):
 
         if not file.filename:
             raise HTTPException(status_code=400, detail="No filename provided")
-
-        file_type = Path(file.filename).suffix.lower()
-        if file_type not in SUPPORTED_FILE_TYPES:
-            raise HTTPException(
-                status_code=400,
-                detail=f"Unsupported file type: {file_type}. Supported types: {SUPPORTED_FILE_TYPES}",
-            )
 
         file_content = await file.read()
         file_size = len(file_content)
@@ -79,7 +77,7 @@ async def upload_file(request: Request, file: UploadFile = File(...)):
         object_path = f"{user_id}/default_file_space/{file_id}/{file.filename}"
 
         # 1. Upload to storage
-        public_url = storage_manager.upload_file(
+        object_path = storage_manager.upload_file(
             object_path=object_path,
             file_content=file_content,
             file_name=file.filename,
@@ -89,17 +87,29 @@ async def upload_file(request: Request, file: UploadFile = File(...)):
         # After upload, get the definitive content_type set by the storage manager
         stat = storage_manager.client.stat_object(storage_manager.bucket_name, object_path)
         content_type = stat.content_type
+        
+        # 2. Generate access URL based on is_public setting
+        access_type = "public" if is_public else "presigned"
+        public_url = storage_manager.get_file_access_url(
+            object_path=object_path,
+            access_type=access_type,
+            expires_in_hours=24 if not is_public else None
+        )
 
-        # 2. Record in database
-        await db.add_file_record(
+        # 3. Record in database (also update is_public status)
+        await file_db_manager.add_file_record(
             file_id=file_id,
             user_id=user_id,
             filename=file.filename,
             file_size=file_size,
             content_type=content_type,
-            object_path=object_path,
-            public_url=public_url,
+            storage_path=object_path,
+            storage_config_id="example-minio",
         )
+        
+        # Update is_public status if needed
+        if is_public:
+            await file_db_manager.update_file_public_status(file_id, is_public)
 
         file_info = FileInfo(
             file_id=file_id,
@@ -108,6 +118,7 @@ async def upload_file(request: Request, file: UploadFile = File(...)):
             content_type=content_type,
             public_url=public_url,
             object_path=object_path,
+            is_public=is_public,
             created_at=datetime.now().isoformat(),
         )
 
@@ -133,17 +144,28 @@ async def list_user_files(
         user_id = request.state.user_id
         logger.info(f"GET /files request from user: {user_id}, limit: {limit}, offset: {offset}")
 
-        file_records = await db.get_user_files(user_id, limit, offset)
+        file_records = await file_db_manager.get_user_files(user_id, limit, offset)
         
         files = []
         for record in file_records:
+            # 根据is_public字段决定URL类型
+            is_public = record.get("is_public", False)
+            access_type = "public" if is_public else "presigned"
+            
+            fresh_url = storage_manager.get_file_access_url(
+                object_path=record["storage_path"],
+                access_type=access_type,
+                expires_in_hours=24 if not is_public else None
+            )
+            
             file_info = FileInfo(
                 file_id=record["id"],
                 filename=record["filename"],
                 file_size=record["bytes"],
                 content_type=record["mime_type"],
-                public_url=record["raw_file_public_url"],
-                object_path=record["file_path"],
+                public_url=fresh_url,
+                object_path=record["storage_path"],
+                is_public=is_public,
                 created_at=record["created_at"].isoformat(),
             )
             files.append(file_info)
@@ -170,17 +192,28 @@ async def get_file_info(request: Request, file_id: str = FastAPIPath(..., descri
     try:
         logger.info(f"GET /files/{file_id} request from user: {request.state.user_id}")
         
-        file_record = await db.get_file_record(file_id)
+        file_record = await file_db_manager.get_file_record(file_id)
         if not file_record:
             raise HTTPException(status_code=404, detail=f"File not found: {file_id}")
 
+        # 根据is_public字段决定URL类型
+        is_public = file_record.get("is_public", False)
+        access_type = "public" if is_public else "presigned"
+        
+        fresh_url = storage_manager.get_file_access_url(
+            object_path=file_record["storage_path"],
+            access_type=access_type,
+            expires_in_hours=24 if not is_public else None
+        )
+        
         return FileInfo(
             file_id=file_record["id"],
             filename=file_record["filename"],
             file_size=file_record["bytes"],
             content_type=file_record["mime_type"],
-            public_url=file_record["raw_file_public_url"],
-            object_path=file_record["file_path"],
+            public_url=fresh_url,
+            object_path=file_record["storage_path"],
+            is_public=is_public,
             created_at=file_record["created_at"].isoformat(),
         )
 
@@ -191,6 +224,41 @@ async def get_file_info(request: Request, file_id: str = FastAPIPath(..., descri
         raise HTTPException(status_code=500, detail=f"Failed to get file info: {str(e)}")
 
 
+@router.patch("/{file_id}/public-status", response_model=StandardResponse)
+async def update_file_public_status(
+    request: Request,
+    file_id: str = FastAPIPath(..., description="文件ID"),
+    is_public: bool = Query(description="是否设置为公开访问")
+):
+    """更新文件的公开访问状态"""
+    try:
+        user_id = request.state.user_id
+        logger.info(f"PATCH /files/{file_id}/public-status request from user: {user_id}")
+        
+        # 1. 验证文件存在和权限
+        file_record = await file_db_manager.get_file_record(file_id)
+        if not file_record:
+            raise HTTPException(status_code=404, detail=f"File not found: {file_id}")
+        
+        if file_record["user_id"] != user_id:
+            raise HTTPException(status_code=403, detail="Access denied: file belongs to another user")
+        
+        # 2. 更新公开状态
+        await file_db_manager.update_file_public_status(file_id, is_public)
+        
+        return StandardResponse(
+            success=True, 
+            message=f"File public status updated to: {is_public}",
+            data={"file_id": file_id, "is_public": is_public}
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error updating file public status for {file_id}: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to update file public status: {str(e)}")
+
+
 @router.delete("/{file_id}", response_model=StandardResponse)
 async def delete_file(request: Request, file_id: str = FastAPIPath(..., description="文件ID")):
     """删除文件"""
@@ -199,7 +267,7 @@ async def delete_file(request: Request, file_id: str = FastAPIPath(..., descript
         logger.info(f"DELETE /files/{file_id} request from user: {user_id}")
 
         # 1. Get file info from DB for authorization and path
-        file_record = await db.get_file_record(file_id)
+        file_record = await file_db_manager.get_file_record(file_id)
         if not file_record:
             # This is idempotent, so returning success is acceptable.
             logger.warning(f"Delete request for non-existent file_id: {file_id}")
@@ -209,10 +277,10 @@ async def delete_file(request: Request, file_id: str = FastAPIPath(..., descript
             raise HTTPException(status_code=403, detail="Access denied: file belongs to another user")
 
         # 2. Delete from storage
-        storage_manager.delete_file(object_path=file_record["file_path"])
+        storage_manager.delete_file(object_path=file_record["storage_path"])
 
         # 3. Delete from database
-        await db.delete_file_record(file_id)
+        await file_db_manager.delete_file_record(file_id)
 
         return StandardResponse(success=True, message="File deleted successfully", data={"file_id": file_id})
 

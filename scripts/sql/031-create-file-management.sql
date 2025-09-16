@@ -87,8 +87,7 @@ CREATE TABLE IF NOT EXISTS chunk_schema.files (
     storage_path TEXT NOT NULL,                           -- 存储路径（相对于配置的base_path）
     
     -- 访问地址（自动生成，不存储在数据库）
-    -- public_url 将通过 storage_config + storage_path 动态生成
-    
+    is_public BOOLEAN DEFAULT FALSE,                      -- 是否公网可访问    
     -- 文件状态管理
     status TEXT DEFAULT 'uploaded',                        -- 文件处理状态
     upload_source TEXT DEFAULT 'web',                     -- 上传来源
@@ -185,3 +184,7 @@ VALUES
     ('default-local', 'local', 'Local Storage', true, true, '/uploads', 'http://localhost:8000/files'),
     ('example-minio', 'object_storage', 'MinIO Object Storage', false, false, '', 'https://minio.example.com/bucket')
 ON CONFLICT (id) DO NOTHING;
+
+-- 文件公网访问链接生成
+-- 文件公网访问关闭
+

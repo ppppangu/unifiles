@@ -14,8 +14,9 @@ class FileInfo(BaseModel):
     filename: str = Field(description="原始文件名")
     file_size: int = Field(description="文件大小（字节）")
     content_type: str = Field(description="文件类型")
-    public_url: str = Field(description="公网访问URL")
+    public_url: str = Field(description="访问URL（预签名url或持久化公开访问路径）")
     object_path: str = Field(description="存储路径")
+    is_public: bool = Field(description="是否公开访问")
     created_at: str = Field(description="上传时间")
 
 

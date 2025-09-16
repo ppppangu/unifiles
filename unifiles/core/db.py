@@ -33,8 +33,8 @@ async def add_file_record(
     filename: str,
     file_size: int,
     content_type: str,
-    object_path: str,
-    public_url: str,
+    storage_path: str,
+    storage_config_id: str = "default-local",
 ) -> None:
     """将文件记录添加到数据库。"""
     conn = None
@@ -45,7 +45,7 @@ async def add_file_record(
             """
             INSERT INTO chunk_schema.files (
                 id, user_id, bytes, filename, mime_type,
-                file_path, raw_file_public_url, status
+                storage_path, storage_config_id, status
             ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
             """,
             file_id,
@@ -53,8 +53,8 @@ async def add_file_record(
             file_size,
             filename,
             content_type,
-            object_path,
-            public_url,
+            storage_path,
+            storage_config_id,
             "uploaded",
         )
         logger.info(f"File record created in database: {file_id}")
@@ -74,8 +74,8 @@ async def get_file_record(file_id: str):
         # user_id is needed for authorization checks in the calling function
         file_record = await conn.fetchrow(
             """
-            SELECT id, filename, bytes, mime_type, raw_file_public_url,
-                   file_path, created_at, user_id
+            SELECT id, filename, bytes, mime_type, storage_path,
+                   storage_config_id, created_at, user_id, is_public
             FROM chunk_schema.files
             WHERE id = $1
             """,
@@ -97,10 +97,10 @@ async def get_user_files(user_id: str, limit: int = 50, offset: int = 0):
         conn = await asyncpg.connect(**pg_config)
         file_records = await conn.fetch(
             """
-            SELECT id, filename, bytes, mime_type, raw_file_public_url,
-                   file_path, created_at, user_id
+            SELECT id, filename, bytes, mime_type, storage_path,
+                   storage_config_id, created_at, user_id, is_public
             FROM chunk_schema.files
-            WHERE user_id = $1
+            WHERE user_id = $1 AND is_deleted = FALSE
             ORDER BY created_at DESC
             LIMIT $2 OFFSET $3
             """,
@@ -111,6 +111,27 @@ async def get_user_files(user_id: str, limit: int = 50, offset: int = 0):
         return file_records
     except Exception as e:
         logger.error(f"Error getting user files from DB: {e}")
+        raise
+    finally:
+        if conn:
+            await conn.close()
+
+
+async def update_file_public_status(file_id: str, is_public: bool) -> None:
+    """更新文件的公开访问状态。"""
+    conn = None
+    try:
+        conn = await asyncpg.connect(**pg_config)
+        result = await conn.execute(
+            "UPDATE chunk_schema.files SET is_public = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2",
+            is_public, file_id
+        )
+        if " 0" in result:
+            logger.warning(f"Attempted to update non-existent file record: {file_id}")
+        else:
+            logger.info(f"File public status updated: {file_id} -> {is_public}")
+    except Exception as e:
+        logger.error(f"Error updating file public status: {e}")
         raise
     finally:
         if conn:
