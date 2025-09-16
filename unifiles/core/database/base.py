@@ -8,14 +8,14 @@ from server.core.utils.tools import read_pg_config
 
 class DatabaseManager(ABC):
     """数据库操作的抽象基类"""
-    
+
     def __init__(self):
         self.pg_config = read_pg_config()
-    
+
     async def get_connection(self) -> asyncpg.Connection:
         """获取数据库连接"""
         return await asyncpg.connect(**self.pg_config)
-    
+
     async def execute_query(self, query: str, *args) -> Any:
         """执行查询并返回结果"""
         conn = None
@@ -28,7 +28,7 @@ class DatabaseManager(ABC):
         finally:
             if conn:
                 await conn.close()
-    
+
     async def fetch_one(self, query: str, *args) -> Optional[Dict]:
         """获取单条记录"""
         conn = None
@@ -42,7 +42,7 @@ class DatabaseManager(ABC):
         finally:
             if conn:
                 await conn.close()
-    
+
     async def fetch_many(self, query: str, *args) -> List[Dict]:
         """获取多条记录"""
         conn = None
@@ -56,7 +56,7 @@ class DatabaseManager(ABC):
         finally:
             if conn:
                 await conn.close()
-    
+
     async def fetch_value(self, query: str, *args) -> Any:
         """获取单个值"""
         conn = None
@@ -73,7 +73,7 @@ class DatabaseManager(ABC):
 
 class FileDBManager(DatabaseManager):
     """文件相关的数据库操作管理器"""
-    
+
     async def ensure_user_exists(self, user_id: str) -> None:
         """确保用户在数据库中存在，如果不存在则创建"""
         exists = await self.fetch_value(
@@ -84,7 +84,7 @@ class FileDBManager(DatabaseManager):
                 "INSERT INTO chunk_schema.users (id) VALUES ($1)", user_id
             )
             logger.info(f"Created new user in database: {user_id}")
-    
+
     async def add_file_record(
         self,
         file_id: str,
@@ -114,7 +114,7 @@ class FileDBManager(DatabaseManager):
             "uploaded",
         )
         logger.info(f"File record created in database: {file_id}")
-    
+
     async def get_file_record(self, file_id: str) -> Optional[Dict]:
         """根据文件ID获取文件记录"""
         return await self.fetch_one(
@@ -126,8 +126,10 @@ class FileDBManager(DatabaseManager):
             """,
             file_id,
         )
-    
-    async def get_user_files(self, user_id: str, limit: int = 50, offset: int = 0) -> List[Dict]:
+
+    async def get_user_files(
+        self, user_id: str, limit: int = 50, offset: int = 0
+    ) -> List[Dict]:
         """获取用户的文件列表"""
         return await self.fetch_many(
             """
@@ -142,7 +144,7 @@ class FileDBManager(DatabaseManager):
             limit,
             offset,
         )
-    
+
     async def delete_file_record(self, file_id: str) -> None:
         """删除文件记录"""
         result = await self.execute_query(
@@ -152,7 +154,7 @@ class FileDBManager(DatabaseManager):
             logger.warning(f"Attempted to delete non-existent file record: {file_id}")
         else:
             logger.info(f"File record deleted from database: {file_id}")
-    
+
     async def update_file_public_url(self, file_id: str, public_url: str) -> None:
         """更新文件的公共访问链接"""
         await self.execute_query(
@@ -161,33 +163,32 @@ class FileDBManager(DatabaseManager):
             public_url,
         )
         logger.info(f"Updated public URL for file {file_id}")
-    
+
     async def get_file_object_path(self, file_id: str) -> Optional[str]:
         """获取文件的对象路径"""
         result = await self.fetch_value(
-            "SELECT file_path FROM chunk_schema.files WHERE id = $1",
-            file_id
+            "SELECT file_path FROM chunk_schema.files WHERE id = $1", file_id
         )
         return result
-    
+
     async def update_file_access_info(self, file_id: str, **kwargs) -> None:
         """更新文件访问信息（可扩展的方法）"""
         # 构建动态更新语句
         update_fields = []
         values = []
         param_count = 1
-        
+
         for field, value in kwargs.items():
-            if field in ['is_public', 'status', 'mime_type']:
+            if field in ["is_public", "status", "mime_type"]:
                 update_fields.append(f"{field} = ${param_count + 1}")
                 values.append(value)
                 param_count += 1
-        
+
         if update_fields:
             query = f"UPDATE chunk_schema.files SET {', '.join(update_fields)} WHERE id = $1"
             await self.execute_query(query, file_id, *values)
             logger.info(f"Updated file access info for {file_id}: {kwargs}")
-    
+
     async def update_file_public_status(self, file_id: str, is_public: bool) -> None:
         """更新文件的公开访问状态"""
         await self.execute_query(
@@ -196,7 +197,7 @@ class FileDBManager(DatabaseManager):
             is_public,
         )
         logger.info(f"Updated file {file_id} public status to: {is_public}")
-    
+
     async def get_file_access_info(self, file_id: str) -> Optional[Dict]:
         """获取文件访问信息"""
         return await self.fetch_one(

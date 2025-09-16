@@ -401,7 +401,7 @@ async def produce_document_graph(user_id: str, knowledge_base_id: str):
             tasks = []
             for i, doc in enumerate(documents):
                 logger.debug(
-                    f"Creating task {i+1}/{len(documents)} for document: {doc['id']}"
+                    f"Creating task {i + 1}/{len(documents)} for document: {doc['id']}"
                 )
                 tasks.append(
                     single_document_summary(
@@ -545,7 +545,9 @@ async def get_documents_graph(user_id: str, knowledge_base_id: str):
                 documents.append(doc)
 
                 # 添加更详细的调试信息
-                logger.debug(f"Document {i+1}/{len(rows)}: {doc['id']} - {doc['name']}")
+                logger.debug(
+                    f"Document {i + 1}/{len(rows)}: {doc['id']} - {doc['name']}"
+                )
                 logger.debug(f"  Raw tags from DB: {raw_tags} (type: {type(raw_tags)})")
                 logger.debug(
                     f"  Processed tags: {tags} (type: {type(tags)}, length: {len(tags)})"

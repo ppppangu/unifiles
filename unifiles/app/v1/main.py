@@ -8,8 +8,8 @@ Unifiles v1 API - RESTful Architecture
 
 启动命令：uv run uvicorn server.app.v1.main:app --host 0.0.0.0 --port 8088 --reload
 """
+
 from contextlib import asynccontextmanager
-from datetime import datetime
 from pathlib import Path
 
 from fastapi import FastAPI
@@ -40,16 +40,18 @@ async def lifespan(app: FastAPI):
             log_dir=log_path,
             level="INFO",
             rotation="100 MB",
-            retention="30 days"
+            retention="30 days",
         )
         app_logger = get_logger()
-        
+
         # 创建必要的目录
         mk_need_path()
         app_logger.info("Unifiles v1 started successfully", {"version": "1.1.0"})
     except Exception as e:
         app_logger = get_logger()
-        app_logger.error(f"Startup initialization failed: {str(e)}", {"error_type": "startup_error"})
+        app_logger.error(
+            f"Startup initialization failed: {str(e)}", {"error_type": "startup_error"}
+        )
         # Allow startup to continue
 
     yield

@@ -41,7 +41,7 @@ async def get_knowledge_bases(
         created_at=datetime.now().isoformat(),
         updated_at=datetime.now().isoformat(),
     )
-    
+
     return KnowledgeBaseListResponse(
         success=True,
         message="Knowledge bases retrieved successfully",

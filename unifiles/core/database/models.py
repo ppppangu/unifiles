@@ -14,8 +14,10 @@ from typing import Any, Dict, List, Optional
 # 枚举定义 (Enums)
 # ================================
 
+
 class FileStatus(Enum):
     """文件状态枚举"""
+
     UPLOADED = "uploaded"
     VALIDATING = "validating"
     PROCESSING = "processing"
@@ -26,6 +28,7 @@ class FileStatus(Enum):
 
 class ProcessingStage(Enum):
     """处理阶段枚举"""
+
     UPLOAD = "upload"
     VALIDATION = "validation"
     OCR_EXTRACTION = "ocr_extraction"
@@ -34,6 +37,7 @@ class ProcessingStage(Enum):
 
 class ProcessingStatus(Enum):
     """处理状态枚举"""
+
     PENDING = "pending"
     RUNNING = "running"
     COMPLETED = "completed"
@@ -43,12 +47,14 @@ class ProcessingStatus(Enum):
 
 class StorageType(Enum):
     """存储类型枚举"""
+
     LOCAL = "local"
     OBJECT_STORAGE = "object_storage"
 
 
 class ExtractionStatus(Enum):
     """提取状态枚举"""
+
     PENDING = "pending"
     PROCESSING = "processing"
     COMPLETED = "completed"
@@ -58,6 +64,7 @@ class ExtractionStatus(Enum):
 
 class KnowledgeBaseStatus(Enum):
     """知识库状态枚举"""
+
     ACTIVE = "active"
     INACTIVE = "inactive"
     ARCHIVED = "archived"
@@ -66,6 +73,7 @@ class KnowledgeBaseStatus(Enum):
 
 class ComponentType(Enum):
     """组件类型枚举"""
+
     CHUNK = "chunk"
     PHOTO = "photo"
 
@@ -74,9 +82,11 @@ class ComponentType(Enum):
 # 用户和权限层 (User & Permission Layer)
 # ================================
 
+
 @dataclass
 class UserModel:
     """用户模型"""
+
     id: str
     username: Optional[str] = None
     email: Optional[str] = None
@@ -96,6 +106,7 @@ class UserModel:
 @dataclass
 class AccessKeyModel:
     """访问密钥模型"""
+
     id: str
     user_id: str
     access_key: str
@@ -114,9 +125,11 @@ class AccessKeyModel:
 # 文件管理层 (File Management Layer)
 # ================================
 
+
 @dataclass
 class StorageConfigModel:
     """存储配置模型"""
+
     id: str
     storage_type: StorageType
     storage_name: str
@@ -136,6 +149,7 @@ class StorageConfigModel:
 @dataclass
 class FileModel:
     """文件模型 - 文件管理层"""
+
     id: str
     user_id: str
     filename: str
@@ -172,6 +186,7 @@ class FileModel:
 @dataclass
 class FileProcessingLogModel:
     """文件处理日志模型"""
+
     id: str
     file_id: str
     stage: ProcessingStage
@@ -189,9 +204,11 @@ class FileProcessingLogModel:
 # 内容提取层 (Content Extraction Layer)
 # ================================
 
+
 @dataclass
 class ExtractedDocumentModel:
     """提取文档模型 - 内容提取层"""
+
     id: str
     file_id: str
     user_id: str
@@ -236,6 +253,7 @@ class ExtractedDocumentModel:
 @dataclass
 class ExtractedAssetModel:
     """提取资源模型 - 内容提取层"""
+
     id: str
     extracted_document_id: str
     asset_type: str
@@ -275,9 +293,11 @@ class ExtractedAssetModel:
 # 知识库层 (Knowledge Base Layer)
 # ================================
 
+
 @dataclass
 class KnowledgeBaseModel:
     """知识库模型 - 知识库层"""
+
     id: str
     user_id: str
     name: str
@@ -318,14 +338,14 @@ class KnowledgeBaseModel:
                 "preserve_structure": True,
                 "split_on_headers": True,
                 "min_chunk_size": 50,
-                "chunk_overlap_strategy": "sentence_boundary"
+                "chunk_overlap_strategy": "sentence_boundary",
             }
         if self.vector_config is None:
             self.vector_config = {
                 "embedding_model": "text-embedding-3-small",
                 "embedding_dimensions": 1536,
                 "similarity_threshold": 0.7,
-                "search_strategy": "hybrid"
+                "search_strategy": "hybrid",
             }
         if self.search_config is None:
             self.search_config = {
@@ -333,7 +353,7 @@ class KnowledgeBaseModel:
                 "enable_keyword_search": True,
                 "enable_hybrid_search": True,
                 "rerank_enabled": False,
-                "max_results": 20
+                "max_results": 20,
             }
         if self.document_ids is None:
             self.document_ids = []
@@ -346,6 +366,7 @@ class KnowledgeBaseModel:
 @dataclass
 class DocumentModel:
     """知识库文档模型 - 知识库层"""
+
     id: str
     knowledge_base_id: str
     extracted_document_id: str
@@ -401,6 +422,7 @@ class DocumentModel:
 @dataclass
 class KBStatisticsModel:
     """知识库统计模型"""
+
     id: str
     knowledge_base_id: str
     total_documents: int = 0
@@ -427,9 +449,11 @@ class KBStatisticsModel:
 # 组件抽象层 (Component Abstraction Layer)
 # ================================
 
+
 @dataclass
 class ComponentModel:
     """组件模型 - 统一抽象层"""
+
     id: str
     document_id: str
     component_type: ComponentType
@@ -448,6 +472,7 @@ class ComponentModel:
 @dataclass
 class ChunkModel:
     """文本块模型 - 组件子类"""
+
     id: str
     component_id: str
     text_content: str
@@ -458,11 +483,10 @@ class ChunkModel:
     updated_at: Optional[datetime] = None
 
 
-
-
 @dataclass
 class PhotoModel:
     """图片模型 - 组件子类"""
+
     id: str
     component_id: str
     extracted_asset_id: str
@@ -475,5 +499,3 @@ class PhotoModel:
     format: Optional[str] = None
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
-
-

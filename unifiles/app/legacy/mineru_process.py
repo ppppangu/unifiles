@@ -1058,7 +1058,6 @@ async def download_file(file_url: str, file_path: str):
                 follow_redirects=True,
                 verify=False,  # 暂时禁用SSL验证以排除证书问题
             ) as client:
-
                 # 先进行HEAD请求检查文件是否存在
                 try:
                     logger.info(f"检查文件可访问性: {target_url}")

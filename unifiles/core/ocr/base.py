@@ -55,9 +55,11 @@ class BaseOCRProvider(ABC):
 
         output_path.write_text(content, encoding="utf-8")
 
-    def save_to_images(self, images: List[Any], output_dir: Union[str, Path] = None) -> None:
+    def save_to_images(
+        self, images: List[Any], output_dir: Union[str, Path] = None
+    ) -> None:
         """Save images to files - to be implemented by subclasses based on their response format
-        
+
         Args:
             images: List of image objects to save
             output_dir: Directory to save images to. If None, saves to current directory.
@@ -81,6 +83,8 @@ class BaseOCRProvider(ABC):
         """Async wrapper for save_to_markdown."""
         await asyncio.to_thread(self.save_to_markdown, text, output_path, title)
 
-    async def asave_to_images(self, images: List[Any], output_dir: Union[str, Path] = None) -> None:
+    async def asave_to_images(
+        self, images: List[Any], output_dir: Union[str, Path] = None
+    ) -> None:
         """Async wrapper for save_to_images."""
         await asyncio.to_thread(self.save_to_images, images, output_dir)

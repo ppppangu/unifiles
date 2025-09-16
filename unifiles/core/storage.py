@@ -43,6 +43,7 @@ def detect_content_type(
 
     return custom_mapping.get(ext, default)
 
+
 class StorageManager:
     """一个用于管理MinIO对象存储的类"""
 
@@ -108,16 +109,16 @@ class StorageManager:
         except Exception as e:
             logger.error(f"Error uploading file to MinIO: {e}")
             raise
-    
+
     def generate_presigned_url(
-        self, 
-        object_path: str, 
+        self,
+        object_path: str,
         expires_in_hours: int = 24,
-        response_headers: Optional[dict] = None
+        response_headers: Optional[dict] = None,
     ) -> str:
         """
         生成预签名URL用于安全访问文件。
-        
+
         :param object_path: 文件在存储桶中的路径
         :param expires_in_hours: URL过期时间（小时）
         :param response_headers: 响应头设置
@@ -125,30 +126,34 @@ class StorageManager:
         """
         try:
             expires = timedelta(hours=expires_in_hours)
-            
+
             url = self.client.presigned_get_object(
                 bucket_name=self.bucket_name,
                 object_name=object_path,
                 expires=expires,
-                response_headers=response_headers
+                response_headers=response_headers,
             )
-            
-            logger.debug(f"Generated presigned URL for {object_path}, expires in {expires_in_hours} hours")
+
+            logger.debug(
+                f"Generated presigned URL for {object_path}, expires in {expires_in_hours} hours"
+            )
             return url
-            
+
         except Exception as e:
             logger.error(f"Error generating presigned URL for {object_path}: {e}")
             raise
-    
+
     def generate_public_url(self, object_path: str) -> str:
         """
         生成公共访问URL（如果配置了公共访问）。
-        
+
         :param object_path: 文件在存储桶中的路径
         :return: 公共访问URL
         """
         try:
-            if self.config.get("use_public_url") and self.config.get("public_url_prefix"):
+            if self.config.get("use_public_url") and self.config.get(
+                "public_url_prefix"
+            ):
                 public_url = f"{self.config['public_url_prefix']}/{self.bucket_name}/{object_path}"
             else:
                 endpoint = (
@@ -156,18 +161,20 @@ class StorageManager:
                     or f"{self.config['host']}:{self.config['port']}"
                 )
                 public_url = f"http://{endpoint}/{self.bucket_name}/{object_path}"
-            
+
             logger.debug(f"Generated public URL: {public_url}")
             return public_url
-            
+
         except Exception as e:
             logger.error(f"Error generating public URL for {object_path}: {e}")
             raise
-    
-    def get_file_access_url(self, object_path: str, access_type: str = "presigned", **kwargs) -> str:
+
+    def get_file_access_url(
+        self, object_path: str, access_type: str = "presigned", **kwargs
+    ) -> str:
         """
         根据访问类型生成文件访问URL。
-        
+
         :param object_path: 文件路径
         :param access_type: 访问类型 ('presigned' 或 'public')
         :param kwargs: 额外参数（如expires_in_hours等）
@@ -176,7 +183,9 @@ class StorageManager:
         if access_type == "presigned":
             expires_in_hours = kwargs.get("expires_in_hours", 24)
             response_headers = kwargs.get("response_headers")
-            return self.generate_presigned_url(object_path, expires_in_hours, response_headers)
+            return self.generate_presigned_url(
+                object_path, expires_in_hours, response_headers
+            )
         elif access_type == "public":
             return self.generate_public_url(object_path)
         else:
@@ -189,11 +198,11 @@ class StorageManager:
             logger.info(f"File deleted from MinIO: {object_path}")
         except Exception as e:
             logger.warning(f"Failed to delete file from MinIO, but proceeding: {e}")
-    
+
     def file_exists(self, object_path: str) -> bool:
         """
         检查文件是否存在。
-        
+
         :param object_path: 文件路径
         :return: 文件是否存在
         """
@@ -202,11 +211,11 @@ class StorageManager:
             return True
         except Exception:
             return False
-    
+
     def get_file_info(self, object_path: str) -> dict:
         """
         获取文件信息。
-        
+
         :param object_path: 文件路径
         :return: 文件信息字典
         """

@@ -1,6 +1,7 @@
 """
 占位测试文件 - 确保 pytest 能够运行
 """
+
 import pytest
 
 
@@ -28,17 +29,18 @@ def test_list_operations():
 async def test_async_placeholder():
     """异步测试占位"""
     import asyncio
+
     await asyncio.sleep(0.001)  # 模拟异步操作
     assert True
 
 
 class TestPlaceholder:
     """占位测试类"""
-    
+
     def test_class_method(self):
         """类方法测试"""
         assert True
-        
+
     def test_setup(self):
         """设置测试"""
         data = {"status": "ok", "message": "test"}

@@ -63,7 +63,6 @@ async def cloud_example():
 if __name__ == "__main__":
     asyncio.run(cloud_example())
 
-
     # 1. 初始化客户端
     client = FileClient(
         api_key="your_cloud_api_key_here", base_url="http://localhost:8087"

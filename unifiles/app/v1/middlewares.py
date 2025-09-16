@@ -12,6 +12,7 @@ from fastapi.responses import JSONResponse
 
 # 导入数据库配置
 from server.core.utils.tools import read_pg_config
+
 # 导入格式验证器
 from server.core.pipelines.format_validator import FileFormatValidator
 
@@ -168,15 +169,17 @@ class FileValidationMiddleware:
 
         # 3. 文件大小检测和内容验证
         file_size = await self._get_file_size(file)
-        
+
         # 读取文件内容进行验证
         file_content = await file.read()
         # 重置文件指针
         await file.seek(0)
-        
+
         # 使用FileFormatValidator进行内容验证
-        content_validation = await self.validator.validate_file_content(file_content, file.filename)
-        
+        content_validation = await self.validator.validate_file_content(
+            file_content, file.filename
+        )
+
         if not content_validation["is_valid"]:
             issues.extend(content_validation["errors"])
 

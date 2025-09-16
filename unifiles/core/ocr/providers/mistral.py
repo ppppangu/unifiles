@@ -120,7 +120,7 @@ class MistralOCRProvider(BaseOCRProvider):
             images_dir = file_path.parent / f"{file_path.stem}_images"
             await asyncio.gather(
                 self.asave_to_images(images, images_dir),
-                self.asave_to_markdown(text, file_path.parent / f"{file_path.stem}.md")
+                self.asave_to_markdown(text, file_path.parent / f"{file_path.stem}.md"),
             )
             logger.success("[async] OCR processing completed")
             return text
@@ -161,9 +161,11 @@ class MistralOCRProvider(BaseOCRProvider):
 
         return markdown_text, images
 
-    def save_to_images(self, images: List[Any], output_dir: Union[str, Path] = None) -> None:
+    def save_to_images(
+        self, images: List[Any], output_dir: Union[str, Path] = None
+    ) -> None:
         """Save base64 encoded images from Mistral response to files
-        
+
         Args:
             images: List of image objects from Mistral response
             output_dir: Directory to save images to. If None, saves to current directory.
@@ -174,7 +176,7 @@ class MistralOCRProvider(BaseOCRProvider):
             output_dir = Path(output_dir)
             # Create directory if it doesn't exist
             output_dir.mkdir(parents=True, exist_ok=True)
-        
+
         for i, image in enumerate(images):
             try:
                 image_base64data = image.image_base64.split(",")[1]

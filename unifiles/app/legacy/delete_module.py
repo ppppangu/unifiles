@@ -320,7 +320,7 @@ async def delete_file_from_minio(user_id: str, file_id: str, knowledge_base_id: 
                 logger.info(f"Deleted files: {deleted_files}")
             else:
                 logger.info(
-                    f"Deleted files (first 5): {deleted_files[:5]}... and {len(deleted_files)-5} more"
+                    f"Deleted files (first 5): {deleted_files[:5]}... and {len(deleted_files) - 5} more"
                 )
 
             return True

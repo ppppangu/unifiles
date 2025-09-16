@@ -124,7 +124,8 @@ async def update_file_public_status(file_id: str, is_public: bool) -> None:
         conn = await asyncpg.connect(**pg_config)
         result = await conn.execute(
             "UPDATE chunk_schema.files SET is_public = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2",
-            is_public, file_id
+            is_public,
+            file_id,
         )
         if " 0" in result:
             logger.warning(f"Attempted to update non-existent file record: {file_id}")
@@ -143,9 +144,13 @@ async def delete_file_record(file_id: str) -> None:
     conn = None
     try:
         conn = await asyncpg.connect(**pg_config)
-        result = await conn.execute("DELETE FROM chunk_schema.files WHERE id = $1", file_id)
+        result = await conn.execute(
+            "DELETE FROM chunk_schema.files WHERE id = $1", file_id
+        )
         if " 0" in result:
-            logger.warning(f"Attempted to delete non-existent file record from DB: {file_id}")
+            logger.warning(
+                f"Attempted to delete non-existent file record from DB: {file_id}"
+            )
         else:
             logger.info(f"File record deleted from database: {file_id}")
     except Exception as e:

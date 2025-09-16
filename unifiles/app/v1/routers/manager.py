@@ -1,11 +1,8 @@
 from datetime import datetime
-from typing import Optional
 
 from fastapi import (
     APIRouter,
     HTTPException,
-    Path as FastAPIPath,
-    Query,
     Request,
 )
 from loguru import logger
@@ -23,12 +20,12 @@ async def get_system_status(request: Request):
     try:
         # TODO: 实现系统状态检查逻辑
         # - 数据库连接状态
-        # - 存储服务状态  
+        # - 存储服务状态
         # - 系统资源使用情况
         # - 服务健康状态
-        
+
         logger.info("System status check requested by admin")
-        
+
         return StandardResponse(
             success=True,
             message="System status retrieved successfully",
@@ -37,13 +34,15 @@ async def get_system_status(request: Request):
                 "timestamp": datetime.now().isoformat(),
                 "components": {
                     "database": "connected",
-                    "storage": "healthy", 
+                    "storage": "healthy",
                     "memory_usage": "normal",
-                    "disk_usage": "normal"
-                }
-            }
+                    "disk_usage": "normal",
+                },
+            },
         )
-        
+
     except Exception as e:
         logger.error(f"Error getting system status: {e}")
-        raise HTTPException(status_code=500, detail=f"Failed to get system status: {str(e)}")
+        raise HTTPException(
+            status_code=500, detail=f"Failed to get system status: {str(e)}"
+        )

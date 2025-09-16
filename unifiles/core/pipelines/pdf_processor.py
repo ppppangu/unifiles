@@ -240,7 +240,6 @@ class FileDownloader:
                     follow_redirects=True,
                     verify=False,
                 ) as client:
-
                     # 先进行HEAD请求检查文件是否存在
                     try:
                         logger.info(f"Checking file accessibility: {target_url}")

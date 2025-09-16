@@ -20,7 +20,9 @@ def process_file_content(
     :param extract_request: 内容提取的请求参数。
     :return: 提取的内容信息。
     """
-    logger.info(f"Processing file content for {file_id} with mode '{extract_request.mode}'")
+    logger.info(
+        f"Processing file content for {file_id} with mode '{extract_request.mode}'"
+    )
 
     # TODO: 实现实际的内容提取逻辑
     # 这里应该调用 OCR Pipeline 或文档解析服务
