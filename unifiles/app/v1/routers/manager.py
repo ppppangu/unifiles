@@ -27,7 +27,7 @@ async def get_system_status(request: Request):
         # - 系统资源使用情况
         # - 服务健康状态
         
-        logger.info(f"System status check requested by admin")
+        logger.info("System status check requested by admin")
         
         return StandardResponse(
             success=True,
