@@ -1,5 +1,6 @@
 import io
 from datetime import timedelta
+from typing import Optional
 
 from loguru import logger
 from minio import Minio
@@ -112,7 +113,7 @@ class StorageManager:
         self, 
         object_path: str, 
         expires_in_hours: int = 24,
-        response_headers: dict = None
+        response_headers: Optional[dict] = None
     ) -> str:
         """
         生成预签名URL用于安全访问文件。

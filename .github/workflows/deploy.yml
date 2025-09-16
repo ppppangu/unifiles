@@ -31,7 +31,7 @@ jobs:
         
     - name: Run type checker
       run: |
-        uv run mypy unifiles/ --ignore-missing-imports
+        uv run mypy unifiles/ --config-file=mypy.ini
         
     - name: Run tests
       run: |

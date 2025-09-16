@@ -4,7 +4,7 @@
 基于新的分层架构设计：文件层 -> 内容提取层 -> 知识库层 -> 组件抽象层 -> 组件子类层
 """
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
 from typing import Any, Dict, List, Optional
@@ -83,17 +83,14 @@ class UserModel:
     display_name: Optional[str] = None
     user_status: str = "active"
     user_role: str = "user"
-    knowledge_ids: List[str] = None
-    user_settings: Dict[str, Any] = None
+    knowledge_ids: List[str] = field(default_factory=list)
+    user_settings: Dict[str, Any] = field(default_factory=dict)
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
     last_login_at: Optional[datetime] = None
 
     def __post_init__(self):
-        if self.knowledge_ids is None:
-            self.knowledge_ids = []
-        if self.user_settings is None:
-            self.user_settings = {}
+        pass
 
 
 @dataclass
@@ -103,15 +100,14 @@ class AccessKeyModel:
     user_id: str
     access_key: str
     name: str
-    scopes: List[str] = None
+    scopes: List[str] = field(default_factory=lambda: ["read", "write"])
     is_active: bool = True
     created_at: Optional[datetime] = None
     expires_at: Optional[datetime] = None
     last_used_at: Optional[datetime] = None
 
     def __post_init__(self):
-        if self.scopes is None:
-            self.scopes = ["read", "write"]
+        pass
 
 
 # ================================
@@ -156,9 +152,9 @@ class FileModel:
     upload_source: str = "web"
     is_deleted: bool = False
     file_category: Optional[str] = None
-    tags: List[str] = None
-    metadata: Dict[str, Any] = None
-    processing_config: Dict[str, Any] = None
+    tags: List[str] = field(default_factory=list)
+    metadata: Dict[str, Any] = field(default_factory=dict)
+    processing_config: Dict[str, Any] = field(default_factory=dict)
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
     uploaded_at: Optional[datetime] = None
@@ -181,7 +177,7 @@ class FileProcessingLogModel:
     stage: ProcessingStage
     status: ProcessingStatus
     message: Optional[str] = None
-    error_details: Dict[str, Any] = None
+    error_details: Optional[Dict[str, Any]] = None
     created_at: Optional[datetime] = None
 
     def __post_init__(self):
@@ -203,9 +199,9 @@ class ExtractedDocumentModel:
     extraction_version: Optional[str] = None
     extraction_engine: Optional[str] = None
     full_markdown: str = ""
-    structured_content: Dict[str, Any] = None
-    document_structure: Dict[str, Any] = None
-    page_structure: Dict[str, Any] = None
+    structured_content: Optional[Dict[str, Any]] = None
+    document_structure: Optional[Dict[str, Any]] = None
+    page_structure: Optional[Dict[str, Any]] = None
     total_pages: int = 0
     total_chars: int = 0
     total_words: int = 0
@@ -214,9 +210,9 @@ class ExtractedDocumentModel:
     text_blocks_count: int = 0
     image_blocks_count: int = 0
     extraction_status: ExtractionStatus = ExtractionStatus.COMPLETED
-    extraction_metadata: Dict[str, Any] = None
-    processing_config: Dict[str, Any] = None
-    performance_metrics: Dict[str, Any] = None
+    extraction_metadata: Optional[Dict[str, Any]] = None
+    processing_config: Optional[Dict[str, Any]] = None
+    performance_metrics: Optional[Dict[str, Any]] = None
     created_at: Optional[datetime] = None
     extraction_started_at: Optional[datetime] = None
     completed_at: Optional[datetime] = None
@@ -260,8 +256,8 @@ class ExtractedAssetModel:
     extraction_confidence: Optional[float] = None
     processing_status: str = "extracted"
     validation_status: str = "pending"
-    asset_metadata: Dict[str, Any] = None
-    extraction_metadata: Dict[str, Any] = None
+    asset_metadata: Optional[Dict[str, Any]] = None
+    extraction_metadata: Optional[Dict[str, Any]] = None
     access_count: int = 0
     reference_count: int = 0
     created_at: Optional[datetime] = None
@@ -291,23 +287,23 @@ class KnowledgeBaseModel:
     kb_category: Optional[str] = None
     visibility: str = "private"
     access_level: str = "owner_only"
-    default_chunking_strategy: Dict[str, Any] = None
-    vector_config: Dict[str, Any] = None
-    search_config: Dict[str, Any] = None
+    default_chunking_strategy: Optional[Dict[str, Any]] = None
+    vector_config: Optional[Dict[str, Any]] = None
+    search_config: Optional[Dict[str, Any]] = None
     document_count: int = 0
     component_count: int = 0
     chunk_count: int = 0
     photo_count: int = 0
     total_size_bytes: int = 0
-    document_ids: List[str] = None
+    document_ids: List[str] = field(default_factory=list)
     parent_kb_id: Optional[str] = None
     hierarchy_path: str = "root"
     hierarchy_level: int = 0
     status: KnowledgeBaseStatus = KnowledgeBaseStatus.ACTIVE
     processing_status: str = "ready"
     last_updated_by: Optional[str] = None
-    kb_metadata: Dict[str, Any] = None
-    tags: List[str] = None
+    kb_metadata: Dict[str, Any] = field(default_factory=dict)
+    tags: List[str] = field(default_factory=list)
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
     last_document_added_at: Optional[datetime] = None
@@ -357,10 +353,10 @@ class DocumentModel:
     display_name: Optional[str] = None
     description: Optional[str] = None
     document_category: Optional[str] = None
-    tags: List[str] = None
-    keywords: List[str] = None
-    chunking_strategy: Dict[str, Any] = None
-    custom_config: Dict[str, Any] = None
+    tags: List[str] = field(default_factory=list)
+    keywords: List[str] = field(default_factory=list)
+    chunking_strategy: Optional[Dict[str, Any]] = None
+    custom_config: Optional[Dict[str, Any]] = None
     processing_status: str = "pending"
     indexing_status: str = "pending"
     validation_status: str = "pending"
@@ -369,7 +365,7 @@ class DocumentModel:
     photo_count: int = 0
     total_chars: int = 0
     total_tokens: int = 0
-    document_permissions: Dict[str, Any] = None
+    document_permissions: Optional[Dict[str, Any]] = None
     access_level: str = "inherited"
     hierarchy_path: str = "root"
     parent_document_id: Optional[str] = None
@@ -379,8 +375,8 @@ class DocumentModel:
     view_count: int = 0
     search_count: int = 0
     reference_count: int = 0
-    document_metadata: Dict[str, Any] = None
-    processing_metadata: Dict[str, Any] = None
+    document_metadata: Optional[Dict[str, Any]] = None
+    processing_metadata: Optional[Dict[str, Any]] = None
     created_at: Optional[datetime] = None
     processed_at: Optional[datetime] = None
     indexed_at: Optional[datetime] = None
