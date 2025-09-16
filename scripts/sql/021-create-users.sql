@@ -28,6 +28,7 @@ CREATE TABLE IF NOT EXISTS chunk_schema.users (
     -- 用户基本信息
     username TEXT,                                          -- 用户名（可选）
     email TEXT,                                            -- 邮箱（可选）
+    password TEXT,                                         -- 密码
     display_name TEXT,                                     -- 显示名称
     
     -- 权限和状态
@@ -120,29 +121,63 @@ CREATE TABLE IF NOT EXISTS chunk_schema.access_keys (
     -- 主键标识
     id TEXT PRIMARY KEY DEFAULT ('ak_' || encode(gen_random_bytes(16), 'hex')),
     user_id TEXT NOT NULL,                                 -- 用户ID
-    
+
     -- 密钥信息
     access_key TEXT NOT NULL UNIQUE,                      -- 实际的Bearer token
     name TEXT NOT NULL,                                    -- token的描述名称
-    
+    description TEXT,                                      -- 详细描述
+
     -- 权限和配置
     scopes TEXT[] DEFAULT '{"read", "write"}'::TEXT[],     -- 权限范围
-    
+    allowed_ips TEXT[],                                    -- 允许的IP地址列表，NULL表示不限制
+    allowed_domains TEXT[],                                -- 允许的域名列表，NULL表示不限制
+
+    -- 使用限制
+    max_requests_per_hour INTEGER DEFAULT 1000,           -- 每小时最大请求数，NULL表示不限制
+    max_requests_per_day INTEGER DEFAULT 10000,           -- 每天最大请求数，NULL表示不限制
+    max_file_size_mb INTEGER DEFAULT 100,                 -- 最大文件大小(MB)，NULL表示不限制
+    max_knowledge_bases INTEGER DEFAULT 10,               -- 最大知识库数量，NULL表示不限制
+
+    -- 功能限制
+    can_create_kb BOOLEAN DEFAULT TRUE,                   -- 是否可以创建知识库
+    can_delete_files BOOLEAN DEFAULT TRUE,                -- 是否可以删除文件
+    can_share_files BOOLEAN DEFAULT TRUE,                 -- 是否可以分享文件
+    can_export_data BOOLEAN DEFAULT TRUE,                 -- 是否可以导出数据
+
     -- 状态信息
     is_active BOOLEAN DEFAULT TRUE,                       -- 是否启用
-    
+
+    -- 使用统计
+    total_requests INTEGER DEFAULT 0,                     -- 总请求数
+    requests_today INTEGER DEFAULT 0,                     -- 今日请求数
+    requests_this_hour INTEGER DEFAULT 0,                 -- 本小时请求数
+    last_request_reset_date DATE DEFAULT CURRENT_DATE,    -- 上次重置请求计数的日期
+    last_request_reset_hour INTEGER DEFAULT EXTRACT(HOUR FROM CURRENT_TIMESTAMP), -- 上次重置小时计数的小时
+
     -- 时间信息
     created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,     -- 创建时间
     expires_at TIMESTAMPTZ,                               -- 过期时间，NULL表示永不过期
     last_used_at TIMESTAMPTZ,                             -- 最后使用时间
-    
+
     -- 外键约束
-    CONSTRAINT fk_access_keys_user_id 
+    CONSTRAINT fk_access_keys_user_id
         FOREIGN KEY (user_id) REFERENCES chunk_schema.users(id) ON DELETE CASCADE,
-    
+
     -- 确保access_key的唯一性和安全性
     CONSTRAINT chk_access_keys_length CHECK (length(access_key) >= 32),
-    CONSTRAINT chk_access_keys_format CHECK (access_key ~ '^[a-zA-Z0-9_-]+$')
+    CONSTRAINT chk_access_keys_format CHECK (access_key ~ '^[a-zA-Z0-9_-]+$'),
+
+    -- 限制值的合理性检查
+    CONSTRAINT chk_access_keys_max_requests_hour_positive
+        CHECK (max_requests_per_hour IS NULL OR max_requests_per_hour > 0),
+    CONSTRAINT chk_access_keys_max_requests_day_positive
+        CHECK (max_requests_per_day IS NULL OR max_requests_per_day > 0),
+    CONSTRAINT chk_access_keys_max_file_size_positive
+        CHECK (max_file_size_mb IS NULL OR max_file_size_mb > 0),
+    CONSTRAINT chk_access_keys_max_kb_positive
+        CHECK (max_knowledge_bases IS NULL OR max_knowledge_bases > 0),
+    CONSTRAINT chk_access_keys_requests_positive
+        CHECK (total_requests >= 0 AND requests_today >= 0 AND requests_this_hour >= 0)
 );
 
 -- ================================
@@ -153,6 +188,9 @@ CREATE TABLE IF NOT EXISTS chunk_schema.access_keys (
 CREATE INDEX IF NOT EXISTS idx_access_keys_user_id ON chunk_schema.access_keys(user_id);
 CREATE INDEX IF NOT EXISTS idx_access_keys_token ON chunk_schema.access_keys(access_key) WHERE is_active = TRUE;
 CREATE INDEX IF NOT EXISTS idx_access_keys_active ON chunk_schema.access_keys(is_active, expires_at);
+CREATE INDEX IF NOT EXISTS idx_access_keys_last_used ON chunk_schema.access_keys(last_used_at);
+CREATE INDEX IF NOT EXISTS idx_access_keys_reset_date ON chunk_schema.access_keys(last_request_reset_date);
+CREATE INDEX IF NOT EXISTS idx_access_keys_scopes ON chunk_schema.access_keys USING gin(scopes);
 
 -- ================================
 -- 密钥管理函数 (Key Management Functions)
@@ -166,26 +204,105 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
--- 验证并获取用户ID通过access_key
-CREATE OR REPLACE FUNCTION validate_access_key(token TEXT) RETURNS TEXT AS $$
+-- 验证并获取用户ID通过access_key（增强版本，包含限制检查）
+CREATE OR REPLACE FUNCTION validate_access_key(token TEXT, client_ip TEXT DEFAULT NULL) RETURNS JSONB AS $$
 DECLARE
-    user_id_result TEXT;
+    result JSONB;
+    ak_record RECORD;
+    current_hour INTEGER;
+    current_date DATE;
+    requests_exceeded BOOLEAN := FALSE;
 BEGIN
-    -- 查找有效的access_key并返回对应的user_id
-    SELECT ak.user_id INTO user_id_result
+    current_hour := EXTRACT(HOUR FROM CURRENT_TIMESTAMP);
+    current_date := CURRENT_DATE;
+
+    -- 查找有效的access_key
+    SELECT * INTO ak_record
     FROM chunk_schema.access_keys ak
     WHERE ak.access_key = token
       AND ak.is_active = TRUE
       AND (ak.expires_at IS NULL OR ak.expires_at > CURRENT_TIMESTAMP);
-    
-    -- 如果找到有效token，更新最后使用时间
-    IF user_id_result IS NOT NULL THEN
-        UPDATE chunk_schema.access_keys 
-        SET last_used_at = CURRENT_TIMESTAMP
-        WHERE access_key = token;
+
+    -- 如果没找到有效token
+    IF ak_record IS NULL THEN
+        RETURN jsonb_build_object(
+            'valid', false,
+            'user_id', null,
+            'error', 'invalid_token',
+            'message', 'Token is invalid, expired, or inactive'
+        );
     END IF;
-    
-    RETURN user_id_result;
+
+    -- 检查IP限制
+    IF ak_record.allowed_ips IS NOT NULL AND client_ip IS NOT NULL THEN
+        IF NOT (client_ip = ANY(ak_record.allowed_ips)) THEN
+            RETURN jsonb_build_object(
+                'valid', false,
+                'user_id', ak_record.user_id,
+                'error', 'ip_not_allowed',
+                'message', 'Client IP is not in the allowed list'
+            );
+        END IF;
+    END IF;
+
+    -- 重置请求计数器（如果需要）
+    IF ak_record.last_request_reset_date < current_date THEN
+        UPDATE chunk_schema.access_keys
+        SET requests_today = 0,
+            requests_this_hour = 0,
+            last_request_reset_date = current_date,
+            last_request_reset_hour = current_hour
+        WHERE access_key = token;
+        ak_record.requests_today := 0;
+        ak_record.requests_this_hour := 0;
+    ELSIF ak_record.last_request_reset_hour < current_hour THEN
+        UPDATE chunk_schema.access_keys
+        SET requests_this_hour = 0,
+            last_request_reset_hour = current_hour
+        WHERE access_key = token;
+        ak_record.requests_this_hour := 0;
+    END IF;
+
+    -- 检查请求频率限制
+    IF ak_record.max_requests_per_hour IS NOT NULL AND
+       ak_record.requests_this_hour >= ak_record.max_requests_per_hour THEN
+        requests_exceeded := TRUE;
+    END IF;
+
+    IF ak_record.max_requests_per_day IS NOT NULL AND
+       ak_record.requests_today >= ak_record.max_requests_per_day THEN
+        requests_exceeded := TRUE;
+    END IF;
+
+    IF requests_exceeded THEN
+        RETURN jsonb_build_object(
+            'valid', false,
+            'user_id', ak_record.user_id,
+            'error', 'rate_limit_exceeded',
+            'message', 'Request rate limit exceeded'
+        );
+    END IF;
+
+    -- 更新使用统计
+    UPDATE chunk_schema.access_keys
+    SET last_used_at = CURRENT_TIMESTAMP,
+        total_requests = total_requests + 1,
+        requests_today = requests_today + 1,
+        requests_this_hour = requests_this_hour + 1
+    WHERE access_key = token;
+
+    -- 返回成功结果
+    RETURN jsonb_build_object(
+        'valid', true,
+        'user_id', ak_record.user_id,
+        'scopes', ak_record.scopes,
+        'max_file_size_mb', ak_record.max_file_size_mb,
+        'max_knowledge_bases', ak_record.max_knowledge_bases,
+        'can_create_kb', ak_record.can_create_kb,
+        'can_delete_files', ak_record.can_delete_files,
+        'can_share_files', ak_record.can_share_files,
+        'can_export_data', ak_record.can_export_data
+    );
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
@@ -194,12 +311,89 @@ CREATE OR REPLACE FUNCTION cleanup_expired_access_keys() RETURNS INTEGER AS $$
 DECLARE
     deleted_count INTEGER;
 BEGIN
-    DELETE FROM chunk_schema.access_keys 
-    WHERE expires_at IS NOT NULL 
+    DELETE FROM chunk_schema.access_keys
+    WHERE expires_at IS NOT NULL
       AND expires_at < CURRENT_TIMESTAMP;
-    
+
     GET DIAGNOSTICS deleted_count = ROW_COUNT;
     RETURN deleted_count;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- 检查用户权限的函数
+CREATE OR REPLACE FUNCTION check_user_permission(
+    token TEXT,
+    permission_type TEXT,
+    resource_info JSONB DEFAULT '{}'::JSONB
+) RETURNS BOOLEAN AS $$
+DECLARE
+    validation_result JSONB;
+    user_permissions JSONB;
+BEGIN
+    -- 验证token
+    validation_result := validate_access_key(token);
+
+    -- 如果token无效，返回false
+    IF NOT (validation_result->>'valid')::BOOLEAN THEN
+        RETURN FALSE;
+    END IF;
+
+    -- 检查具体权限
+    CASE permission_type
+        WHEN 'create_kb' THEN
+            RETURN (validation_result->>'can_create_kb')::BOOLEAN;
+        WHEN 'delete_files' THEN
+            RETURN (validation_result->>'can_delete_files')::BOOLEAN;
+        WHEN 'share_files' THEN
+            RETURN (validation_result->>'can_share_files')::BOOLEAN;
+        WHEN 'export_data' THEN
+            RETURN (validation_result->>'can_export_data')::BOOLEAN;
+        WHEN 'upload_file' THEN
+            -- 检查文件大小限制
+            IF resource_info ? 'file_size_mb' THEN
+                DECLARE
+                    max_size INTEGER;
+                    file_size INTEGER;
+                BEGIN
+                    max_size := (validation_result->>'max_file_size_mb')::INTEGER;
+                    file_size := (resource_info->>'file_size_mb')::INTEGER;
+
+                    IF max_size IS NOT NULL AND file_size > max_size THEN
+                        RETURN FALSE;
+                    END IF;
+                END;
+            END IF;
+            RETURN 'write' = ANY(ARRAY(SELECT jsonb_array_elements_text(validation_result->'scopes')));
+        ELSE
+            -- 默认检查read权限
+            RETURN 'read' = ANY(ARRAY(SELECT jsonb_array_elements_text(validation_result->'scopes')));
+    END CASE;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- 获取用户使用统计的函数
+CREATE OR REPLACE FUNCTION get_access_key_stats(token TEXT) RETURNS JSONB AS $$
+DECLARE
+    ak_record RECORD;
+BEGIN
+    SELECT * INTO ak_record
+    FROM chunk_schema.access_keys
+    WHERE access_key = token AND is_active = TRUE;
+
+    IF ak_record IS NULL THEN
+        RETURN jsonb_build_object('error', 'Token not found');
+    END IF;
+
+    RETURN jsonb_build_object(
+        'total_requests', ak_record.total_requests,
+        'requests_today', ak_record.requests_today,
+        'requests_this_hour', ak_record.requests_this_hour,
+        'max_requests_per_hour', ak_record.max_requests_per_hour,
+        'max_requests_per_day', ak_record.max_requests_per_day,
+        'last_used_at', ak_record.last_used_at,
+        'created_at', ak_record.created_at,
+        'expires_at', ak_record.expires_at
+    );
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 

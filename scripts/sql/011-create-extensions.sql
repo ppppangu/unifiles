@@ -13,15 +13,48 @@
 -- 向量化扩展 (Vector Extensions)
 -- ================================
 -- 启用 pgvector 扩展 - 向量存储和相似性搜索
-CREATE EXTENSION IF NOT EXISTS vector;
+DO $$
+BEGIN
+    IF EXISTS (SELECT 1 FROM pg_available_extensions WHERE name = 'vector') THEN
+        CREATE EXTENSION IF NOT EXISTS vector;
+        RAISE NOTICE 'pgvector extension created successfully';
+    ELSE
+        RAISE EXCEPTION 'pgvector extension is not available. Please install pgvector first.';
+    END IF;
+END $$;
 
--- 启用 rum 插件 - 高级全文搜索索引
--- CREATE EXTENSION IF NOT EXISTS rum;
 -- 启用 ltree 扩展 - 用于层级结构管理
-CREATE EXTENSION IF NOT EXISTS ltree;
+DO $$
+BEGIN
+    IF EXISTS (SELECT 1 FROM pg_available_extensions WHERE name = 'ltree') THEN
+        CREATE EXTENSION IF NOT EXISTS ltree;
+        RAISE NOTICE 'ltree extension created successfully';
+    ELSE
+        RAISE EXCEPTION 'ltree extension is not available. Please install ltree first.';
+    END IF;
+END $$;
 
--- 倒排检索
-CREATE EXTENSION IF NOT EXISTS pgroonga;
+-- 启用 pgroonga 扩展 - 倒排检索（可选）
+DO $$
+BEGIN
+    IF EXISTS (SELECT 1 FROM pg_available_extensions WHERE name = 'pgroonga') THEN
+        CREATE EXTENSION IF NOT EXISTS pgroonga;
+        RAISE NOTICE 'pgroonga extension created successfully';
+    ELSE
+        RAISE NOTICE 'pgroonga extension is not available, skipping. Full-text search will use standard GIN indexes.';
+    END IF;
+END $$;
+
+-- 启用 rum 插件 - 高级全文搜索索引（可选，通常不需要）
+-- DO $$
+-- BEGIN
+--     IF EXISTS (SELECT 1 FROM pg_available_extensions WHERE name = 'rum') THEN
+--         CREATE EXTENSION IF NOT EXISTS rum;
+--         RAISE NOTICE 'rum extension created successfully';
+--     ELSE
+--         RAISE NOTICE 'rum extension is not available, skipping.';
+--     END IF;
+-- END $$;
 
 -- 创建主要的数据库模式
 CREATE SCHEMA IF NOT EXISTS chunk_schema;

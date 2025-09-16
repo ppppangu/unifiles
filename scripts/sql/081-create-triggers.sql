@@ -50,24 +50,17 @@ $$ LANGUAGE plpgsql;
 -- 云端存储URL生成函数 (Cloud Storage URL Functions)
 -- ================================
 
--- 根据存储配置生成URL的函数
+-- 根据存储配置生成URL的函数（修正版本，基于实际表结构）
 CREATE OR REPLACE FUNCTION chunk_schema.generate_storage_urls(
     storage_config_id_param TEXT,
-    storage_path_param TEXT,
-    storage_url_param TEXT
+    storage_path_param TEXT
 ) 
 RETURNS TABLE (
-    internal_url TEXT,
-    public_url TEXT,
-    cdn_url TEXT,
-    download_url TEXT
+    public_url TEXT
 ) AS $$
 DECLARE
     config_rec RECORD;
-    generated_internal_url TEXT;
     generated_public_url TEXT;
-    generated_cdn_url TEXT;
-    generated_download_url TEXT;
 BEGIN
     -- 如果没有配置ID，使用默认配置
     IF storage_config_id_param IS NULL THEN
@@ -83,35 +76,19 @@ BEGIN
     
     -- 如果找不到配置，返回NULL
     IF config_rec IS NULL THEN
-        internal_url := NULL;
         public_url := NULL;
-        cdn_url := NULL;
-        download_url := storage_url_param;
         RETURN NEXT;
         RETURN;
     END IF;
     
-    -- 根据URL模式生成各种URL
-    IF config_rec.endpoint_internal IS NOT NULL THEN
-        generated_internal_url := config_rec.endpoint_internal || '/' || COALESCE(config_rec.bucket_name, '') || '/' || COALESCE(storage_path_param, '');
+    -- 根据存储配置生成公共访问URL
+    IF config_rec.public_url_prefix IS NOT NULL AND storage_path_param IS NOT NULL THEN
+        generated_public_url := config_rec.public_url_prefix || '/' || LTRIM(storage_path_param, '/');
+    ELSIF config_rec.endpoint IS NOT NULL AND config_rec.bucket_name IS NOT NULL AND storage_path_param IS NOT NULL THEN
+        generated_public_url := config_rec.endpoint || '/' || config_rec.bucket_name || '/' || LTRIM(storage_path_param, '/');
     END IF;
     
-    IF config_rec.endpoint_public IS NOT NULL THEN
-        generated_public_url := config_rec.endpoint_public || '/' || COALESCE(config_rec.bucket_name, '') || '/' || COALESCE(storage_path_param, '');
-    END IF;
-    
-    IF config_rec.endpoint_cdn IS NOT NULL THEN
-        generated_cdn_url := config_rec.endpoint_cdn || '/' || COALESCE(config_rec.bucket_name, '') || '/' || COALESCE(storage_path_param, '');
-    END IF;
-    
-    -- 设置download_url优先级：CDN > Public > Internal > storage_url
-    generated_download_url := COALESCE(generated_cdn_url, generated_public_url, generated_internal_url, storage_url_param);
-    
-    internal_url := generated_internal_url;
     public_url := generated_public_url;
-    cdn_url := generated_cdn_url;
-    download_url := generated_download_url;
-    
     RETURN NEXT;
 END;
 $$ LANGUAGE plpgsql;
@@ -338,32 +315,12 @@ CREATE TRIGGER trigger_files_activity_log
 -- 云端存储URL自动生成触发器 (Cloud Storage URL Generation Triggers)
 -- ================================
 
--- 文件URL自动生成和更新函数
+-- 文件URL自动生成和更新函数（基于实际表结构）
 CREATE OR REPLACE FUNCTION chunk_schema.update_file_urls()
 RETURNS TRIGGER AS $$
-DECLARE
-    url_result RECORD;
 BEGIN
-    -- 只在storage_url或storage_config_id发生变化时更新URL
-    IF TG_OP = 'INSERT' OR 
-       (TG_OP = 'UPDATE' AND (OLD.storage_url IS DISTINCT FROM NEW.storage_url OR 
-                              OLD.storage_config_id IS DISTINCT FROM NEW.storage_config_id OR
-                              OLD.storage_path IS DISTINCT FROM NEW.storage_path)) THEN
-        
-        -- 生成各种URL
-        SELECT * INTO url_result
-        FROM chunk_schema.generate_storage_urls(
-            NEW.storage_config_id,
-            NEW.storage_path,
-            NEW.storage_url
-        );
-        
-        -- 更新URL字段
-        NEW.internal_url := url_result.internal_url;
-        NEW.public_url := url_result.public_url;
-        NEW.cdn_url := url_result.cdn_url;
-        NEW.download_url := url_result.download_url;
-    END IF;
+    -- 由于files表中没有URL相关字段，此触发器保持为占位符
+    -- 如果需要URL生成功能，可以在应用层处理或扩展表结构
     
     RETURN NEW;
 END;
@@ -375,32 +332,12 @@ CREATE TRIGGER trigger_files_update_urls
     FOR EACH ROW
     EXECUTE FUNCTION chunk_schema.update_file_urls();
 
--- 提取资源URL自动生成和更新函数
+-- 提取资源URL自动生成和更新函数（基于实际表结构）
 CREATE OR REPLACE FUNCTION chunk_schema.update_asset_urls()
 RETURNS TRIGGER AS $$
-DECLARE
-    url_result RECORD;
 BEGIN
-    -- 只在storage_url或storage_config_id发生变化时更新URL
-    IF TG_OP = 'INSERT' OR 
-       (TG_OP = 'UPDATE' AND (OLD.storage_url IS DISTINCT FROM NEW.storage_url OR 
-                              OLD.storage_config_id IS DISTINCT FROM NEW.storage_config_id OR
-                              OLD.storage_path IS DISTINCT FROM NEW.storage_path)) THEN
-        
-        -- 生成各种URL
-        SELECT * INTO url_result
-        FROM chunk_schema.generate_storage_urls(
-            NEW.storage_config_id,
-            NEW.storage_path,
-            NEW.storage_url
-        );
-        
-        -- 更新URL字段
-        NEW.internal_url := url_result.internal_url;
-        NEW.public_url := url_result.public_url;
-        NEW.cdn_url := url_result.cdn_url;
-        NEW.download_url := url_result.download_url;
-    END IF;
+    -- 由于extracted_assets表中没有URL相关字段，此触发器保持为占位符
+    -- 如果需要URL生成功能，可以在应用层处理或扩展表结构
     
     RETURN NEW;
 END;
@@ -412,18 +349,16 @@ CREATE TRIGGER trigger_assets_update_urls
     FOR EACH ROW
     EXECUTE FUNCTION chunk_schema.update_asset_urls();
 
--- 存储配置变更时更新相关文件URL的函数
+-- 存储配置变更时更新相关文件URL的函数（基于实际表结构）
 CREATE OR REPLACE FUNCTION chunk_schema.update_files_on_config_change()
 RETURNS TRIGGER AS $$
 BEGIN
-    -- 当存储配置的关键信息发生变化时，更新相关文件的URL
+    -- 当存储配置的关键信息发生变化时，更新相关文件的时间戳
     IF TG_OP = 'UPDATE' AND (
-        OLD.endpoint_internal IS DISTINCT FROM NEW.endpoint_internal OR
-        OLD.endpoint_public IS DISTINCT FROM NEW.endpoint_public OR
-        OLD.endpoint_cdn IS DISTINCT FROM NEW.endpoint_cdn OR
+        OLD.endpoint IS DISTINCT FROM NEW.endpoint OR
         OLD.bucket_name IS DISTINCT FROM NEW.bucket_name OR
         OLD.base_path IS DISTINCT FROM NEW.base_path OR
-        OLD.url_pattern IS DISTINCT FROM NEW.url_pattern OR
+        OLD.public_url_prefix IS DISTINCT FROM NEW.public_url_prefix OR
         OLD.is_active IS DISTINCT FROM NEW.is_active
     ) THEN
         -- 更新files表中使用此配置的记录
@@ -433,10 +368,10 @@ BEGIN
         
         -- 更新extracted_assets表中使用此配置的记录
         UPDATE chunk_schema.extracted_assets 
-        SET created_at = created_at  -- 触发触发器但不改变时间戳
+        SET created_at = created_at  -- 触发相关处理但不改变时间戳
         WHERE storage_config_id = NEW.id;
         
-        RAISE NOTICE 'Updated URLs for files and assets using storage config: %', NEW.id;
+        RAISE NOTICE 'Updated files and assets using storage config: %', NEW.id;
     END IF;
     
     RETURN NEW;
@@ -526,68 +461,25 @@ CREATE TRIGGER trigger_components_cache_invalidation
 -- 组件链关系维护触发器 (Component Chain Triggers)
 -- ================================
 
--- 维护文本块链关系的函数
+-- 维护文本块链关系的函数（已移除，因为chunks表中没有链关系字段）
+-- 如果需要维护文本块之间的顺序关系，可以通过component_index字段查询
+-- 或者扩展chunks表结构添加previous_chunk_id和next_chunk_id字段
+
+-- 占位符函数，避免触发器引用错误
 CREATE OR REPLACE FUNCTION chunk_schema.maintain_chunk_chain()
 RETURNS TRIGGER AS $$
-DECLARE
-    prev_chunk_id TEXT;
-    next_chunk_id TEXT;
 BEGIN
-    IF TG_OP = 'INSERT' THEN
-        -- 为新插入的文本块设置链关系
-        -- 查找同一文档中前一个组件对应的文本块
-        SELECT c.id INTO prev_chunk_id
-        FROM chunk_schema.chunks c
-        INNER JOIN chunk_schema.components comp ON c.component_id = comp.id
-        INNER JOIN chunk_schema.components new_comp ON new_comp.id = NEW.component_id
-        WHERE comp.document_id = new_comp.document_id 
-        AND comp.component_index < new_comp.component_index
-        AND comp.component_type = 'chunk'
-        ORDER BY comp.component_index DESC
-        LIMIT 1;
-        
-        -- 查找同一文档中后一个组件对应的文本块
-        SELECT c.id INTO next_chunk_id
-        FROM chunk_schema.chunks c
-        INNER JOIN chunk_schema.components comp ON c.component_id = comp.id
-        INNER JOIN chunk_schema.components new_comp ON new_comp.id = NEW.component_id
-        WHERE comp.document_id = new_comp.document_id 
-        AND comp.component_index > new_comp.component_index
-        AND comp.component_type = 'chunk'
-        ORDER BY comp.component_index ASC
-        LIMIT 1;
-        
-        -- 更新当前文本块的链关系
-        UPDATE chunk_schema.chunks
-        SET 
-            previous_chunk_id = prev_chunk_id,
-            next_chunk_id = next_chunk_id
-        WHERE id = NEW.id;
-        
-        -- 更新前一个文本块的next指针
-        IF prev_chunk_id IS NOT NULL THEN
-            UPDATE chunk_schema.chunks
-            SET next_chunk_id = NEW.id
-            WHERE id = prev_chunk_id;
-        END IF;
-        
-        -- 更新后一个文本块的previous指针
-        IF next_chunk_id IS NOT NULL THEN
-            UPDATE chunk_schema.chunks
-            SET previous_chunk_id = NEW.id
-            WHERE id = next_chunk_id;
-        END IF;
-    END IF;
-    
+    -- 此功能已禁用，因为chunks表中没有链关系字段
+    -- 文本块的顺序可以通过components.component_index字段确定
     RETURN NEW;
 END;
 $$ LANGUAGE plpgsql;
 
--- 为文本块表添加链关系维护触发器
-CREATE TRIGGER trigger_chunks_maintain_chain
-    AFTER INSERT ON chunk_schema.chunks
-    FOR EACH ROW
-    EXECUTE FUNCTION chunk_schema.maintain_chunk_chain();
+-- 暂时禁用此触发器，因为相关字段不存在
+-- CREATE TRIGGER trigger_chunks_maintain_chain
+--     AFTER INSERT ON chunk_schema.chunks
+--     FOR EACH ROW
+--     EXECUTE FUNCTION chunk_schema.maintain_chunk_chain();
 
 -- ================================
 -- 触发器管理函数 (Trigger Management Functions)

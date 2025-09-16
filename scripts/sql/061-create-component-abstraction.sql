@@ -18,6 +18,16 @@
  */
 
 -- ================================
+-- 向量维度配置说明 (Vector Dimension Configuration)
+-- ================================
+
+-- 常用嵌入模型维度参考：
+-- text-embedding-3-small: 1536
+-- text-embedding-3-large: 3072  
+-- text-embedding-ada-002: 1536
+-- 维度信息存储在 embedding_dimensions 列中
+
+-- ================================
 -- 组件抽象表 (Component Abstraction)
 -- ================================
 
@@ -42,7 +52,8 @@ CREATE TABLE IF NOT EXISTS chunk_schema.components (
     content_language TEXT DEFAULT 'mixed',                 -- 内容语言（zh/en/mixed）
     
     -- 向量索引（统一）
-    embedding vector,                                      -- 向量嵌入
+    embedding vector,                                     -- 向量嵌入（动态维度）
+    embedding_dimensions INTEGER,                         -- 向量维度数（存储实际维度）
     
     -- 时间戳
     created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,     -- 创建时间
@@ -59,6 +70,11 @@ CREATE TABLE IF NOT EXISTS chunk_schema.components (
         CHECK (component_index >= 0),
     CONSTRAINT chk_components_content_language 
         CHECK (content_language IN ('zh', 'en', 'mixed', 'unknown')),
+    CONSTRAINT chk_components_embedding_dimensions_positive 
+        CHECK (embedding_dimensions IS NULL OR embedding_dimensions > 0),
+    CONSTRAINT chk_components_embedding_consistency
+        CHECK ((embedding IS NULL AND embedding_dimensions IS NULL) OR 
+               (embedding IS NOT NULL AND embedding_dimensions IS NOT NULL)),
     
     -- 确保组件在文档中的序号唯一
     UNIQUE (document_id, component_index)
@@ -111,7 +127,7 @@ CREATE TABLE IF NOT EXISTS chunk_schema.photos (
     
     -- 组件关联
     component_id TEXT NOT NULL,                            -- 组件ID（1:1关系）
-    extracted_asset_id TEXT NOT NULL,                     -- 提取资源ID（引用）
+    extracted_asset_id TEXT,                               -- 提取资源ID（引用，可为空）
     
     -- 图片基本属性
     photo_description TEXT,                                -- 图片描述
@@ -123,7 +139,7 @@ CREATE TABLE IF NOT EXISTS chunk_schema.photos (
     -- 基本尺寸信息
     width INTEGER,                                         -- 宽度
     height INTEGER,                                        -- 高度
-    file_size INTEGER,                                     -- 文件大小
+    file_size BIGINT,                                      -- 文件大小（字节，使用BIGINT支持大文件）
     format TEXT,                                           -- 文件格式
     
     -- 时间戳
@@ -134,7 +150,7 @@ CREATE TABLE IF NOT EXISTS chunk_schema.photos (
     CONSTRAINT fk_photos_component_id 
         FOREIGN KEY (component_id) REFERENCES chunk_schema.components(id) ON DELETE CASCADE,
     CONSTRAINT fk_photos_extracted_asset_id 
-        FOREIGN KEY (extracted_asset_id) REFERENCES chunk_schema.extracted_assets(id) ON DELETE CASCADE,
+        FOREIGN KEY (extracted_asset_id) REFERENCES chunk_schema.extracted_assets(id) ON DELETE SET NULL,
     
     -- 检查约束
     CONSTRAINT chk_photos_subtype 
@@ -235,6 +251,83 @@ CREATE TRIGGER trigger_update_component_search_fields
     FOR EACH ROW
     EXECUTE FUNCTION chunk_schema.update_component_search_fields();
 
+
+-- ================================
+-- 向量维度管理函数 (Vector Dimension Management)  
+-- ================================
+
+-- 验证向量维度一致性的函数
+CREATE OR REPLACE FUNCTION chunk_schema.validate_embedding_dimensions()
+RETURNS TABLE(component_id TEXT, stored_dimensions INTEGER, actual_dimensions INTEGER) AS $$
+BEGIN
+    RETURN QUERY
+    SELECT 
+        c.id,
+        c.embedding_dimensions,
+        CASE 
+            WHEN c.embedding IS NOT NULL THEN array_length(c.embedding, 1)
+            ELSE NULL 
+        END
+    FROM chunk_schema.components c
+    WHERE c.embedding IS NOT NULL 
+      AND c.embedding_dimensions IS NOT NULL
+      AND c.embedding_dimensions != array_length(c.embedding, 1);
+END;
+$$ LANGUAGE plpgsql;
+
+-- 获取向量维度统计的函数
+CREATE OR REPLACE FUNCTION chunk_schema.get_embedding_dimension_stats()
+RETURNS TABLE(dimensions INTEGER, count BIGINT) AS $$
+BEGIN
+    RETURN QUERY
+    SELECT 
+        c.embedding_dimensions,
+        COUNT(*) as count
+    FROM chunk_schema.components c
+    WHERE c.embedding IS NOT NULL 
+      AND c.embedding_dimensions IS NOT NULL
+    GROUP BY c.embedding_dimensions
+    ORDER BY c.embedding_dimensions;
+END;
+$$ LANGUAGE plpgsql;
+
+-- 创建向量索引的函数（需要有足够数据时调用）
+CREATE OR REPLACE FUNCTION chunk_schema.create_embedding_index(lists_count INTEGER DEFAULT 100)
+RETURNS TEXT AS $$
+DECLARE
+    data_count INTEGER;
+    result_msg TEXT;
+BEGIN
+    -- 检查数据量
+    SELECT COUNT(*) INTO data_count 
+    FROM chunk_schema.components 
+    WHERE embedding IS NOT NULL;
+    
+    -- 建议至少有1000条数据时再创建IVF索引
+    IF data_count < 1000 THEN
+        result_msg := format('警告：当前只有 %s 条向量数据，建议至少有1000条数据时再创建IVF索引以获得最佳性能', data_count);
+    END IF;
+    
+    -- 删除现有索引
+    DROP INDEX IF EXISTS chunk_schema.idx_components_embedding;
+    
+    -- 根据数据量选择索引类型
+    IF data_count >= 1000 THEN
+        -- 数据量足够，使用IVF索引
+        EXECUTE format('CREATE INDEX idx_components_embedding ON chunk_schema.components USING ivfflat (embedding vector_cosine_ops) WITH (lists = %s) WHERE embedding IS NOT NULL', lists_count);
+        result_msg := format('IVF向量索引创建成功，lists=%s，数据量=%s', lists_count, data_count);
+    ELSE
+        -- 数据量较少，使用简单的向量索引
+        CREATE INDEX idx_components_embedding ON chunk_schema.components USING ivfflat (embedding vector_cosine_ops) WHERE embedding IS NOT NULL;
+        result_msg := format('基础向量索引创建成功，数据量=%s（建议数据量达到1000+时重建IVF索引）', data_count);
+    END IF;
+    
+    RETURN result_msg;
+EXCEPTION
+    WHEN OTHERS THEN
+        RETURN format('向量索引创建失败: %s', SQLERRM);
+END;
+$$ LANGUAGE plpgsql;
 
 -- ================================
 -- 触发器 (Triggers)

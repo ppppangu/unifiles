@@ -92,10 +92,24 @@ CREATE INDEX IF NOT EXISTS idx_file_processing_logs_stage_status ON chunk_schema
 CREATE INDEX IF NOT EXISTS idx_extracted_documents_file_id ON chunk_schema.extracted_documents(file_id);
 CREATE INDEX IF NOT EXISTS idx_extracted_documents_user_id ON chunk_schema.extracted_documents(user_id);
 CREATE INDEX IF NOT EXISTS idx_extracted_documents_method ON chunk_schema.extracted_documents(extraction_method);
+CREATE INDEX IF NOT EXISTS idx_extracted_documents_status ON chunk_schema.extracted_documents(extraction_status);
 CREATE INDEX IF NOT EXISTS idx_extracted_documents_created_at ON chunk_schema.extracted_documents(created_at);
 
 -- 全文搜索索引 (使用PGroonga支持中英文搜索)
-CREATE INDEX IF NOT EXISTS idx_extracted_documents_fts_pgroonga ON chunk_schema.extracted_documents USING pgroonga (full_markdown) WHERE full_markdown IS NOT NULL;
+DO $$
+BEGIN
+    -- 检查PGroonga扩展是否可用
+    IF EXISTS (SELECT 1 FROM pg_available_extensions WHERE name = 'pgroonga') THEN
+        -- 创建PGroonga全文搜索索引
+        CREATE INDEX IF NOT EXISTS idx_extracted_documents_fts_pgroonga 
+        ON chunk_schema.extracted_documents USING pgroonga (full_markdown) 
+        WHERE full_markdown IS NOT NULL;
+        RAISE NOTICE 'PGroonga index created for extracted_documents.full_markdown';
+    ELSE
+        RAISE NOTICE 'PGroonga extension not available, skipping pgroonga index';
+    END IF;
+END $$;
+
 -- 备用英文搜索索引
 CREATE INDEX IF NOT EXISTS idx_extracted_documents_fts ON chunk_schema.extracted_documents USING gin(to_tsvector('english', full_markdown)) WHERE full_markdown IS NOT NULL;
 
@@ -122,9 +136,11 @@ CREATE INDEX IF NOT EXISTS idx_extracted_assets_storage_config_type ON chunk_sch
 -- 知识库表索引（基于简化后的结构）
 CREATE INDEX IF NOT EXISTS idx_knowledge_bases_user_id ON chunk_schema.knowledge_bases(user_id);
 CREATE INDEX IF NOT EXISTS idx_knowledge_bases_name ON chunk_schema.knowledge_bases(name) WHERE name IS NOT NULL;
-CREATE INDEX IF NOT EXISTS idx_knowledge_bases_status ON chunk_schema.knowledge_bases(status) WHERE status IS NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_knowledge_bases_created_at ON chunk_schema.knowledge_bases(created_at);
 CREATE INDEX IF NOT EXISTS idx_knowledge_bases_document_ids ON chunk_schema.knowledge_bases USING gin(document_ids) WHERE document_ids IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_knowledge_bases_status ON chunk_schema.knowledge_bases(status) WHERE status IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_knowledge_bases_kb_type ON chunk_schema.knowledge_bases(kb_type) WHERE kb_type IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_knowledge_bases_visibility ON chunk_schema.knowledge_bases(visibility) WHERE visibility IS NOT NULL;
 
 -- 复合索引
 CREATE INDEX IF NOT EXISTS idx_knowledge_bases_user_status ON chunk_schema.knowledge_bases(user_id, status) WHERE status IS NOT NULL;
@@ -132,13 +148,15 @@ CREATE INDEX IF NOT EXISTS idx_knowledge_bases_user_status ON chunk_schema.knowl
 -- 文档表索引（基于简化后的结构）
 CREATE INDEX IF NOT EXISTS idx_documents_knowledge_base_id ON chunk_schema.documents(knowledge_base_id);
 CREATE INDEX IF NOT EXISTS idx_documents_extracted_document_id ON chunk_schema.documents(extracted_document_id);
-CREATE INDEX IF NOT EXISTS idx_documents_status ON chunk_schema.documents(status) WHERE status IS NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_documents_title ON chunk_schema.documents(title) WHERE title IS NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_documents_created_at ON chunk_schema.documents(created_at);
+CREATE INDEX IF NOT EXISTS idx_documents_document_category ON chunk_schema.documents(document_category) WHERE document_category IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_documents_tags ON chunk_schema.documents USING gin(tags) WHERE tags IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_documents_keywords ON chunk_schema.documents USING gin(keywords) WHERE keywords IS NOT NULL;
 
 -- 复合索引
-CREATE INDEX IF NOT EXISTS idx_documents_kb_status ON chunk_schema.documents(knowledge_base_id, status) WHERE status IS NOT NULL;
-CREATE INDEX IF NOT EXISTS idx_documents_status_created ON chunk_schema.documents(status, created_at) WHERE status IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_documents_kb_category ON chunk_schema.documents(knowledge_base_id, document_category) WHERE document_category IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_documents_kb_created ON chunk_schema.documents(knowledge_base_id, created_at);
 
 -- 知识库权限表和统计表已被移除
 
@@ -151,16 +169,42 @@ CREATE INDEX IF NOT EXISTS idx_components_document_id ON chunk_schema.components
 CREATE INDEX IF NOT EXISTS idx_components_type ON chunk_schema.components(component_type);
 CREATE INDEX IF NOT EXISTS idx_components_index ON chunk_schema.components(component_index);
 CREATE INDEX IF NOT EXISTS idx_components_created_at ON chunk_schema.components(created_at);
+CREATE INDEX IF NOT EXISTS idx_components_embedding_dimensions ON chunk_schema.components(embedding_dimensions) WHERE embedding_dimensions IS NOT NULL;
 
 -- 向量搜索索引 - 使用IVFFlat算法进行高效向量搜索
-CREATE INDEX IF NOT EXISTS idx_components_embedding ON chunk_schema.components USING ivfflat (embedding vector_cosine_ops) WITH (lists = 100);
+-- 注意：向量索引需要在有数据后手动创建，因为需要足够的数据来训练IVF聚类
+-- 使用方法：SELECT chunk_schema.create_embedding_index();
+DO $$
+BEGIN
+    -- 暂时跳过向量索引创建，等有数据后再创建
+    RAISE NOTICE '向量索引将在有足够数据时手动创建';
+END $$;
 
 -- 全文搜索索引（基于优化后的搜索字段，使用PGroonga支持中英文搜索）
-CREATE INDEX IF NOT EXISTS idx_components_searchable_text_pgroonga ON chunk_schema.components USING pgroonga (searchable_text) WHERE searchable_text IS NOT NULL;
-CREATE INDEX IF NOT EXISTS idx_components_content_pgroonga ON chunk_schema.components USING pgroonga (content) WHERE content IS NOT NULL;
+DO $$
+BEGIN
+    -- 检查PGroonga扩展是否可用
+    IF EXISTS (SELECT 1 FROM pg_available_extensions WHERE name = 'pgroonga') THEN
+        -- 创建PGroonga全文搜索索引
+        CREATE INDEX IF NOT EXISTS idx_components_searchable_text_pgroonga 
+        ON chunk_schema.components USING pgroonga (searchable_text) 
+        WHERE searchable_text IS NOT NULL;
+        
+        CREATE INDEX IF NOT EXISTS idx_components_content_pgroonga 
+        ON chunk_schema.components USING pgroonga (content) 
+        WHERE content IS NOT NULL;
+        
+        -- 关键词搜索索引 (PGroonga支持TEXT[]类型的倒排检索)
+        CREATE INDEX IF NOT EXISTS idx_components_search_keywords_pgroonga 
+        ON chunk_schema.components USING pgroonga (search_keywords) 
+        WHERE search_keywords IS NOT NULL;
+        
+        RAISE NOTICE 'PGroonga indexes created for components table';
+    ELSE
+        RAISE NOTICE 'PGroonga extension not available, skipping pgroonga indexes for components';
+    END IF;
+END $$;
 
--- 关键词搜索索引 (PGroonga支持TEXT[]类型的倒排检索)
-CREATE INDEX IF NOT EXISTS idx_components_search_keywords_pgroonga ON chunk_schema.components USING pgroonga (search_keywords) WHERE search_keywords IS NOT NULL;
 -- 备用GIN索引
 CREATE INDEX IF NOT EXISTS idx_components_search_keywords ON chunk_schema.components USING gin(search_keywords) WHERE search_keywords IS NOT NULL;
 
@@ -178,7 +222,20 @@ CREATE INDEX IF NOT EXISTS idx_chunks_word_count ON chunk_schema.chunks(word_cou
 CREATE INDEX IF NOT EXISTS idx_chunks_token_count ON chunk_schema.chunks(token_count) WHERE token_count IS NOT NULL;
 
 -- 全文搜索索引 (使用PGroonga支持中英文搜索)
-CREATE INDEX IF NOT EXISTS idx_chunks_text_fts_pgroonga ON chunk_schema.chunks USING pgroonga (text_content) WHERE text_content IS NOT NULL;
+DO $$
+BEGIN
+    -- 检查PGroonga扩展是否可用
+    IF EXISTS (SELECT 1 FROM pg_available_extensions WHERE name = 'pgroonga') THEN
+        -- 创建PGroonga全文搜索索引
+        CREATE INDEX IF NOT EXISTS idx_chunks_text_fts_pgroonga 
+        ON chunk_schema.chunks USING pgroonga (text_content) 
+        WHERE text_content IS NOT NULL;
+        RAISE NOTICE 'PGroonga index created for chunks.text_content';
+    ELSE
+        RAISE NOTICE 'PGroonga extension not available, skipping pgroonga index for chunks';
+    END IF;
+END $$;
+
 -- 备用英文搜索索引
 CREATE INDEX IF NOT EXISTS idx_chunks_text_fts ON chunk_schema.chunks USING gin(to_tsvector('english', text_content)) WHERE text_content IS NOT NULL;
 
@@ -200,12 +257,17 @@ CREATE INDEX IF NOT EXISTS idx_files_created_at_desc ON chunk_schema.files(creat
 CREATE INDEX IF NOT EXISTS idx_extracted_documents_completed_at_desc ON chunk_schema.extracted_documents(completed_at DESC) WHERE completed_at IS NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_components_created_at_desc ON chunk_schema.components(created_at DESC);
 
+-- 文档处理状态索引
+CREATE INDEX IF NOT EXISTS idx_documents_processing_status ON chunk_schema.documents(processing_status) WHERE processing_status IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_documents_indexing_status ON chunk_schema.documents(indexing_status) WHERE indexing_status IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_documents_validation_status ON chunk_schema.documents(validation_status) WHERE validation_status IS NOT NULL;
+
 -- 统计查询优化索引
 CREATE INDEX IF NOT EXISTS idx_files_user_status_created ON chunk_schema.files(user_id, status, created_at);
 CREATE INDEX IF NOT EXISTS idx_components_document_type_created ON chunk_schema.components(document_id, component_type, created_at);
 
--- 搜索性能优化索引
-CREATE INDEX IF NOT EXISTS idx_components_embedding_quality ON chunk_schema.components(embedding) WHERE embedding IS NOT NULL;
+-- 搜索性能优化索引（移除不存在的列）
+-- 向量搜索相关的索引已在前面定义
 
 -- ================================
 -- 分析和报表专用索引 (Analytics Indexes)
@@ -216,6 +278,28 @@ CREATE INDEX IF NOT EXISTS idx_files_upload_monthly ON chunk_schema.files(user_i
 
 -- 内容提取方法分析
 CREATE INDEX IF NOT EXISTS idx_extracted_documents_method_created ON chunk_schema.extracted_documents(extraction_method, created_at);
+CREATE INDEX IF NOT EXISTS idx_extracted_documents_method_status ON chunk_schema.extracted_documents(extraction_method, extraction_status);
+
+-- 用户活动日志索引
+CREATE INDEX IF NOT EXISTS idx_user_activity_logs_user_id ON chunk_schema.user_activity_logs(user_id);
+CREATE INDEX IF NOT EXISTS idx_user_activity_logs_action_type ON chunk_schema.user_activity_logs(action_type);
+CREATE INDEX IF NOT EXISTS idx_user_activity_logs_created_at ON chunk_schema.user_activity_logs(created_at);
+
+-- 访问密钥索引（补充）
+CREATE INDEX IF NOT EXISTS idx_access_keys_expires_at ON chunk_schema.access_keys(expires_at) WHERE expires_at IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_access_keys_usage_stats ON chunk_schema.access_keys(requests_today, requests_this_hour);
+CREATE INDEX IF NOT EXISTS idx_access_keys_permissions ON chunk_schema.access_keys(can_create_kb, can_delete_files, can_share_files) WHERE is_active = TRUE;
+
+-- KB统计表索引
+CREATE INDEX IF NOT EXISTS idx_kb_statistics_knowledge_base_id ON chunk_schema.kb_statistics(knowledge_base_id);
+CREATE INDEX IF NOT EXISTS idx_kb_statistics_last_updated ON chunk_schema.kb_statistics(last_updated_at) WHERE last_updated_at IS NOT NULL;
+
+-- 提取日志索引
+CREATE INDEX IF NOT EXISTS idx_extraction_logs_document_id ON chunk_schema.extraction_logs(extracted_document_id) WHERE extracted_document_id IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_extraction_logs_file_id ON chunk_schema.extraction_logs(file_id) WHERE file_id IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_extraction_logs_level ON chunk_schema.extraction_logs(log_level);
+CREATE INDEX IF NOT EXISTS idx_extraction_logs_category ON chunk_schema.extraction_logs(log_category);
+CREATE INDEX IF NOT EXISTS idx_extraction_logs_created_at ON chunk_schema.extraction_logs(created_at);
 
 -- ================================
 -- 索引维护和监控 (Index Maintenance)

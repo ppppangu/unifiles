@@ -75,7 +75,7 @@ CREATE TABLE IF NOT EXISTS chunk_schema.files (
     file_extension TEXT,                                   -- 文件扩展名
     
     -- 文件大小和存储
-    bytes INTEGER NOT NULL,                                -- 文件大小（字节）
+    bytes BIGINT NOT NULL,                                 -- 文件大小（字节，使用BIGINT支持大文件）
     file_size_readable TEXT,                               -- 可读的文件大小（如：1.2MB）
     
     -- 文件校验和存储信息
@@ -120,7 +120,7 @@ CREATE TABLE IF NOT EXISTS chunk_schema.files (
     CONSTRAINT chk_files_upload_source 
         CHECK (upload_source IN ('web', 'api', 'batch', 'sync')),
     CONSTRAINT chk_files_bytes_positive 
-        CHECK (bytes > 0),
+        CHECK (bytes >= 0),
     CONSTRAINT chk_files_hash_algorithm 
         CHECK (hash_algorithm IN ('md5', 'sha1', 'sha256', 'sha512'))
 );

@@ -195,3 +195,163 @@ erDiagram
 - **关系清晰**: 表结构严格按照“文件 -> 提取内容 -> 知识库文档 -> 分块”的逻辑层次设计，关系清晰，易于维护。
 
 通过这种设计，系统在保证数据一致性的同时，实现了极高的灵活性和存储效率。
+
+## 6. web服务设计
+
+### 整体架构图
+```mermaid
+graph TB
+    subgraph "客户端层 (Client Layer)"
+        WEB[Web界面]
+        API_CLIENT[API客户端]
+        MOBILE[移动端]
+    end
+    
+    subgraph "API网关层 (API Gateway)"
+        GATEWAY[FastAPI网关]
+        AUTH[认证中间件]
+        RATE_LIMIT[限流中间件]
+    end
+    
+    subgraph "第一层: 文件管理服务"
+        FILE_UPLOAD[文件上传]
+        FILE_META[文件元数据]
+        FILE_STORAGE[存储管理]
+        FILE_ACCESS[访问控制]
+    end
+    
+    subgraph "第二层: 文件处理服务"
+        EXTRACT_QUEUE[提取任务队列]
+        OCR_ENGINE[OCR引擎]
+        CONTENT_PARSER[内容解析器]
+        ASSET_PROCESSOR[资源处理器]
+    end
+    
+    subgraph "第三层: 知识库服务"
+        KB_MANAGER[知识库管理]
+        DOC_INDEXER[文档索引器]
+        VECTOR_SEARCH[向量搜索]
+        CHUNK_PROCESSOR[分块处理器]
+    end
+    
+    subgraph "存储层 (Storage Layer)"
+        POSTGRES[(PostgreSQL + pgvector)]
+        MINIO[(MinIO对象存储)]
+        REDIS[(Redis缓存)]
+    end
+    
+    WEB --> GATEWAY
+    API_CLIENT --> GATEWAY
+    MOBILE --> GATEWAY
+    
+    GATEWAY --> AUTH
+    AUTH --> RATE_LIMIT
+    
+    RATE_LIMIT --> FILE_UPLOAD
+    RATE_LIMIT --> FILE_META
+    RATE_LIMIT --> KB_MANAGER
+    
+    FILE_UPLOAD --> FILE_STORAGE
+    FILE_STORAGE --> MINIO
+    FILE_META --> POSTGRES
+    
+    FILE_UPLOAD -.->|异步触发| EXTRACT_QUEUE
+    EXTRACT_QUEUE --> OCR_ENGINE
+    OCR_ENGINE --> CONTENT_PARSER
+    CONTENT_PARSER --> ASSET_PROCESSOR
+    ASSET_PROCESSOR --> POSTGRES
+    ASSET_PROCESSOR --> MINIO
+    
+    CONTENT_PARSER -.->|自动索引| DOC_INDEXER
+    DOC_INDEXER --> CHUNK_PROCESSOR
+    CHUNK_PROCESSOR --> VECTOR_SEARCH
+    VECTOR_SEARCH --> POSTGRES
+    
+    KB_MANAGER --> POSTGRES
+    DOC_INDEXER --> POSTGRES
+    
+    EXTRACT_QUEUE --> REDIS
+    VECTOR_SEARCH --> REDIS
+```
+
+## 7. 提供服务的业务分层
+```
+第一层: 文件上传和管理服务 (File Management Layer)
+├── 文件上传、下载、删除
+├── 文件元数据管理  
+├── 存储空间管理
+└── 访问权限控制
+
+第二层: 文件处理服务 (File Processing Layer)
+├── 文件格式验证和转换
+├── OCR文本提取
+├── 内容结构化处理
+└── 处理状态管理
+
+第三层: 知识库管理服务 (Knowledge Base Layer)
+├── 知识库创建和管理
+├── 文档索引和向量化
+├── 知识检索和查询
+└── 分块策略管理
+```
+
+## 8.
+### 架构原则
+- **分层解耦**：每层职责明确，接口清晰
+- **异步处理**：所有IO操作异步化
+- **快速响应**：接口秒返回，后台异步处理
+- **可扩展性**：支持水平扩展和微服务化
+
+### 第一层：文件上传和管理服务 (File Management Layer)
+
+**职责**：
+- 文件上传、下载、删除
+- 文件元数据管理
+- 存储空间管理
+- 文件访问权限控制
+
+**核心端点**：
+- `POST /files` - 文件上传（秒返回）
+- `GET /files/{file_id}` - 获取文件信息
+- `GET /files/{file_id}/download` - 文件下载
+- `DELETE /files/{file_id}` - 删除文件
+- `GET /files/types` - 支持的文件类型
+
+**技术实现**：
+- 基于现有的 `unifiles/app/v1/routers/unifiles.py`
+- 使用 `unifiles/core/storage.py` 的MinIO存储管理
+- 异步文件上传，立即返回文件ID和状态
+
+### 第二层：文件处理服务 (File Processing Layer)
+
+**职责**：
+- 文件格式验证和转换
+- OCR文本提取
+- 内容结构化处理
+- 处理状态管理
+
+**核心端点**：
+- `POST /processors/extract` - 启动文件内容提取
+
+**技术实现**：
+- 基于现有的 `unifiles/core/services/document_processor.py`
+- 使用 `unifiles/core/pipelines/` 中的处理流水线
+- 异步任务队列，支持批量处理
+
+### 第三层：知识库管理服务 (Knowledge Base Layer)
+
+**职责**：
+- 知识库创建和管理
+- 文档索引和向量化
+
+**核心端点**：
+- `GET /knowledge-bases` - 获取知识库列表
+- `POST /knowledge-bases` - 创建知识库
+- `POST /knowledge-bases/{kb_id}/documents` - 索引文档到知识库
+- `GET /knowledge-bases/{kb_id}/documents` - 获取知识库文档
+- `POST /knowledge-bases/{kb_id}/search` - 知识库搜索
+
+**技术实现**：
+- 基于现有的 `unifiles/app/v1/routers/knowledge_bases.py`
+- 使用 `unifiles/core/services/embedding_service.py` 进行向量化
+- 集成现有的数据库模型和向量存储

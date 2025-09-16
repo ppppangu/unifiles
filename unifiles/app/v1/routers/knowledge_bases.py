@@ -32,9 +32,6 @@ async def get_knowledge_bases(
     user_id = request.state.user_id
     logger.info(f"GET /knowledge-bases request from user: {user_id}")
     logger.info(f"Query parameters: limit={limit}, offset={offset}")
-    
-    # TODO: Implement logic to get user's knowledge bases from database
-    # For now, return mock data
     mock_kb = KnowledgeBaseInfo(
         kb_id="kb_sample_001",
         name="示例知识库",

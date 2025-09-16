@@ -108,7 +108,7 @@ CREATE TABLE IF NOT EXISTS chunk_schema.extracted_assets (
     storage_path TEXT NOT NULL,                           -- 存储路径（相对于配置的base_path）
     
     -- 文件属性
-    file_size INTEGER,                                     -- 文件大小（字节）
+    file_size BIGINT,                                      -- 文件大小（字节，使用BIGINT支持大文件）
     file_hash TEXT,                                        -- 文件哈希
     format TEXT,                                           -- 文件格式（jpg, png, svg等）
     mime_type TEXT,                                        -- MIME类型
@@ -159,7 +159,7 @@ CREATE TABLE IF NOT EXISTS chunk_schema.extracted_assets (
     CONSTRAINT chk_extracted_assets_confidence 
         CHECK (extraction_confidence IS NULL OR (extraction_confidence >= 0 AND extraction_confidence <= 1)),
     CONSTRAINT chk_extracted_assets_file_size_positive 
-        CHECK (file_size IS NULL OR file_size > 0)
+        CHECK (file_size IS NULL OR file_size >= 0)
 );
 
 

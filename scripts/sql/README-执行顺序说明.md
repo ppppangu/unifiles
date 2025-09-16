@@ -25,6 +25,7 @@ psql -d your_database -f 011-create-extensions.sql
 **描述**: 创建用户和权限管理表
 **包含内容**:
 - 用户表（users）
+- 访问密钥表（access_keys）- 增强版，包含用户限制功能
 - 用户操作日志表（user_activity_logs）
 - 相关触发器和初始数据
 
@@ -32,6 +33,21 @@ psql -d your_database -f 011-create-extensions.sql
 **执行命令**:
 ```bash
 psql -d your_database -f 021-create-users.sql
+```
+
+### 第二步补充：访问密钥管理扩展
+**文件**: `022-create-access-key-management.sql`
+**描述**: 创建访问密钥管理的扩展功能
+**包含内容**:
+- 访问密钥管理视图
+- 访问密钥使用统计视图
+- 权限检查和管理函数
+- 定期清理任务
+
+**依赖**: 必须在021-create-users.sql执行后执行
+**执行命令**:
+```bash
+psql -d your_database -f 022-create-access-key-management.sql
 ```
 
 ### 第三步：文件管理层
@@ -149,6 +165,14 @@ if [ $? -ne 0 ]; then
     exit 1
 fi
 
+# 第二步补充：访问密钥管理扩展
+echo "执行第二步补充：访问密钥管理扩展"
+psql -d $DB_NAME -f "$SQL_DIR/022-create-access-key-management.sql"
+if [ $? -ne 0 ]; then
+    echo "错误：访问密钥管理扩展创建失败"
+    exit 1
+fi
+
 # 第三步：文件管理层
 echo "执行第三步：文件管理层"
 psql -d $DB_NAME -f "$SQL_DIR/031-create-file-management.sql"
@@ -208,7 +232,7 @@ DB_NAME="your_database_name"
 SQL_DIR="数据库建表逻辑/new"
 
 # 按顺序执行所有SQL文件
-for file in "$SQL_DIR"/{011,021,031,041,051,061,071,081}-*.sql; do
+for file in "$SQL_DIR"/{011,021,022,031,041,051,061,071,081}-*.sql; do
     if [ -f "$file" ]; then
         echo "执行文件: $(basename $file)"
         psql -d $DB_NAME -f "$file"

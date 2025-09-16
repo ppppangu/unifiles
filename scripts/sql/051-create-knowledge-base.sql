@@ -279,12 +279,14 @@ CREATE TABLE IF NOT EXISTS chunk_schema.kb_statistics (
 -- ================================
 
 -- 为knowledge_bases表添加更新时间戳触发器
+DROP TRIGGER IF EXISTS trigger_knowledge_bases_updated_at ON chunk_schema.knowledge_bases;
 CREATE TRIGGER trigger_knowledge_bases_updated_at
     BEFORE UPDATE ON chunk_schema.knowledge_bases
     FOR EACH ROW
     EXECUTE FUNCTION chunk_schema.update_updated_at_column();
 
 -- 为documents表添加更新时间戳触发器
+DROP TRIGGER IF EXISTS trigger_documents_updated_at ON chunk_schema.documents;
 CREATE TRIGGER trigger_documents_updated_at
     BEFORE UPDATE ON chunk_schema.documents
     FOR EACH ROW
@@ -292,6 +294,7 @@ CREATE TRIGGER trigger_documents_updated_at
 
 
 -- 为kb_statistics表添加更新时间戳触发器
+DROP TRIGGER IF EXISTS trigger_kb_statistics_updated_at ON chunk_schema.kb_statistics;
 CREATE TRIGGER trigger_kb_statistics_updated_at
     BEFORE UPDATE ON chunk_schema.kb_statistics
     FOR EACH ROW

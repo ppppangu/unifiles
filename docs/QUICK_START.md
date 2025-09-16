@@ -236,7 +236,6 @@ volumes:
 
 ---
 
-
 ## 🔍 故障排除
 
 - **数据库连接失败**: 确保 `postgres` 容器正在运行 (`docker ps`)，并且 `config.yaml` 中的连接信息正确。
