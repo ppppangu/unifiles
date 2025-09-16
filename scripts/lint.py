@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 代码检查脚本
-使用 ruff 进行代码质量检查
+使用 ruff、isort、mypy 进行代码质量检查
 """
 
 import subprocess
@@ -53,6 +53,13 @@ def main():
         ["uv", "run", "ruff", "format", "--check", "."], "Ruff 格式检查"
     ):
         success = False
+
+    # 3. MyPy 类型检查（宽松模式）
+    print("\n🔬 运行 MyPy 类型检查...")
+    if not run_command(
+        ["uv", "run", "mypy", "unifiles/", "--config-file=mypy.ini"], "MyPy 类型检查"
+    ):
+        print("⚠️  MyPy 类型检查失败，但继续执行...")
 
     if success:
         print("\n🎉 所有代码检查通过！")
