@@ -39,6 +39,7 @@ dev = [
     "pytest-cov>=6.0.0",
     "black>=24.0.0",
     "ruff>=0.1.0",
+    "mypy>=1.7.0",
     "coverage>=7.3.0",
     "types-pyyaml>=6.0.12.20250915",
     "types-aiofiles>=24.1.0.20250822",
