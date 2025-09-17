@@ -21,7 +21,7 @@ from tenacity import (
     wait_exponential,
 )
 
-from ..utils.tools import convert_to_internal_minio_url, read_config
+from ..config.env_config import convert_to_internal_minio_url, read_config
 
 
 # OCR接口定义
@@ -159,9 +159,8 @@ class MineruOCRProvider:
 
                 if "result_url" in result:
                     return result["result_url"]
-                else:
-                    logger.error(f"Invalid Mineru response: {result}")
-                    return None
+                logger.error(f"Invalid Mineru response: {result}")
+                return None
 
         except Exception as e:
             logger.error(f"Mineru processing failed: {e}")
@@ -285,13 +284,13 @@ class FileDownloader:
                 logger.error(f"Request URL: {target_url}")
                 raise
             except httpx.RequestError as e:
-                logger.error(f"Request error: {str(e)}, URL: {target_url}")
+                logger.error(f"Request error: {e!s}, URL: {target_url}")
                 logger.error(f"Error type: {type(e).__name__}")
                 raise
             except Exception as e:
-                logger.error(f"Unexpected download error: {str(e)}, URL: {target_url}")
+                logger.error(f"Unexpected download error: {e!s}, URL: {target_url}")
                 logger.error(f"Error type: {type(e).__name__}")
-                raise Exception(f"Download failed: {str(e)}")
+                raise Exception(f"Download failed: {e!s}")
 
         # 主下载逻辑
         try:
@@ -308,7 +307,7 @@ class FileDownloader:
                 except Exception as second_error:
                     logger.error("Internal URL fallback download also failed")
                     raise second_error from first_error
-            raise first_error
+            raise
 
 
 class TextProcessor:
@@ -356,10 +355,9 @@ class TextProcessor:
         if image_matches:
             if current_pos < text_length:
                 results.append((current_pos, text_length, "text"))
-        else:
-            # 如果没有找到任何图片，整个文本都是文本片段
-            if text_length > 0:
-                results.append((0, text_length, "text"))
+        # 如果没有找到任何图片，整个文本都是文本片段
+        elif text_length > 0:
+            results.append((0, text_length, "text"))
 
         # 按开始位置排序结果
         results.sort(key=lambda x: x[0])
@@ -419,10 +417,9 @@ class TextProcessor:
                     if chunk.strip():
                         new_text.append(chunk)
                     break
-                else:
-                    chunk = text[start:end]
-                    if chunk.strip():
-                        new_text.append(chunk)
+                chunk = text[start:end]
+                if chunk.strip():
+                    new_text.append(chunk)
 
                 start = end - chunk_overlap
 

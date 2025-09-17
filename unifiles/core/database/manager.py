@@ -10,7 +10,7 @@ from typing import Any, Dict, Optional
 import asyncpg
 from loguru import logger
 
-from ..utils.tools import read_pg_config
+from ..config.env_config import read_pg_config
 from .models import (
     ChunkModel,
     DocumentModel,
@@ -179,7 +179,7 @@ class DatabaseManager:
             await conn.close()
 
     async def ensure_knowledge_base_exists(
-        self, kb_id: str, user_id: str, name: str = None
+        self, kb_id: str, user_id: str, name: Optional[str] = None
     ) -> KnowledgeBaseModel:
         """确保知识库存在，不存在则创建"""
         kb = await self.get_knowledge_base(kb_id)
@@ -202,7 +202,7 @@ class DatabaseManager:
             async with conn.transaction():
                 await conn.execute(
                     """
-                    INSERT INTO chunk_schema.documents 
+                    INSERT INTO chunk_schema.documents
                     (id, knowledge_base_id, name, text, component_ids, hierarchy_path, markdown_public_url, raw_file_public_url)
                     VALUES ($1, $2, $3, $4, $5, $6::ltree, $7, $8)
                     ON CONFLICT (id) DO NOTHING
@@ -267,7 +267,7 @@ class DatabaseManager:
             await conn.close()
 
     async def ensure_document_exists(
-        self, doc_id: str, kb_id: str, name: str = None
+        self, doc_id: str, kb_id: str, name: Optional[str] = None
     ) -> DocumentModel:
         """确保文档存在，不存在则创建"""
         doc = await self.get_document(doc_id)
@@ -287,7 +287,7 @@ class DatabaseManager:
             async with conn.transaction():
                 await conn.execute(
                     """
-                    UPDATE chunk_schema.documents 
+                    UPDATE chunk_schema.documents
                     SET markdown_public_url = $2, raw_file_public_url = $3, upload_time = now()
                     WHERE id = $1
                     """,
@@ -314,7 +314,7 @@ class DatabaseManager:
             async with conn.transaction():
                 await conn.execute(
                     """
-                    INSERT INTO chunk_schema.files 
+                    INSERT INTO chunk_schema.files
                     (id, user_id, bytes, filename, mime_type, file_path, raw_file_public_url, status, metadata)
                     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
                     """,
@@ -472,7 +472,7 @@ class DatabaseManager:
             async with conn.transaction():
                 await conn.execute(
                     """
-                    INSERT INTO chunk_schema.file_processing_logs 
+                    INSERT INTO chunk_schema.file_processing_logs
                     (id, file_id, user_id, status, stage, message, details, error_info)
                     VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
                     """,
@@ -508,8 +508,8 @@ class DatabaseManager:
         self,
         log_id: str,
         status: ProcessingStatus,
-        message: str = None,
-        error_info: Dict[str, Any] = None,
+        message: Optional[str] = None,
+        error_info: Optional[Dict[str, Any]] = None,
     ) -> bool:
         """更新处理日志状态"""
         conn = await self.get_connection()
@@ -523,7 +523,7 @@ class DatabaseManager:
 
                 await conn.execute(
                     """
-                    UPDATE chunk_schema.file_processing_logs 
+                    UPDATE chunk_schema.file_processing_logs
                     SET status = $2, message = $3, error_info = $4, completed_at = $5
                     WHERE id = $1
                     """,

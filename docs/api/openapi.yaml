@@ -1,0 +1,1106 @@
+openapi: 3.1.0
+info:
+  title: Unifiles v1 API
+  description: |
+    A comprehensive document processing API with three-layer architecture:
+    1. **File Storage Layer** - Upload and manage original files
+    2. **Content Extraction Layer** - OCR processing for text and image content
+    3. **Knowledge Base Layer** - Document chunking and vector indexing
+    
+    ## Authentication
+    All endpoints (except health check and public documentation) require Bearer token authentication:
+    ```
+    Authorization: Bearer <your_api_key>
+    ```
+    
+    ## Rate Limiting
+    - 100 requests per minute per API key
+    - 10 file uploads per minute per user
+    - Large file processing may have additional limits
+    
+    ## Error Handling
+    All errors follow RFC 7807 Problem Details format with consistent error codes.
+  version: 1.1.0
+  contact:
+    name: Unifiles API Support
+    email: support@unifiles.com
+    url: https://docs.unifiles.com
+  license:
+    name: MIT
+    url: https://opensource.org/licenses/MIT
+  termsOfService: https://unifiles.com/terms
+
+servers:
+  - url: https://api.unifiles.com/v1
+    description: Production server
+  - url: https://staging-api.unifiles.com/v1
+    description: Staging server
+  - url: http://localhost:8088
+    description: Local development server
+
+security:
+  - bearerAuth: []
+
+paths:
+  # System endpoints
+  /health:
+    get:
+      tags: [System]
+      summary: Health check
+      description: Check if the service is healthy and operational
+      security: []  # No auth required
+      responses:
+        '200':
+          description: Service is healthy
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StandardResponse'
+              example:
+                success: true
+                message: "Service is healthy"
+                data:
+                  version: "1.1.0"
+                  service: "unifiles-v1"
+
+  # File Storage Layer
+  /files/types:
+    get:
+      tags: [Files]
+      summary: Get supported file types
+      description: Retrieve list of supported file types for upload
+      security: []  # Public endpoint
+      responses:
+        '200':
+          description: Supported file types retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SupportedFileTypes'
+
+  /files:
+    post:
+      tags: [Files]
+      summary: Upload file
+      description: |
+        Upload a file to the storage layer. Supports various document types including:
+        - PDF files
+        - Office documents (DOC, DOCX, PPT, PPTX, XLS, XLSX)
+        - Images (JPG, JPEG, PNG, TIFF, BMP)
+        - Text files (TXT, MD, HTML, CSV)
+        - Code files (PY, IPYNB, JS, JSON)
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required:
+                - file
+              properties:
+                file:
+                  type: string
+                  format: binary
+                  description: File to upload (max 100MB)
+                is_public:
+                  type: boolean
+                  default: false
+                  description: Whether to make file publicly accessible
+            encoding:
+              file:
+                contentType: application/octet-stream
+      responses:
+        '200':
+          description: File uploaded successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FileUploadResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '413':
+          $ref: '#/components/responses/PayloadTooLarge'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    get:
+      tags: [Files]
+      summary: List user files
+      description: Get paginated list of files uploaded by the current user
+      parameters:
+        - name: limit
+          in: query
+          description: Number of files to return (1-100)
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 50
+        - name: offset
+          in: query
+          description: Number of files to skip for pagination
+          schema:
+            type: integer
+            minimum: 0
+            default: 0
+      responses:
+        '200':
+          description: Files retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FileListResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /files/{file_id}:
+    get:
+      tags: [Files]
+      summary: Get file information
+      description: Retrieve detailed information about a specific file
+      parameters:
+        - $ref: '#/components/parameters/FileIdPath'
+      responses:
+        '200':
+          description: File information retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FileInfo'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    delete:
+      tags: [Files]
+      summary: Delete file
+      description: Permanently delete a file and all associated data
+      parameters:
+        - $ref: '#/components/parameters/FileIdPath'
+      responses:
+        '200':
+          description: File deleted successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StandardResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /files/{file_id}/public-status:
+    patch:
+      tags: [Files]
+      summary: Update file public status
+      description: Change whether a file is publicly accessible or private
+      parameters:
+        - $ref: '#/components/parameters/FileIdPath'
+        - name: is_public
+          in: query
+          required: true
+          description: Whether to make file publicly accessible
+          schema:
+            type: boolean
+      responses:
+        '200':
+          description: File public status updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StandardResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  # Content Extraction Layer
+  /files/{file_id}/extract:
+    post:
+      tags: [Processors]
+      summary: Extract file content
+      description: |
+        Extract content from uploaded file using OCR and document processing.
+        Supports two extraction modes:
+        - **simple**: Basic text extraction using built-in PDF reader
+        - **normal**: Advanced OCR processing with MinerU for better accuracy
+      parameters:
+        - $ref: '#/components/parameters/FileIdPath'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FileExtractRequest'
+      responses:
+        '200':
+          description: Content extraction started successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FileExtractResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  # Knowledge Base Layer
+  /knowledge-bases:
+    get:
+      tags: [Knowledge Bases]
+      summary: Get knowledge bases
+      description: Retrieve paginated list of knowledge bases for the current user
+      parameters:
+        - name: limit
+          in: query
+          description: Number of knowledge bases to return
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 50
+        - name: offset
+          in: query
+          description: Number of knowledge bases to skip for pagination
+          schema:
+            type: integer
+            minimum: 0
+            default: 0
+      responses:
+        '200':
+          description: Knowledge bases retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/KnowledgeBaseListResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /knowledge-bases/{kb_id}:
+    get:
+      tags: [Knowledge Bases]
+      summary: Get knowledge base info
+      description: Retrieve detailed information about a specific knowledge base
+      parameters:
+        - $ref: '#/components/parameters/KnowledgeBaseIdPath'
+      responses:
+        '200':
+          description: Knowledge base information retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/KnowledgeBaseInfo'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '501':
+          $ref: '#/components/responses/NotImplemented'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /knowledge-bases/{kb_id}/documents:
+    post:
+      tags: [Knowledge Bases]
+      summary: Index extracted content to knowledge base
+      description: |
+        Add extracted document content to a knowledge base with chunking and vectorization.
+        The document must be extracted first using the /files/{file_id}/extract endpoint.
+      parameters:
+        - $ref: '#/components/parameters/KnowledgeBaseIdPath'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProcessDocumentRequest'
+      responses:
+        '200':
+          description: Document indexing started successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProcessDocumentResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    get:
+      tags: [Knowledge Bases]
+      summary: Get knowledge base documents
+      description: Retrieve list of documents in a specific knowledge base
+      parameters:
+        - $ref: '#/components/parameters/KnowledgeBaseIdPath'
+        - name: limit
+          in: query
+          description: Number of documents to return
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 50
+        - name: offset
+          in: query
+          description: Number of documents to skip for pagination
+          schema:
+            type: integer
+            minimum: 0
+            default: 0
+      responses:
+        '200':
+          description: Knowledge base documents retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ProcessedDocument'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '501':
+          $ref: '#/components/responses/NotImplemented'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /knowledge-bases/{kb_id}/documents/{doc_id}:
+    delete:
+      tags: [Knowledge Bases]
+      summary: Delete knowledge base document
+      description: Remove a document and its associated vectors from a knowledge base
+      parameters:
+        - $ref: '#/components/parameters/KnowledgeBaseIdPath'
+        - $ref: '#/components/parameters/DocumentIdPath'
+      responses:
+        '200':
+          description: Document deleted successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StandardResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '501':
+          $ref: '#/components/responses/NotImplemented'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  # Management endpoints
+  /manager/system/status:
+    get:
+      tags: [Manager]
+      summary: Get system status
+      description: Retrieve comprehensive system health and status information (admin only)
+      responses:
+        '200':
+          description: System status retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StandardResponse'
+              example:
+                success: true
+                message: "System status retrieved successfully"
+                data:
+                  status: "healthy"
+                  timestamp: "2024-01-15T10:30:00Z"
+                  components:
+                    database: "connected"
+                    storage: "healthy"
+                    memory_usage: "normal"
+                    disk_usage: "normal"
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: |
+        API key authentication using Bearer token.
+        Obtain your API key from the dashboard and include it in the Authorization header:
+        `Authorization: Bearer <your_api_key>`
+
+  parameters:
+    FileIdPath:
+      name: file_id
+      in: path
+      required: true
+      description: Unique identifier for the file
+      schema:
+        type: string
+        pattern: '^file-[a-f0-9-]{36}$'
+        example: "file-550e8400-e29b-41d4-a716-446655440000"
+
+    KnowledgeBaseIdPath:
+      name: kb_id
+      in: path
+      required: true
+      description: Unique identifier for the knowledge base
+      schema:
+        type: string
+        pattern: '^kb_[a-zA-Z0-9_-]+$'
+        example: "kb_sample_001"
+
+    DocumentIdPath:
+      name: doc_id
+      in: path
+      required: true
+      description: Unique identifier for the document
+      schema:
+        type: string
+        pattern: '^doc_[a-f0-9]{8}$'
+        example: "doc_abc12345"
+
+  schemas:
+    # Response schemas
+    StandardResponse:
+      type: object
+      required:
+        - success
+        - message
+      properties:
+        success:
+          type: boolean
+          description: Whether the operation was successful
+        message:
+          type: string
+          description: Human-readable message describing the result
+        data:
+          type: object
+          description: Additional response data
+          additionalProperties: true
+      example:
+        success: true
+        message: "Operation completed successfully"
+        data:
+          result_id: "12345"
+
+    ErrorResponse:
+      type: object
+      required:
+        - success
+        - message
+      properties:
+        success:
+          type: boolean
+          enum: [false]
+          description: Always false for error responses
+        message:
+          type: string
+          description: Human-readable error message
+        error_code:
+          type: string
+          description: Machine-readable error code
+        details:
+          type: object
+          description: Additional error details
+          additionalProperties: true
+      example:
+        success: false
+        message: "Validation failed"
+        error_code: "VALIDATION_ERROR"
+        details:
+          field: "filename"
+          issue: "File extension not supported"
+
+    # File schemas
+    FileInfo:
+      type: object
+      required:
+        - file_id
+        - filename
+        - file_size
+        - content_type
+        - public_url
+        - object_path
+        - is_public
+        - created_at
+      properties:
+        file_id:
+          type: string
+          description: Unique file identifier
+          example: "file-550e8400-e29b-41d4-a716-446655440000"
+        filename:
+          type: string
+          description: Original filename
+          example: "document.pdf"
+        file_size:
+          type: integer
+          description: File size in bytes
+          minimum: 0
+          example: 2048576
+        content_type:
+          type: string
+          description: MIME type of the file
+          example: "application/pdf"
+        public_url:
+          type: string
+          format: uri
+          description: Access URL (presigned URL or persistent public URL)
+          example: "https://storage.unifiles.com/files/user123/document.pdf"
+        object_path:
+          type: string
+          description: Storage path of the file
+          example: "user123/default_file_space/file-123/document.pdf"
+        is_public:
+          type: boolean
+          description: Whether the file is publicly accessible
+          example: false
+        created_at:
+          type: string
+          format: date-time
+          description: File upload timestamp
+          example: "2024-01-15T10:30:00Z"
+
+    FileUploadResponse:
+      type: object
+      required:
+        - success
+        - message
+        - file
+      properties:
+        success:
+          type: boolean
+          description: Whether the upload was successful
+        message:
+          type: string
+          description: Upload result message
+        file:
+          $ref: '#/components/schemas/FileInfo'
+      example:
+        success: true
+        message: "File uploaded successfully"
+        file:
+          file_id: "file-550e8400-e29b-41d4-a716-446655440000"
+          filename: "document.pdf"
+          file_size: 2048576
+          content_type: "application/pdf"
+          public_url: "https://storage.unifiles.com/files/user123/document.pdf"
+          object_path: "user123/default_file_space/file-123/document.pdf"
+          is_public: false
+          created_at: "2024-01-15T10:30:00Z"
+
+    SupportedFileTypes:
+      type: object
+      required:
+        - document_types
+        - pdf_types
+        - code_types
+        - all_types
+      properties:
+        document_types:
+          type: array
+          items:
+            type: string
+          description: Supported document file extensions
+          example: [".doc", ".docx", ".ppt", ".pptx", ".xls", ".xlsx", ".txt", ".md"]
+        pdf_types:
+          type: array
+          items:
+            type: string
+          description: Supported PDF file extensions
+          example: [".pdf"]
+        code_types:
+          type: array
+          items:
+            type: string
+          description: Supported code file extensions
+          example: [".py", ".ipynb", ".js", ".json"]
+        all_types:
+          type: array
+          items:
+            type: string
+          description: All supported file extensions
+          example: [".pdf", ".doc", ".docx", ".py", ".ipynb"]
+
+    FileListResponse:
+      type: object
+      required:
+        - success
+        - message
+        - files
+        - has_more
+      properties:
+        success:
+          type: boolean
+          description: Whether the operation was successful
+        message:
+          type: string
+          description: Result message
+        files:
+          type: array
+          items:
+            $ref: '#/components/schemas/FileInfo'
+          description: List of file information
+        total_count:
+          type: integer
+          description: Total number of files (optional)
+          example: 150
+        has_more:
+          type: boolean
+          description: Whether there are more files available
+          example: true
+
+    # Content extraction schemas
+    FileExtractRequest:
+      type: object
+      properties:
+        mode:
+          type: string
+          enum: ["simple", "normal"]
+          default: "simple"
+          description: |
+            Content extraction mode:
+            - **simple**: Basic text extraction using built-in PDF reader
+            - **normal**: Advanced OCR processing with MinerU for better accuracy
+      example:
+        mode: "normal"
+
+    ExtractedContent:
+      type: object
+      required:
+        - file_id
+        - extraction_id
+        - content_type
+        - extraction_metadata
+        - status
+        - created_at
+      properties:
+        file_id:
+          type: string
+          description: Original file ID
+          example: "file-550e8400-e29b-41d4-a716-446655440000"
+        extraction_id:
+          type: string
+          description: Unique extraction task ID
+          example: "ext_12345678"
+        content_type:
+          type: string
+          description: Type of extracted content
+          example: "mixed"
+        extracted_text:
+          type: string
+          description: Plain text content extracted from the document
+          example: "This is the extracted text content from the document..."
+        markdown_content:
+          type: string
+          description: Structured markdown content
+          example: "# Document Title\n\nThis is the processed markdown content..."
+        structured_data:
+          type: object
+          description: Structured data extracted from the document
+          additionalProperties: true
+        extraction_metadata:
+          type: object
+          description: Metadata about the extraction process
+          properties:
+            pages:
+              type: integer
+              description: Number of pages processed
+            processing_time:
+              type: number
+              description: Processing time in seconds
+            extraction_method:
+              type: string
+              description: Method used for extraction
+          additionalProperties: true
+          example:
+            pages: 5
+            processing_time: 15.2
+            extraction_method: "mineru"
+        status:
+          type: string
+          enum: ["pending", "processing", "completed", "failed"]
+          description: Current extraction status
+          example: "completed"
+        created_at:
+          type: string
+          format: date-time
+          description: Extraction start timestamp
+          example: "2024-01-15T10:30:00Z"
+
+    FileExtractResponse:
+      type: object
+      required:
+        - success
+        - message
+        - extracted_content
+      properties:
+        success:
+          type: boolean
+          description: Whether extraction was successful
+        message:
+          type: string
+          description: Extraction result message
+        extracted_content:
+          $ref: '#/components/schemas/ExtractedContent'
+      example:
+        success: true
+        message: "File content extracted successfully"
+        extracted_content:
+          file_id: "file-550e8400-e29b-41d4-a716-446655440000"
+          extraction_id: "ext_12345678"
+          content_type: "mixed"
+          extracted_text: "This is the extracted text..."
+          markdown_content: "# Document Title\n\nContent..."
+          extraction_metadata:
+            pages: 5
+            processing_time: 15.2
+          status: "completed"
+          created_at: "2024-01-15T10:30:00Z"
+
+    # Knowledge base schemas
+    KnowledgeBaseInfo:
+      type: object
+      required:
+        - kb_id
+        - name
+        - user_id
+        - document_count
+        - created_at
+        - updated_at
+      properties:
+        kb_id:
+          type: string
+          description: Unique knowledge base identifier
+          example: "kb_sample_001"
+        name:
+          type: string
+          description: Knowledge base name
+          example: "Technical Documentation"
+        description:
+          type: string
+          description: Knowledge base description
+          example: "Collection of technical documentation and manuals"
+        user_id:
+          type: string
+          description: Owner user ID
+          example: "user_12345"
+        document_count:
+          type: integer
+          description: Number of documents in the knowledge base
+          minimum: 0
+          example: 25
+        created_at:
+          type: string
+          format: date-time
+          description: Knowledge base creation timestamp
+          example: "2024-01-15T10:30:00Z"
+        updated_at:
+          type: string
+          format: date-time
+          description: Knowledge base last update timestamp
+          example: "2024-01-15T15:45:00Z"
+
+    KnowledgeBaseListResponse:
+      type: object
+      required:
+        - success
+        - message
+        - knowledge_bases
+        - total_count
+        - has_more
+      properties:
+        success:
+          type: boolean
+          description: Whether the operation was successful
+        message:
+          type: string
+          description: Result message
+        knowledge_bases:
+          type: array
+          items:
+            $ref: '#/components/schemas/KnowledgeBaseInfo'
+          description: List of knowledge bases
+        total_count:
+          type: integer
+          description: Total number of knowledge bases
+          example: 5
+        has_more:
+          type: boolean
+          description: Whether there are more knowledge bases available
+          example: false
+
+    ProcessDocumentRequest:
+      type: object
+      required:
+        - extraction_id
+        - knowledge_base_id
+      properties:
+        extraction_id:
+          type: string
+          description: ID of the extracted content to index
+          example: "ext_12345678"
+        knowledge_base_id:
+          type: string
+          description: Target knowledge base ID
+          example: "kb_sample_001"
+        chunk_strategy:
+          type: string
+          enum: ["semantic", "fixed", "sliding"]
+          default: "semantic"
+          description: |
+            Document chunking strategy:
+            - **semantic**: Intelligent chunking based on document structure
+            - **fixed**: Fixed-size chunks
+            - **sliding**: Overlapping sliding window chunks
+      example:
+        extraction_id: "ext_12345678"
+        knowledge_base_id: "kb_sample_001"
+        chunk_strategy: "semantic"
+
+    ProcessedDocument:
+      type: object
+      required:
+        - document_id
+        - extraction_id
+        - knowledge_base_id
+        - chunk_count
+        - indexing_status
+        - created_at
+      properties:
+        document_id:
+          type: string
+          description: Unique document ID in the knowledge base
+          example: "doc_abc12345"
+        extraction_id:
+          type: string
+          description: Source extraction ID
+          example: "ext_12345678"
+        knowledge_base_id:
+          type: string
+          description: Knowledge base ID
+          example: "kb_sample_001"
+        chunk_count:
+          type: integer
+          description: Number of chunks created from the document
+          minimum: 0
+          example: 15
+        indexing_status:
+          type: string
+          enum: ["pending", "processing", "completed", "failed"]
+          description: Current indexing status
+          example: "completed"
+        created_at:
+          type: string
+          format: date-time
+          description: Document processing start timestamp
+          example: "2024-01-15T10:30:00Z"
+
+    ProcessDocumentResponse:
+      type: object
+      required:
+        - success
+        - message
+        - document
+      properties:
+        success:
+          type: boolean
+          description: Whether processing was started successfully
+        message:
+          type: string
+          description: Processing result message
+        document:
+          $ref: '#/components/schemas/ProcessedDocument'
+      example:
+        success: true
+        message: "Document indexing started successfully"
+        document:
+          document_id: "doc_abc12345"
+          extraction_id: "ext_12345678"
+          knowledge_base_id: "kb_sample_001"
+          chunk_count: 15
+          indexing_status: "processing"
+          created_at: "2024-01-15T10:30:00Z"
+
+  responses:
+    BadRequest:
+      description: Bad request - Invalid input parameters
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            success: false
+            message: "Invalid request parameters"
+            error_code: "BAD_REQUEST"
+            details:
+              parameter: "limit"
+              issue: "Must be between 1 and 100"
+
+    Unauthorized:
+      description: Unauthorized - Missing or invalid authentication
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            success: false
+            message: "Authentication required"
+            error_code: "UNAUTHORIZED"
+            details:
+              issue: "Missing or invalid Authorization header"
+
+    Forbidden:
+      description: Forbidden - Insufficient permissions
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            success: false
+            message: "Access denied"
+            error_code: "FORBIDDEN"
+            details:
+              issue: "File belongs to another user"
+
+    NotFound:
+      description: Not found - Resource does not exist
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            success: false
+            message: "Resource not found"
+            error_code: "NOT_FOUND"
+            details:
+              resource_type: "file"
+              resource_id: "file-123"
+
+    UnprocessableEntity:
+      description: Unprocessable entity - Validation failed
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            success: false
+            message: "Validation failed"
+            error_code: "VALIDATION_ERROR"
+            details:
+              field: "file"
+              issue: "Unsupported file type"
+
+    TooManyRequests:
+      description: Too many requests - Rate limit exceeded
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            success: false
+            message: "Rate limit exceeded"
+            error_code: "RATE_LIMIT"
+            details:
+              limit: 100
+              window: "1 minute"
+              retry_after: 60
+
+    PayloadTooLarge:
+      description: Payload too large - File size exceeds limit
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            success: false
+            message: "File too large"
+            error_code: "FILE_TOO_LARGE"
+            details:
+              max_size: "100MB"
+              uploaded_size: "150MB"
+
+    NotImplemented:
+      description: Not implemented - Feature not yet available
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            success: false
+            message: "Feature not implemented"
+            error_code: "NOT_IMPLEMENTED"
+            details:
+              feature: "knowledge_base_management"
+
+    InternalServerError:
+      description: Internal server error - Unexpected server issue
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            success: false
+            message: "Internal server error"
+            error_code: "INTERNAL_ERROR"
+            details:
+              request_id: "req_12345"
+
+tags:
+  - name: System
+    description: System health and status endpoints
+  - name: Files
+    description: File storage layer - Upload and manage original files
+  - name: Processors
+    description: Content extraction layer - OCR processing and content extraction
+  - name: Knowledge Bases
+    description: Knowledge base layer - Document chunking and vector indexing
+  - name: Manager
+    description: Management and administration endpoints
+
+externalDocs:
+  description: Complete Unifiles Documentation
+  url: https://docs.unifiles.com

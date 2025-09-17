@@ -55,7 +55,3 @@ text_chunk_strategy:
     module: "normal"
     chunk_size: 800
     chunk_overlap: 128
-
-graph_module:
-  summary_strategy:
-    window_size: 8000

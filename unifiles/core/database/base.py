@@ -1,9 +1,10 @@
 from abc import ABC
 from typing import Any, Dict, List, Optional
+
 import asyncpg
 from loguru import logger
 
-from server.core.utils.tools import read_pg_config
+from unifiles.core.config.env_config import read_pg_config
 
 
 class DatabaseManager(ABC):

@@ -1,7 +1,8 @@
-from typing import Dict, Type
+from typing import Dict, Optional, Type
+
 from .base import BaseOCRProvider
-from .providers.mistral import MistralOCRProvider
 from .config.mistral import MistralConfig
+from .providers.mistral import MistralOCRProvider
 
 
 class OCRProviderFactory:
@@ -54,7 +55,7 @@ class OCRProviderFactory:
 
     @classmethod
     def register_provider(
-        cls, name: str, provider_class: Type[BaseOCRProvider], config_class: Type = None
+        cls, name: str, provider_class: Type[BaseOCRProvider], config_class: Optional[Type] = None
     ):
         """Register a new OCR provider
 

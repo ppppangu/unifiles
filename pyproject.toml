@@ -1,60 +1,316 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
 [project]
-name = "unifiles"
-version = "0.1.0"
-description = "Add your description here"
+name = "unifiles-client"
+version = "1.0.0"
+description = "Python client for Unifiles document processing service"
 readme = "README.md"
-requires-python = ">=3.11"
+license = {file = "LICENSE"}
+authors = [
+    {name = "Unifiles Team", email = "support@unifiles.com"},
+]
+maintainers = [
+    {name = "Unifiles Team", email = "support@unifiles.com"},
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Topic :: Internet :: WWW/HTTP :: HTTP Servers",
+    "Topic :: Text Processing :: General",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
+keywords = [
+    "document-processing", "ocr", "pdf", "knowledge-base", 
+    "vector-database", "text-extraction", "api-client", "unifiles"
+]
 dependencies = [
-    "aiofiles>=24.1.0",
-    "aiohttp>=3.11.18",
-    "aiosqlite>=0.21.0",
-    "asyncpg>=0.30.0",
-    "datetime>=5.5",
-    "fastapi>=0.115.12",
-    "httpx>=0.28.1",
-    "jinja2>=3.1.6",
-    "jsonschema>=4.24.0",
-    "loguru>=0.7.3",
-    "minio>=7.2.15",
-    "pdfplumber>=0.11.6",
-    "pillow>=10.0.0",
-    "psutil>=7.0.0",
-    "psycopg2-binary",
-    "python-dotenv>=1.1.0",
-    "python-multipart>=0.0.20",
-    "pyyaml>=6.0.2",
-    "requests>=2.32.4",
-    "starlette>=0.46.2",
-    "tenacity>=9.1.2",
-    "uvicorn>=0.34.2",
+    "requests>=2.28.0",
+    "pathlib2>=2.3.0; python_version<'3.6'",
 ]
+requires-python = ">=3.8"
 
-[tool.uv]
-constraint-dependencies = []
-
-[dependency-groups]
+[project.optional-dependencies]
 dev = [
-    "pytest>=8.3.5",
-    "pytest-asyncio>=0.26.0",
-    "pytest-cov>=6.0.0",
-    "black>=24.0.0",
-    "ruff>=0.1.0",
-    "mypy>=1.7.0",
-    "coverage>=7.3.0",
-    "types-pyyaml>=6.0.12.20250915",
-    "types-aiofiles>=24.1.0.20250822",
+    "pytest>=7.0.0",
+    "pytest-cov>=4.0.0",
+    "black>=22.0.0",
+    "isort>=5.10.0",
+    "flake8>=5.0.0",
+    "mypy>=1.0.0",
+    "pre-commit>=2.20.0",
 ]
+docs = [
+    "sphinx>=5.0.0",
+    "sphinx-rtd-theme>=1.0.0",
+    "myst-parser>=0.18.0",
+]
+test = [
+    "pytest>=7.0.0",
+    "pytest-cov>=4.0.0",
+    "pytest-mock>=3.8.0",
+    "responses>=0.21.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/unifiles/unifiles-client"
+Documentation = "https://unifiles-client.readthedocs.io/"
+Repository = "https://github.com/unifiles/unifiles-client.git"
+Issues = "https://github.com/unifiles/unifiles-client/issues"
+Changelog = "https://github.com/unifiles/unifiles-client/blob/main/CHANGELOG.md"
+
+[tool.setuptools]
+packages = ["unifiles_client"]
+
+[tool.setuptools.package-dir]
+unifiles_client = "unifiles/client"
+
+[tool.black]
+line-length = 88
+target-version = ['py38']
+include = '\.pyi?$'
+extend-exclude = '''
+/(
+  # directories
+  \.eggs
+  | \.git
+  | \.hg
+  | \.mypy_cache
+  | \.tox
+  | \.venv
+  | build
+  | dist
+)/
+'''
+
+[tool.isort]
+profile = "black"
+multi_line_output = 3
+line_length = 88
+known_first_party = ["unifiles_client"]
+
+[tool.mypy]
+python_version = "3.8"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true
+disallow_incomplete_defs = true
+check_untyped_defs = true
+disallow_untyped_decorators = true
+no_implicit_optional = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+warn_no_return = true
+warn_unreachable = true
+strict_equality = true
 
 [tool.pytest.ini_options]
-minversion = "6.0"
-addopts = "-ra -q --tb=short"
-testpaths = ["tests"]
-python_files = ["test_*.py", "*_test.py"]
-python_classes = ["Test*"]
-python_functions = ["test_*"]
-asyncio_mode = "auto"
-asyncio_default_fixture_loop_scope = "function"
-filterwarnings = [
-    "ignore::pytest.PytestDeprecationWarning",
-    "ignore::DeprecationWarning",
+minversion = "7.0"
+addopts = "-ra -q --strict-markers --strict-config"
+testpaths = [
+    "tests",
 ]
+python_files = [
+    "test_*.py",
+    "*_test.py",
+]
+markers = [
+    "slow: marks tests as slow (deselect with '-m \"not slow\"')",
+    "unit: marks tests as unit tests",
+    "integration: marks tests as integration tests",
+]
+
+[tool.coverage.run]
+source = ["unifiles_client"]
+omit = [
+    "*/tests/*",
+    "*/test_*.py",
+    "*/__pycache__/*",
+]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "if self.debug:",
+    "if settings.DEBUG",
+    "raise AssertionError",
+    "raise NotImplementedError",
+    "if 0:",
+    "if __name__ == .__main__.:",
+    "class .*\\bProtocol\\):",
+    "@(abc\\.)?abstractmethod",
+]
+
+[tool.ruff]
+# Target Python 3.8+ for compatibility
+target-version = "py38"
+line-length = 88
+indent-width = 4
+
+# Include all Python files in the project
+include = ["*.py", "*.pyi", "**/pyproject.toml"]
+
+# Exclude common directories that shouldn't be linted
+exclude = [
+    ".bzr",
+    ".direnv",
+    ".eggs",
+    ".git",
+    ".git-rewrite",
+    ".hg",
+    ".mypy_cache",
+    ".nox",
+    ".pants.d",
+    ".pytype",
+    ".ruff_cache",
+    ".svn",
+    ".tox",
+    ".venv",
+    "__pypackages__",
+    "_build",
+    "buck-out",
+    "build",
+    "dist",
+    "node_modules",
+    "venv",
+    "*.egg-info",
+]
+
+[tool.ruff.lint]
+# Enable comprehensive rule sets
+select = [
+    "E",      # pycodestyle errors
+    "W",      # pycodestyle warnings
+    "F",      # Pyflakes
+    "UP",     # pyupgrade
+    "B",      # flake8-bugbear
+    "SIM",    # flake8-simplify
+    "I",      # isort
+    "N",      # pep8-naming
+    "C90",    # mccabe complexity
+    "S",      # bandit security
+    "A",      # flake8-builtins
+    "COM",    # flake8-commas
+    "C4",     # flake8-comprehensions
+    "DTZ",    # flake8-datetimez
+    "T20",    # flake8-print
+    "RET",    # flake8-return
+    "ARG",    # flake8-unused-arguments
+    "PTH",    # flake8-use-pathlib
+    "ERA",    # eradicate
+    "PD",     # pandas-vet
+    "PGH",    # pygrep-hooks
+    "PL",     # Pylint
+    "TRY",    # tryceratops
+    "FLY",    # flynt
+    "PERF",   # Perflint
+    "RUF",    # Ruff-specific rules
+]
+
+# Ignore specific rules that might be too strict for this project
+ignore = [
+    "E501",    # Line too long (handled by formatter)
+    "S101",    # Use of assert (common in tests)
+    "S603",    # subprocess without shell=True (often acceptable)
+    "S607",    # Starting subprocess with partial executable path
+    "PLR0913", # Too many arguments in function definition
+    "PLR0915", # Too many statements in function
+    "PLR2004", # Magic value used in comparison
+    "COM812",  # Trailing comma missing (handled by formatter)
+    "ISC001",  # Implicitly concatenated string (conflicts with formatter)
+    "T201",    # Print found (acceptable in scripts)
+    "T203",    # pprint found (acceptable in scripts)
+    "RUF001",  # String contains ambiguous unicode character
+    "RUF002",  # Docstring contains ambiguous unicode character
+    "RUF003",  # Comment contains ambiguous unicode character
+    "ERA001",  # Found commented-out code (often intentional)
+    "TRY300",  # Consider moving statement to else block (often unnecessary)
+    "PLC0415", # Import should be at top-level (scripts can be flexible)
+    "SIM102",  # Use single if statement (sometimes nested is clearer)
+    "RET504",  # Unnecessary assignment before return (sometimes clearer)
+    "PTH123",  # Use Path.open() (backward compatibility)
+    "PTH101",  # Use Path.chmod() (backward compatibility)
+    "S103",    # Permissive mask (acceptable for git hooks)
+    "PLW1510", # subprocess.run without explicit check (sometimes intentional)
+]
+
+# Allow unfixable rules to be fixed
+unfixable = []
+
+# Allow unused variables when prefixed with underscore
+dummy-variable-rgx = "^(_+|(_+[a-zA-Z0-9_]*[a-zA-Z0-9]+?))$"
+
+[tool.ruff.lint.per-file-ignores]
+# Test files can use additional patterns
+"tests/**/*.py" = [
+    "S101",    # Use of assert in tests is expected
+    "ARG001",  # Unused function arguments in tests
+    "PLR2004", # Magic values in tests are common
+    "S105",    # Hardcoded passwords in tests
+    "S106",    # Hardcoded passwords in tests
+]
+
+# Scripts can use print statements and have relaxed rules
+"scripts/**/*.py" = [
+    "T201",    # Print statements in scripts are acceptable
+    "T203",    # pprint statements in scripts are acceptable
+    "S603",    # Subprocess calls in scripts
+    "S607",    # Subprocess with partial path in scripts
+]
+
+# Example files can be more relaxed
+"examples/**/*.py" = [
+    "T201",    # Print statements in examples
+    "S105",    # Hardcoded passwords in examples
+    "ARG001",  # Unused arguments in examples
+]
+
+[tool.ruff.format]
+# Use double quotes for strings
+quote-style = "double"
+
+# Use 4 spaces for indentation
+indent-style = "space"
+
+# Respect magic trailing comma
+skip-magic-trailing-comma = false
+
+# Automatically detect line ending
+line-ending = "auto"
+
+[tool.ruff.lint.isort]
+# Configure import sorting
+known-first-party = ["unifiles"]
+section-order = ["future", "standard-library", "third-party", "first-party", "local-folder"]
+
+[tool.ruff.lint.mccabe]
+# Set maximum complexity
+max-complexity = 10
+
+[tool.ruff.lint.pep8-naming]
+# Allow lowercase constants in tests
+ignore-names = ["test_*"]
+
+[tool.ruff.lint.pylint]
+# Set maximum number of arguments
+max-args = 8
+
+# Set maximum number of branches
+max-branches = 15
+
+# Set maximum number of return statements
+max-returns = 8
+
+# Set maximum number of statements
+max-statements = 60

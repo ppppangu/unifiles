@@ -1,9 +1,9 @@
 import asyncio
 from pathlib import Path
-from typing import Dict, List, Tuple, Union
+from typing import Dict, List, Optional, Tuple, Union
 
-from .factory import OCRProviderFactory
 from .base import BaseOCRProvider
+from .factory import OCRProviderFactory
 
 
 class OCRProcessor:
@@ -44,7 +44,7 @@ class OCRProcessor:
         return self.provider.process_url(url)
 
     def process_directory(
-        self, directory_path: Union[str, Path], file_extensions: list = None
+        self, directory_path: Union[str, Path], file_extensions: Optional[list] = None
     ) -> dict:
         """Process all files in a directory
 

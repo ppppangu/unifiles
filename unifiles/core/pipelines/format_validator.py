@@ -15,7 +15,8 @@ from tenacity import (
     wait_exponential,
 )
 
-from ..utils.tools import detect_content_type, read_config
+from ..config.env_config import read_config
+from ..utils.file_utils import detect_content_type
 
 
 class FileFormatValidator:
@@ -85,12 +86,11 @@ class FileFormatValidator:
 
         if extension in self.PDF_FILE_TYPES:
             return "pdf"
-        elif extension in self.DOCUMENT_FILE_TYPES:
+        if extension in self.DOCUMENT_FILE_TYPES:
             return "document"
-        elif extension in self.CODE_FILE_TYPES:
+        if extension in self.CODE_FILE_TYPES:
             return "code"
-        else:
-            return "unknown"
+        return "unknown"
 
     async def validate_file_content(
         self, file_content: bytes, filename: str
@@ -234,10 +234,10 @@ class PDFConverter:
                     pass
             raise
         except httpx.RequestError as e:
-            logger.error(f"Conversion service request error: {str(e)}")
+            logger.error(f"Conversion service request error: {e!s}")
             raise
         except Exception as e:
-            logger.error(f"Unexpected error during file conversion: {str(e)}")
+            logger.error(f"Unexpected error during file conversion: {e!s}")
             return None
 
 
@@ -332,7 +332,7 @@ class FormatValidationPipeline:
             )
 
         except Exception as e:
-            error_msg = f"Pipeline processing failed: {str(e)}"
+            error_msg = f"Pipeline processing failed: {e!s}"
             logger.error(error_msg)
             result["errors"].append(error_msg)
 
@@ -401,7 +401,7 @@ class FormatValidationPipeline:
             result["success"] = True
 
         except Exception as e:
-            error_msg = f"URL-only pipeline processing failed: {str(e)}"
+            error_msg = f"URL-only pipeline processing failed: {e!s}"
             logger.error(error_msg)
             result["errors"].append(error_msg)
 

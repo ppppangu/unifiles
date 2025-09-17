@@ -1,7 +1,7 @@
 import asyncio
 from abc import ABC, abstractmethod
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, List, Tuple, Union
+from typing import TYPE_CHECKING, Any, List, Optional, Tuple, Union
 
 if TYPE_CHECKING:
     from .config.base import BaseConfig
@@ -32,10 +32,7 @@ class BaseOCRProvider(ABC):
 
         # Check file size (10MB limit)
         file_size_mb = file_path.stat().st_size / (1024 * 1024)
-        if file_size_mb > 10:
-            return False
-
-        return True
+        return not file_size_mb > 10
 
     def _extract_data_from_response(self, response: Any) -> Tuple[str, List[Any]]:
         """Extract markdown text and images from OCR API response - to be implemented by subclasses"""
@@ -44,7 +41,7 @@ class BaseOCRProvider(ABC):
         )
 
     def save_to_markdown(
-        self, text: str, output_path: Union[str, Path], title: str = None
+        self, text: str, output_path: Union[str, Path], title: Optional[str] = None
     ) -> None:
         """Save extracted text to a markdown file"""
         output_path = Path(output_path)
@@ -56,7 +53,7 @@ class BaseOCRProvider(ABC):
         output_path.write_text(content, encoding="utf-8")
 
     def save_to_images(
-        self, images: List[Any], output_dir: Union[str, Path] = None
+        self, images: List[Any], output_dir: Optional[Union[str, Path]] = None
     ) -> None:
         """Save images to files - to be implemented by subclasses based on their response format
 
@@ -78,13 +75,13 @@ class BaseOCRProvider(ABC):
         return await asyncio.to_thread(self.process_url, url)
 
     async def asave_to_markdown(
-        self, text: str, output_path: Union[str, Path], title: str = None
+        self, text: str, output_path: Union[str, Path], title: Optional[str] = None
     ) -> None:
         """Async wrapper for save_to_markdown."""
         await asyncio.to_thread(self.save_to_markdown, text, output_path, title)
 
     async def asave_to_images(
-        self, images: List[Any], output_dir: Union[str, Path] = None
+        self, images: List[Any], output_dir: Optional[Union[str, Path]] = None
     ) -> None:
         """Async wrapper for save_to_images."""
         await asyncio.to_thread(self.save_to_images, images, output_dir)

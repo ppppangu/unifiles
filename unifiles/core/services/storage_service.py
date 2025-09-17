@@ -12,9 +12,10 @@ from typing import Any, Dict, List, Optional
 from loguru import logger
 from minio import Minio
 
+from ..config.env_config import read_config, read_minio_config
 from ..database.manager import DatabaseManager
 from ..database.models import ChunkModel, PhotoModel
-from ..utils.tools import detect_content_type, read_config, read_minio_config
+from ..utils.file_utils import detect_content_type
 
 
 class MinIOStorageManager:
@@ -60,17 +61,13 @@ class MinIOStorageManager:
             return (
                 f"{self.minio_config['public_url_prefix']}/{bucket_name}/{object_path}"
             )
-        else:
-            # 使用内网地址
-            if "address" in self.minio_config:
-                return (
-                    f"http://{self.minio_config['address']}/{bucket_name}/{object_path}"
-                )
-            else:
-                return f"http://{self.minio_config['host']}:{self.minio_config['port']}/{bucket_name}/{object_path}"
+        # 使用内网地址
+        if "address" in self.minio_config:
+            return f"http://{self.minio_config['address']}/{bucket_name}/{object_path}"
+        return f"http://{self.minio_config['host']}:{self.minio_config['port']}/{bucket_name}/{object_path}"
 
     async def upload_file(
-        self, object_path: str, file_content: bytes, content_type: str = None
+        self, object_path: str, file_content: bytes, content_type: Optional[str] = None
     ) -> str:
         """
         上传文件到MinIO
@@ -113,7 +110,7 @@ class MinIOStorageManager:
             raise
 
     async def upload_file_from_path(
-        self, object_path: str, local_file_path: str, content_type: str = None
+        self, object_path: str, local_file_path: str, content_type: Optional[str] = None
     ) -> str:
         """
         从本地文件路径上传到MinIO
@@ -209,7 +206,7 @@ class VectorStorageManager:
         doc_position: int,
         embedding: List[float],
         photo_type: str = "photo",
-        base64_image: str = None,
+        base64_image: Optional[str] = None,
     ) -> PhotoModel:
         """保存图片数据到向量数据库"""
         try:

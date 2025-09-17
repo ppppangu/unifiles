@@ -1,5 +1,7 @@
 import os
 from abc import ABC, abstractmethod
+from typing import Optional
+
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -30,6 +32,6 @@ class BaseConfig(ABC):
         """Get the model name"""
         pass
 
-    def _get_env_var(self, key: str, default: str = None) -> str:
+    def _get_env_var(self, key: str, default: Optional[str] = None) -> str:
         """Helper method to get environment variables"""
         return os.getenv(key, default)

@@ -1,0 +1,35 @@
+# Include important metadata files
+include README.md
+include LICENSE
+include CHANGELOG.md
+include pyproject.toml
+
+# Include example files
+recursive-include examples *.py
+recursive-include examples *.md
+
+# Include test files  
+recursive-include tests *.py
+
+# Include documentation
+recursive-include docs *.md *.rst *.txt
+
+# Exclude development and build files
+exclude .gitignore
+exclude .pre-commit-config.yaml
+exclude test_client.py
+exclude config_validation_test.py
+exclude env_config.py
+exclude .env*
+
+# Exclude cache and build directories
+global-exclude __pycache__
+global-exclude *.py[co]
+global-exclude .pytest_cache
+global-exclude .coverage
+global-exclude *.egg-info
+global-exclude build
+global-exclude dist
+
+# Exclude version control
+global-exclude .git*

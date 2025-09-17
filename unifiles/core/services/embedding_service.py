@@ -14,7 +14,7 @@ from tenacity import (
     wait_exponential,
 )
 
-from ..utils.tools import read_config
+from ..config.env_config import read_config
 
 
 class EmbeddingProvider(Protocol):
@@ -52,7 +52,7 @@ class SingletonEmbeddingProvider:
         return self.embedding_dimension
 
     def _get_latest_embedding_instance(
-        self, instance_type: str = None, alias: str = None
+        self, instance_type: Optional[str] = None, alias: Optional[str] = None
     ):
         """获取最新的嵌入实例配置（模拟singleton_embedding.py的逻辑）"""
         # 这里应该实现实际的单例逻辑，现在提供模拟实现
@@ -65,7 +65,7 @@ class SingletonEmbeddingProvider:
                     "your-api-key",
                     "bge-m3",
                 )
-            elif alias == "text-embedding-ada-002":
+            if alias == "text-embedding-ada-002":
                 return (
                     "text-embedding-ada-002",
                     "https://api.openai.com/v1/embeddings",
@@ -80,7 +80,7 @@ class SingletonEmbeddingProvider:
                 "your-api-key",
                 "bge-m3",
             )
-        elif instance_type == "multimodal_llm":
+        if instance_type == "multimodal_llm":
             return (
                 "gpt-4-vision",
                 "http://localhost:8081/v1/chat/completions",
@@ -133,12 +133,11 @@ class SingletonEmbeddingProvider:
                         f"Text embedding successful, dimension: {len(embedding)}"
                     )
                     return embedding
-                else:
-                    logger.error(f"Invalid embedding response format: {result}")
-                    raise ValueError("Invalid embedding response format")
+                logger.error(f"Invalid embedding response format: {result}")
+                raise ValueError("Invalid embedding response format")
 
         except Exception as e:
-            logger.error(f"Text embedding failed: {str(e)}, URL: {url}")
+            logger.error(f"Text embedding failed: {e!s}, URL: {url}")
             raise
 
     @retry(
@@ -200,12 +199,11 @@ class SingletonEmbeddingProvider:
                         f"Image description successful, length: {len(description)}"
                     )
                     return description
-                else:
-                    logger.error(f"Invalid image description response: {result}")
-                    raise ValueError("Invalid image description response")
+                logger.error(f"Invalid image description response: {result}")
+                raise ValueError("Invalid image description response")
 
         except Exception as e:
-            logger.error(f"Image description failed: {str(e)}, URL: {url}")
+            logger.error(f"Image description failed: {e!s}, URL: {url}")
             raise
 
     async def embed_image_description(
@@ -225,7 +223,7 @@ class SingletonEmbeddingProvider:
             return description, embedding
 
         except Exception as e:
-            logger.error(f"Image embedding failed: {str(e)}")
+            logger.error(f"Image embedding failed: {e!s}")
             raise
 
 

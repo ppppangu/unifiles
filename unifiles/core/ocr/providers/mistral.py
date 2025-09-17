@@ -1,7 +1,7 @@
-import base64
 import asyncio
+import base64
 from pathlib import Path
-from typing import Any, List, Tuple, Union
+from typing import Any, List, Optional, Tuple, Union
 
 from loguru import logger
 from mistralai import Mistral
@@ -67,7 +67,7 @@ class MistralOCRProvider(BaseOCRProvider):
             return text
 
         except Exception as e:
-            logger.error(f"Error processing file: {str(e)}")
+            logger.error(f"Error processing file: {e!s}")
             return ""
 
     def process_url(self, url: str) -> str:
@@ -126,7 +126,7 @@ class MistralOCRProvider(BaseOCRProvider):
             return text
 
         except Exception as e:
-            logger.error(f"Error processing file (async): {str(e)}")
+            logger.error(f"Error processing file (async): {e!s}")
             return ""
 
     async def aprocess_url(self, url: str) -> str:
@@ -162,7 +162,7 @@ class MistralOCRProvider(BaseOCRProvider):
         return markdown_text, images
 
     def save_to_images(
-        self, images: List[Any], output_dir: Union[str, Path] = None
+        self, images: List[Any], output_dir: Optional[Union[str, Path]] = None
     ) -> None:
         """Save base64 encoded images from Mistral response to files
 
@@ -171,7 +171,7 @@ class MistralOCRProvider(BaseOCRProvider):
             output_dir: Directory to save images to. If None, saves to current directory.
         """
         if output_dir is None:
-            output_dir = Path(".")
+            output_dir = Path()
         else:
             output_dir = Path(output_dir)
             # Create directory if it doesn't exist
@@ -186,4 +186,4 @@ class MistralOCRProvider(BaseOCRProvider):
                     img_file.write(img_data)
                 logger.success(f"Image saved to: {img_path}")
             except Exception as e:
-                logger.error(f"Error saving image {i}: {str(e)}")
+                logger.error(f"Error saving image {i}: {e!s}")

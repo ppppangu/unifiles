@@ -18,13 +18,13 @@ from .pdf_processor import (
 )
 
 __all__ = [
-    "FileFormatValidator",
-    "PDFConverter",
-    "FormatValidationPipeline",
-    "OCRProvider",
-    "SimplePDFReader",
-    "MineruOCRProvider",
     "FileDownloader",
-    "TextProcessor",
+    "FileFormatValidator",
+    "FormatValidationPipeline",
+    "MineruOCRProvider",
+    "OCRProvider",
+    "PDFConverter",
     "PDFProcessingPipeline",
+    "SimplePDFReader",
+    "TextProcessor",
 ]

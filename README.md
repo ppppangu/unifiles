@@ -1,179 +1,279 @@
-# 📁 Unifiles
+# Unifiles Python Client
 
-> 企业级文档处理系统 - 支持文件存储、OCR处理、向量化和知识图谱生成
+[![Python Version](https://img.shields.io/pypi/pyversions/unifiles-client.svg)](https://pypi.org/project/unifiles-client/)
+[![PyPI Version](https://img.shields.io/pypi/v/unifiles-client.svg)](https://pypi.org/project/unifiles-client/)
+[![License](https://img.shields.io/github/license/unifiles/unifiles-client.svg)](https://github.com/unifiles/unifiles-client/blob/main/LICENSE)
 
-[![Python](https://img.shields.io/badge/Python-3.8+-blue.svg)](https://python.org) [![FastAPI](https://img.shields.io/badge/FastAPI-Latest-green.svg)](https://fastapi.tiangolo.com) [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-12+-blue.svg)](https://postgresql.org) [![MinIO](https://img.shields.io/badge/MinIO-Latest-orange.svg)](https://min.io)
+A powerful Python client for the Unifiles document processing service. Unifiles provides a comprehensive three-layer document processing architecture that makes it easy to upload, extract content from, and index documents for search and retrieval.
 
-## ⚡ 快速开始
+## 🌟 Features
 
-```bash
-# 1. 安装依赖
-pip install -e .
+### Three-Layer Document Processing Architecture
 
-# 2. 启动服务
-uvicorn server.app.v1.main:app --host 0.0.0.0 --port 8088 --reload
+1. **📁 File Storage Layer** - Upload and manage original files
+2. **🔍 Content Extraction Layer** - OCR processing for both text and image content  
+3. **📚 Knowledge Base Layer** - Document chunking and vector indexing
 
-# 3. 访问文档
-open http://localhost:8088/docs
-```
+### Key Capabilities
 
-## 🎯 核心特性
+- **Simple & Intuitive API** - Pythonic interface following best practices
+- **Multiple Content Types** - Handle PDFs, documents, images, and more
+- **OCR Processing** - Extract text from images and scanned documents
+- **Knowledge Base Management** - Create and manage document collections
+- **Fast Content Retrieval** - Quick access to processed document content
+- **Error Handling** - Comprehensive error management and retry logic
+- **Type Safety** - Full type hints for better development experience
 
-- **🔒 企业级安全** - Bearer Token认证 + 数据库行级安全
-- **🏗️ RESTful API** - 标准化REST接口设计
-- **🧩 模块化架构** - 可插拔组件，易于扩展
-- **📄 多格式支持** - 28+种文件格式，智能OCR处理
-- **🧠 向量化存储** - PostgreSQL + pgvector语义检索
-- **🔄 向后兼容** - Legacy和V1双模式运行
+## 🚀 Quick Start
 
-## 🏗️ 架构概览
-
-```
-Unifiles/
-├── server/
-│   ├── core/           # 🎯 核心模块（可复用）
-│   │   ├── database/   # 数据库抽象层
-│   │   ├── pipelines/  # 处理管道层
-│   │   ├── services/   # 业务服务层
-│   │   └── utils/      # 工具函数层
-│   └── app/            # 🚀 应用层
-│       ├── legacy/     # Legacy API (端口8087)
-│       └── v1/         # RESTful API (端口8088)
-├── docs/               # 📚 文档
-├── examples/           # 🧪 示例
-└── 数据库建表逻辑/      # 🗄️ 数据库架构
-```
-
-## 📋 API概览
-
-### V1 RESTful API (推荐)
+### Installation
 
 ```bash
-# 认证
-Authorization: Bearer [REDACTED]
-
-# 文件管理
-GET    /files/types              # 获取支持文件类型
-POST   /files                    # 上传文件
-GET    /files/{file_id}          # 获取文件信息
-DELETE /files/{file_id}          # 删除文件
-
-# 知识库
-POST   /knowledge-bases/{id}/documents  # 处理文档
-GET    /knowledge-bases/{id}/documents  # 获取文档列表
-DELETE /knowledge-bases/{id}/documents/{doc_id}  # 删除文档
-
-# 系统
-GET    /health                   # 健康检查
-GET    /docs                     # API文档
+pip install unifiles-client
 ```
 
-### 使用示例
+### Basic Usage
 
 ```python
-import httpx
+from unifiles_client import Unifile
 
-# 上传文件
-async with httpx.AsyncClient() as client:
-    with open("document.pdf", "rb") as f:
-        response = await client.post(
-            "http://localhost:8088/files",
-            headers={"Authorization": "Bearer sk_your_key"},
-            files={"file": f}
-        )
-    file_info = response.json()["file"]
-    
-    # 处理到知识库
-    response = await client.post(
-        f"http://localhost:8088/knowledge-bases/my_kb/documents",
-        headers={"Authorization": "Bearer sk_your_key"},
-        json={"file_id": file_info["file_id"], "mode": "simple"}
-    )
+# Initialize the client
+client = Unifile(
+    api_key="your_api_key_here",
+    base_url="https://your-unifiles-server.com"
+)
+
+# Create a knowledge base
+kb = client.create_knowledge_base(
+    name="My Documents", 
+    description="Important business documents"
+)
+
+# Upload and process a document (all three layers automatically)
+document = kb.upload_document(
+    file_path="path/to/your/document.pdf",
+    auto_extract=True,    # Automatic content extraction
+    auto_index=True       # Automatic knowledge base indexing
+)
+
+# Access processed content
+content = document.get_content()
+print(f"Text content: {content.get('text_content')}")
+print(f"OCR content: {content.get('image_content')}")
 ```
 
-## 🛠️ 部署
+### One-Click Processing
 
-### 开发环境
+```python
+# Process a document with a single command
+document = client.quick_process(
+    file_path="path/to/document.pdf",
+    knowledge_base_name="Research Papers"
+)
+
+print("✅ Document processed through all three layers!")
+```
+
+## 📖 Detailed Usage
+
+### Layer 1: File Storage
+
+```python
+# Upload a file
+document = client.upload_file("document.pdf", is_public=False)
+print(f"File uploaded: {document.filename}")
+
+# Get file information
+info = document.get_info()
+print(f"File size: {info['file_size']} bytes")
+
+# List all files
+files = client.list_files(limit=10)
+for file in files:
+    print(f"- {file.filename}")
+```
+
+### Layer 2: Content Extraction
+
+```python
+from unifiles_client import ContentType
+
+# Trigger content extraction
+extraction_result = document.extract_content(mode="normal")
+
+# Get different types of extracted content
+text_content = document.get_content(ContentType.TEXT)
+image_content = document.get_content(ContentType.IMAGE)
+
+# Access processed content
+all_content = document.get_content()
+print(f"Markdown: {all_content.get('markdown_content')}")
+print(f"Metadata: {all_content.get('extraction_metadata')}")
+```
+
+### Layer 3: Knowledge Base Operations
+
+```python
+# Create knowledge base
+kb = client.create_knowledge_base(
+    name="Technical Documentation",
+    description="All technical docs and manuals"
+)
+
+# Index document to knowledge base  
+index_result = document.index_to_knowledge_base(
+    kb.kb_id, 
+    chunk_strategy="semantic"
+)
+
+# List knowledge bases
+knowledge_bases = client.list_knowledge_bases()
+for kb in knowledge_bases:
+    print(f"KB: {kb.name} ({kb.document_count} documents)")
+
+# Get documents in a knowledge base
+documents = kb.list_documents()
+for doc in documents:
+    print(f"- {doc.get('filename')}")
+```
+
+## 🎯 Advanced Features
+
+### Error Handling
+
+```python
+from unifiles_client import (
+    UnifilesError, 
+    DocumentNotFoundError, 
+    AuthenticationError,
+    RateLimitError
+)
+
+try:
+    document = client.upload_file("large_file.pdf")
+except AuthenticationError:
+    print("Invalid API key")
+except RateLimitError:
+    print("Too many requests, please wait")
+except UnifilesError as e:
+    print(f"Upload failed: {e}")
+```
+
+### Waiting for Processing
+
+```python
+# Upload and wait for extraction to complete
+document = client.upload_file("document.pdf")
+document.extract_content()
+
+# Wait for processing to finish
+if document.wait_for_extraction(timeout=300):
+    content = document.get_content()
+    print("Content extraction completed!")
+```
+
+### File Type Support
+
+The client supports various file types:
+- **Documents**: PDF, DOC, DOCX, TXT, MD
+- **Images**: JPG, JPEG, PNG, TIFF
+- **Presentations**: PPT, PPTX  
+- **Spreadsheets**: XLS, XLSX
+
+## 🛠️ Configuration
+
+### Environment Variables
 
 ```bash
-# 启动基础服务
-docker run -d --name minio -p 9000:9000 -p 9001:9001 \
-  -e MINIO_ROOT_USER=minioadmin -e MINIO_ROOT_PASSWORD=minioadmin \
-  minio/minio server /data --console-address ":9001"
-
-docker run -d --name postgres -p 5432:5432 \
-  -e POSTGRES_DB=Unifiles -e POSTGRES_USER=postgres \
-  -e POSTGRES_PASSWORD=password pgvector/pgvector:pg16
-
-# 初始化数据库
-psql -h localhost -U postgres -d Unifiles -f 数据库建表逻辑/021-create-document-table.sql
+export UNIFILES_API_KEY="your_api_key"
+export UNIFILES_BASE_URL="https://your-server.com"
 ```
 
-### 生产环境
+### Client Options
 
-```yaml
-# docker-compose.yml
-version: '3.8'
-services:
-  app:
-    build: .
-    ports: ["8088:8088"]
-    environment:
-      - DATABASE_URL=postgresql://postgres:password@postgres:5432/Unifiles
-    depends_on: [postgres, minio]
-    
-  postgres:
-    image: pgvector/pgvector:pg16
-    environment: {POSTGRES_DB: Unifiles, POSTGRES_USER: postgres, POSTGRES_PASSWORD: password}
-    
-  minio:
-    image: minio/minio
-    command: server /data --console-address ":9001"
-    environment: {MINIO_ROOT_USER: minioadmin, MINIO_ROOT_PASSWORD: minioadmin}
+```python
+client = Unifile(
+    api_key="your_key",
+    base_url="https://your-server.com",
+    timeout=30,          # Request timeout in seconds
+    max_retries=3,       # Number of retry attempts
+    retry_delay=1.0      # Delay between retries
+)
 ```
 
-## 📚 文档
+## 📊 Document Processing Flow
 
-- **[快速开始](docs/QUICK_START.md)** - 5分钟部署指南
-- **[开发指南](docs/DEVELOPMENT.md)** - 架构说明和开发指南
-- **[贡献指南](docs/CONTRIBUTING.md)** - 如何参与项目开发
+```mermaid
+graph TD
+    A[Upload File] --> B[File Storage Layer]
+    B --> C[Content Extraction Layer]
+    C --> D[OCR Processing]
+    D --> E[Text + Image Content]
+    E --> F[Knowledge Base Layer]
+    F --> G[Document Chunking]
+    G --> H[Vector Indexing]
+    H --> I[Ready for Search]
+```
 
-## 🤝 技术栈
+## 🔧 Development
 
-| 组件         | 技术                  | 用途                  |
-| ------------ | --------------------- | --------------------- |
-| **Web框架**  | FastAPI               | API服务               |
-| **数据库**   | PostgreSQL + pgvector | 结构化数据 + 向量存储 |
-| **对象存储** | MinIO                 | 文件存储              |
-| **认证**     | Bearer Token + RLS    | 安全认证              |
-| **OCR**      | 可插拔架构            | 文档识别              |
+### Running Tests
 
-## 📊 系统要求
+```bash
+# Install development dependencies
+pip install unifiles-client[dev]
 
-- **Python**: 3.8+
-- **数据库**: PostgreSQL 12+ (with pgvector)
-- **存储**: MinIO 或 S3 兼容存储
-- **内存**: 建议 2GB+
-- **存储**: 建议 10GB+ 可用空间
+# Run tests
+pytest
 
-## 🎯 路线图
+# Run with coverage
+pytest --cov=unifiles_client
+```
 
-- [x] ✅ RESTful API设计
-- [x] ✅ Bearer Token认证
-- [x] ✅ 模块化架构重构
-- [x] ✅ 数据库行级安全
-- [ ] 🔄 Web控制台界面
-- [ ] 🔄 分布式处理队列
-- [ ] 🔄 Kubernetes部署支持
+### Code Quality
 
-## 📄 许可证
+```bash
+# Format code
+black unifiles_client/
 
-MIT License - 详见 [LICENSE](LICENSE) 文件
+# Sort imports
+isort unifiles_client/
 
-## 🙏 致谢
+# Type checking
+mypy unifiles_client/
+```
 
-感谢所有贡献者和开源社区的支持！
+## 📝 Examples
 
---- 
+Check out the [examples](examples/) directory for more detailed usage examples:
 
-**⭐ 觉得有用？给个Star支持一下！**
+- [Basic usage](examples/fast_start.py) - Getting started with the client
+- [Batch processing](examples/batch_upload.py) - Process multiple files
+- [Knowledge base management](examples/kb_management.py) - Advanced KB operations
+
+## 🤝 Contributing
+
+We welcome contributions! Please see our [Contributing Guide](CONTRIBUTING.md) for details.
+
+## 📄 License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+## 🆘 Support
+
+- 📚 [Documentation](https://unifiles-client.readthedocs.io/)
+- 🐛 [Issue Tracker](https://github.com/unifiles/unifiles-client/issues)
+- 💬 [Discussions](https://github.com/unifiles/unifiles-client/discussions)
+
+## 🎉 Why Choose Unifiles?
+
+- **🚀 Fast Processing** - Optimized three-layer architecture
+- **📱 Easy Integration** - Simple Python API  
+- **🔒 Secure** - Enterprise-grade security
+- **📈 Scalable** - Handle documents from single files to large collections
+- **🎯 Accurate** - Advanced OCR and content extraction
+- **🛠️ Flexible** - Support for multiple document types and use cases
+
+---
+
+Made with ❤️ by the Unifiles Team

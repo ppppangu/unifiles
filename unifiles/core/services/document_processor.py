@@ -11,6 +11,7 @@ from typing import Any, Dict, Optional
 import aiofiles
 from loguru import logger
 
+from ..config.env_config import read_config
 from ..pipelines.format_validator import FormatValidationPipeline
 from ..pipelines.pdf_processor import (
     MineruOCRProvider,
@@ -19,7 +20,6 @@ from ..pipelines.pdf_processor import (
 )
 from ..services.embedding_service import EmbeddingService
 from ..services.storage_service import StorageService
-from ..utils.tools import read_config
 
 
 class DocumentProcessingService:
@@ -54,7 +54,7 @@ class DocumentProcessingService:
         filename: str,
         file_content: bytes,
         user_id: str,
-        knowledge_base_id: str = None,
+        knowledge_base_id: Optional[str] = None,
         mode: str = "simple",
     ) -> Dict[str, Any]:
         """
@@ -185,10 +185,10 @@ class DocumentProcessingService:
             return result
 
         except Exception as e:
-            logger.error(f"File processing failed: {str(e)}")
+            logger.error(f"File processing failed: {e!s}")
             return {
                 "success": False,
-                "error": f"Processing failed: {str(e)}",
+                "error": f"Processing failed: {e!s}",
                 "details": {"exception_type": type(e).__name__},
             }
 
@@ -196,9 +196,9 @@ class DocumentProcessingService:
         self,
         file_url: str,
         user_id: str,
-        knowledge_base_id: str = None,
+        knowledge_base_id: Optional[str] = None,
         mode: str = "simple",
-        raw_file_url_to_return: str = None,
+        raw_file_url_to_return: Optional[str] = None,
     ) -> Dict[str, Any]:
         """
         处理来自URL的文件（重构版的mineru_process函数）
@@ -349,7 +349,7 @@ class DocumentProcessingService:
             return result
 
         except Exception as e:
-            logger.error(f"URL file processing failed: {str(e)}")
+            logger.error(f"URL file processing failed: {e!s}")
             return None
 
     def get_service_info(self) -> Dict[str, Any]:

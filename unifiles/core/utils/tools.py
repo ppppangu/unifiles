@@ -1,93 +1,30 @@
-from pathlib import Path
-
 import asyncpg
-import yaml
 from loguru import logger
 from minio import Minio
 
 # ======================================
-# ===========  配置文件相关 =============
+# ===========  数据库验证工具 ============
 # ======================================
 
 
-# 读取配置文件
-def read_config() -> dict:
-    """读取配置文件"""
-    config_path = Path(__file__).parent.parent.parent.parent / "config.yaml"
-    with open(config_path, "r", encoding="utf-8") as f:
-        config = yaml.safe_load(f)
-    return config
-
-
-# 读取向量数据库配置
-def read_pg_config() -> dict:
-    config = read_config()
-    pg_config = config["server_components"]["pg_vector"].copy()
-
-    # 解析address字段为host和port
-    if "address" in pg_config:
-        address = pg_config["address"]
-        if ":" in address:
-            host, port = address.rsplit(":", 1)
-            pg_config["host"] = host
-            pg_config["port"] = int(port)
-        else:
-            pg_config["host"] = address
-            pg_config["port"] = 5432  # 默认PostgreSQL端口
-
-    return pg_config
-
-
-# 读取minio配置
-def read_minio_config() -> dict:
-    config = read_config()
-    minio_config = config["server_components"]["minio"].copy()
-
-    # 解析address字段为host和port（为了向后兼容）
-    if "address" in minio_config:
-        address = minio_config["address"]
-        if ":" in address:
-            host, port = address.rsplit(":", 1)
-            minio_config["host"] = host
-            minio_config["port"] = int(port)
-        else:
-            minio_config["host"] = address
-            minio_config["port"] = 9000  # 默认MinIO端口
-
-    return minio_config
-
-
-# 创建日志目录
-def mk_logs_path() -> None:
-    log_path = Path(__file__).parent / "logs"
-    log_path.mkdir(mode=777, exist_ok=True)
-
-
-# 创建临时目录
-def mk_temp_path() -> None:
-    temp_path = Path(__file__).parent / "tmp"
-    temp_path.mkdir(mode=777, exist_ok=True)
-
-
-# 创建必要目录
-def mk_need_path() -> None:
-    mk_logs_path()
-    mk_temp_path()
-
-
-# 验证用户id在数据库和minio中是否存在
+# 验证用户id在数据库中是否存在
 async def validate_user_id(user_id: str) -> bool:
+    """验证用户在数据库中是否存在"""
+    from unifiles.core.config.env_config import read_pg_config
+
     pg_config = read_pg_config()
-    async with asyncpg.create_pool(**pg_config) as pool:
-        async with pool.acquire() as conn:
-            async with conn.transaction():
-                query = "SELECT EXISTS(SELECT 1 FROM users WHERE id = $1)"
-                result = await conn.fetch(query, user_id)
-                return result[0]["exists"]
+    async with asyncpg.create_pool(**pg_config) as pool, pool.acquire() as conn:
+        async with conn.transaction():
+            query = "SELECT EXISTS(SELECT 1 FROM chunk_schema.users WHERE id = $1)"
+            result = await conn.fetch(query, user_id)
+            return result[0]["exists"]
 
 
 # 验证用户id在minio中是否存在, 看桶内是否存在以用户id命名的目录
 async def validate_user_id_in_minio(user_id: str) -> bool:
+    """验证用户在MinIO中是否存在（检查是否有文件）"""
+    from unifiles.core.config.env_config import read_minio_config
+
     minio_config = read_minio_config()
     minio_client = Minio(
         (
