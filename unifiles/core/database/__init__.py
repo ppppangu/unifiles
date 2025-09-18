@@ -15,6 +15,12 @@ from .models import (
     UserModel,
 )
 from .secure_manager import SecureFileDBManager, secure_file_db_manager
+from .validation import (
+    validate_database_connection,
+    validate_storage_connection,
+    validate_user_id,
+    validate_user_id_in_minio,
+)
 
 __all__ = [
     "ChunkModel",
@@ -35,4 +41,8 @@ __all__ = [
     "UserModel",
     "file_db_manager",
     "secure_file_db_manager",
+    "validate_database_connection",
+    "validate_storage_connection",
+    "validate_user_id",
+    "validate_user_id_in_minio",
 ]

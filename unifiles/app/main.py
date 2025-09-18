@@ -17,7 +17,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 # 导入核心工具
 from unifiles.core.config.env_config import mk_need_path
-from unifiles.core.utils.logging import cleanup_logger, get_logger, init_logger
+from unifiles.core.logging import cleanup_logger, get_logger, init_logger
 
 # 导入中间件和 schemas
 from .middlewares import AuthMiddleware, ClientIPMiddleware, FileValidationMiddleware

@@ -1,8 +1,8 @@
-import uuid
 from datetime import datetime
 
 from fastapi import (
     APIRouter,
+    Depends,
     File,
     HTTPException,
     Query,
@@ -14,16 +14,41 @@ from fastapi import (
 )
 from loguru import logger
 
-from unifiles.app.routers.unifiles import (
+from unifiles.app.v1.schemas import (
     FileInfo,
     FileListResponse,
     FileUploadResponse,
     StandardResponse,
     SupportedFileTypes,
-    storage_manager,
 )
+from unifiles.core.database import secure_file_db_manager
+from unifiles.core.services import AuthService, FileService
+from unifiles.core.storage.factory import create_default_storage
 
-# Constants from the original main.py
+
+# 创建服务实例
+def get_file_service() -> FileService:
+    """获取文件服务实例"""
+    storage_backend = create_default_storage()
+    return FileService(storage_backend, secure_file_db_manager)
+
+
+def get_auth_service() -> AuthService:
+    """获取认证服务实例"""
+    from unifiles.core.config.env_config import read_pg_config
+
+    return AuthService(read_pg_config())
+
+
+# 依赖注入
+async def get_user_context(
+    request: Request, auth_service: AuthService = Depends(get_auth_service)
+) -> dict:
+    """提取用户上下文"""
+    return await auth_service.extract_user_from_request(request)
+
+
+# 常量定义（从原文件迁移）
 DOCUMENT_FILE_TYPES = [
     ".doc",
     ".docx",
@@ -53,7 +78,7 @@ PDF_FILE_TYPES = [".pdf"]
 CODE_FILE_TYPES = [".py", ".ipynb", ".js", ".json"]
 SUPPORTED_FILE_TYPES = DOCUMENT_FILE_TYPES + PDF_FILE_TYPES + CODE_FILE_TYPES
 
-router = APIRouter(prefix="/files", tags=["Files"])
+router = APIRouter(prefix="/files", tags=["Files (Secure)"])
 
 
 @router.get("/types", response_model=SupportedFileTypes)
@@ -69,226 +94,127 @@ async def get_supported_file_types():
 
 @router.post("", response_model=FileUploadResponse)
 async def upload_file(
-    request: Request,
     file: UploadFile = File(...),
     is_public: bool = Query(default=False, description="是否设置为公开访问"),
+    user_context: dict = Depends(get_user_context),
+    file_service: FileService = Depends(get_file_service),
 ):
     """
-    上传文件到存储
+    安全上传文件到存储
 
     - **file**: 要上传的文件
     - **is_public**: 是否设置为公开访问，默认为False
     - 用户ID会从请求状态中自动解析 (由AuthMiddleware提供)
     """
     try:
-        user_id = request.state.user_id
+        user_id = user_context["user_id"]
         logger.info(
             f"POST /files request from user: {user_id}, filename: {file.filename}"
         )
 
-        if not file.filename:
-            raise HTTPException(status_code=400, detail="No filename provided")
-
-        file_content = await file.read()
-        file_size = len(file_content)
-        if file_size == 0:
-            raise HTTPException(status_code=400, detail="Empty file provided")
-
-        file_id = f"file-{uuid.uuid4()!s}"
-        object_path = f"{user_id}/default_file_space/{file_id}/{file.filename}"
-
-        # 1. Upload to storage
-        object_path = storage_manager.upload_file(
-            object_path=object_path,
-            file_content=file_content,
-            file_name=file.filename,
-            content_type=file.content_type,
-        )
-
-        # After upload, get the definitive content_type set by the storage manager
-        stat = storage_manager.client.stat_object(
-            storage_manager.bucket_name, object_path
-        )
-        content_type = stat.content_type
-
-        # 2. Generate access URL based on is_public setting
-        access_type = "public" if is_public else "presigned"
-        public_url = storage_manager.get_file_access_url(
-            object_path=object_path,
-            access_type=access_type,
-            expires_in_hours=24 if not is_public else None,
-        )
-
-        # 3. Record in database (also update is_public status)
-        await secure_file_db_manager.add_file_record(
-            file_id=file_id,
+        # 使用服务层处理文件上传
+        result = await file_service.upload_file(
             user_id=user_id,
-            filename=file.filename,
-            file_size=file_size,
-            content_type=content_type,
-            storage_path=object_path,
-            storage_config_id="example-minio",
-        )
-
-        # Update is_public status if needed
-        if is_public:
-            await secure_file_db_manager.update_file_public_status(file_id, is_public)
-
-        file_info = FileInfo(
-            file_id=file_id,
-            filename=file.filename,
-            file_size=file_size,
-            content_type=content_type,
-            public_url=public_url,
-            object_path=object_path,
+            file=file,
             is_public=is_public,
-            created_at=datetime.now().isoformat(),
+            metadata={
+                "client_ip": user_context.get("client_ip"),
+                "user_agent": user_context.get("user_agent"),
+                "upload_source": "api_v1",
+            },
         )
 
-        return FileUploadResponse(
-            success=True, message="File uploaded successfully", file=file_info
-        )
+        logger.info(f"File uploaded successfully: {result.file.file_id}")
+        return result
 
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Error uploading file: {e}")
+        logger.error(f"Error in upload endpoint: {e}")
         raise HTTPException(status_code=500, detail=f"Upload failed: {e!s}")
 
 
 @router.get("", response_model=FileListResponse)
 async def list_user_files(
-    request: Request,
     limit: int = Query(default=50, description="返回数量限制", ge=1, le=100),
     offset: int = Query(default=0, description="分页偏移量", ge=0),
+    user_context: dict = Depends(get_user_context),
+    file_service: FileService = Depends(get_file_service),
 ):
     """获取当前用户的所有文件列表"""
     try:
-        user_id = request.state.user_id
+        user_id = user_context["user_id"]
         logger.info(
             f"GET /files request from user: {user_id}, limit: {limit}, offset: {offset}"
         )
 
-        file_records = await secure_file_db_manager.get_user_files(
-            user_id, limit, offset
+        # 使用服务层获取文件列表
+        result = await file_service.get_user_files(
+            user_id=user_id, limit=limit, offset=offset
         )
 
-        files = []
-        for record in file_records:
-            # 根据is_public字段决定URL类型
-            is_public = record.get("is_public", False)
-            access_type = "public" if is_public else "presigned"
+        logger.info(f"Retrieved {len(result.files)} files for user: {user_id}")
+        return result
 
-            fresh_url = storage_manager.get_file_access_url(
-                object_path=record["storage_path"],
-                access_type=access_type,
-                expires_in_hours=24 if not is_public else None,
-            )
-
-            file_info = FileInfo(
-                file_id=record["id"],
-                filename=record["filename"],
-                file_size=record["bytes"],
-                content_type=record["mime_type"],
-                public_url=fresh_url,
-                object_path=record["storage_path"],
-                is_public=is_public,
-                created_at=record["created_at"].isoformat(),
-            )
-            files.append(file_info)
-
-        # Check if there are more files
-        has_more = len(file_records) == limit
-
-        return FileListResponse(
-            success=True,
-            message="Files retrieved successfully",
-            files=files,
-            total_count=None,  # We could add a count query if needed
-            has_more=has_more,
-        )
-
+    except HTTPException:
+        raise
     except Exception as e:
-        logger.error(f"Error getting user files: {e}")
+        logger.error(f"Error in list files endpoint: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to get files: {e!s}")
 
 
 @router.get("/{file_id}", response_model=FileInfo)
 async def get_file_info(
-    request: Request, file_id: str = FastAPIPath(..., description="文件ID")
+    file_id: str = FastAPIPath(..., description="文件ID"),
+    user_context: dict = Depends(get_user_context),
+    file_service: FileService = Depends(get_file_service),
 ):
     """获取文件信息"""
     try:
-        logger.info(f"GET /files/{file_id} request from user: {request.state.user_id}")
+        user_id = user_context["user_id"]
+        logger.info(f"GET /files/{file_id} request from user: {user_id}")
 
-        file_record = await secure_file_db_manager.get_file_record(file_id)
-        if not file_record:
-            raise HTTPException(status_code=404, detail=f"File not found: {file_id}")
+        # 使用服务层获取文件信息
+        result = await file_service.get_file_info(user_id=user_id, file_id=file_id)
 
-        # 根据is_public字段决定URL类型
-        is_public = file_record.get("is_public", False)
-        access_type = "public" if is_public else "presigned"
-
-        fresh_url = storage_manager.get_file_access_url(
-            object_path=file_record["storage_path"],
-            access_type=access_type,
-            expires_in_hours=24 if not is_public else None,
-        )
-
-        return FileInfo(
-            file_id=file_record["id"],
-            filename=file_record["filename"],
-            file_size=file_record["bytes"],
-            content_type=file_record["mime_type"],
-            public_url=fresh_url,
-            object_path=file_record["storage_path"],
-            is_public=is_public,
-            created_at=file_record["created_at"].isoformat(),
-        )
+        return result
 
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Error getting file info for {file_id}: {e}")
+        logger.error(f"Error in get file info endpoint: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to get file info: {e!s}")
 
 
 @router.patch("/{file_id}/public-status", response_model=StandardResponse)
 async def update_file_public_status(
-    request: Request,
     file_id: str = FastAPIPath(..., description="文件ID"),
     is_public: bool = Query(description="是否设置为公开访问"),
+    user_context: dict = Depends(get_user_context),
+    file_service: FileService = Depends(get_file_service),
 ):
     """更新文件的公开访问状态"""
     try:
-        user_id = request.state.user_id
+        user_id = user_context["user_id"]
         logger.info(
             f"PATCH /files/{file_id}/public-status request from user: {user_id}"
         )
 
-        # 1. 验证文件存在和权限
-        file_record = await secure_file_db_manager.get_file_record(file_id)
-        if not file_record:
-            raise HTTPException(status_code=404, detail=f"File not found: {file_id}")
-
-        if file_record["user_id"] != user_id:
-            raise HTTPException(
-                status_code=403, detail="Access denied: file belongs to another user"
-            )
-
-        # 2. 更新公开状态
-        await secure_file_db_manager.update_file_public_status(file_id, is_public)
+        # 使用服务层更新公开状态
+        result = await file_service.update_file_public_status(
+            user_id=user_id, file_id=file_id, is_public=is_public
+        )
 
         return StandardResponse(
             success=True,
             message=f"File public status updated to: {is_public}",
-            data={"file_id": file_id, "is_public": is_public},
+            data=result,
         )
 
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Error updating file public status for {file_id}: {e}")
+        logger.error(f"Error in update public status endpoint: {e}")
         raise HTTPException(
             status_code=500, detail=f"Failed to update file public status: {e!s}"
         )
@@ -296,39 +222,142 @@ async def update_file_public_status(
 
 @router.delete("/{file_id}", response_model=StandardResponse)
 async def delete_file(
-    request: Request, file_id: str = FastAPIPath(..., description="文件ID")
+    file_id: str = FastAPIPath(..., description="文件ID"),
+    user_context: dict = Depends(get_user_context),
+    file_service: FileService = Depends(get_file_service),
 ):
     """删除文件"""
     try:
-        user_id = request.state.user_id
+        user_id = user_context["user_id"]
         logger.info(f"DELETE /files/{file_id} request from user: {user_id}")
 
-        # 1. Get file info from DB for authorization and path
-        file_record = await secure_file_db_manager.get_file_record(file_id)
-        if not file_record:
-            # This is idempotent, so returning success is acceptable.
-            logger.warning(f"Delete request for non-existent file_id: {file_id}")
-            return StandardResponse(
-                success=True, message="File already deleted or never existed."
-            )
-
-        if file_record["user_id"] != user_id:
-            raise HTTPException(
-                status_code=403, detail="Access denied: file belongs to another user"
-            )
-
-        # 2. Delete from storage
-        storage_manager.delete_file(object_path=file_record["storage_path"])
-
-        # 3. Delete from database
-        await secure_file_db_manager.delete_file_record(file_id)
+        # 使用服务层删除文件
+        result = await file_service.delete_file(user_id=user_id, file_id=file_id)
 
         return StandardResponse(
-            success=True, message="File deleted successfully", data={"file_id": file_id}
+            success=True, message="File deleted successfully", data=result
         )
 
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Error deleting file {file_id}: {e}")
+        logger.error(f"Error in delete file endpoint: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to delete file: {e!s}")
+
+
+# 公共访问端点（无需认证）
+@router.get("/public/{file_id}", response_model=FileInfo)
+async def get_public_file_info(
+    file_id: str = FastAPIPath(..., description="文件ID"),
+    file_service: FileService = Depends(get_file_service),
+):
+    """获取公共文件信息（无需认证）"""
+    try:
+        logger.info(f"GET /files/public/{file_id} request (public access)")
+
+        # 使用服务层获取公共文件信息
+        result = await file_service.get_public_file_info(file_id=file_id)
+
+        return result
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error in get public file info endpoint: {e}")
+        raise HTTPException(
+            status_code=500, detail=f"Failed to get public file info: {e!s}"
+        )
+
+
+# 管理端点
+@router.get("/admin/health", response_model=dict)
+async def get_storage_health(
+    user_context: dict = Depends(get_user_context),
+    file_service: FileService = Depends(get_file_service),
+):
+    """获取存储后端健康状态（管理员功能）"""
+    try:
+        # 这里可以添加管理员权限验证
+
+        health_info = await file_service.get_storage_health()
+        return health_info
+
+    except Exception as e:
+        logger.error(f"Error in storage health endpoint: {e}")
+        raise HTTPException(
+            status_code=500, detail=f"Failed to get storage health: {e!s}"
+        )
+
+
+@router.get("/admin/metrics", response_model=dict)
+async def get_storage_metrics(
+    user_context: dict = Depends(get_user_context),
+    file_service: FileService = Depends(get_file_service),
+):
+    """获取存储指标（管理员功能）"""
+    try:
+        # 这里可以添加管理员权限验证
+
+        metrics = await file_service.get_storage_metrics()
+        return metrics
+
+    except Exception as e:
+        logger.error(f"Error in storage metrics endpoint: {e}")
+        raise HTTPException(
+            status_code=500, detail=f"Failed to get storage metrics: {e!s}"
+        )
+
+
+@router.get("/user/stats", response_model=dict)
+async def get_user_storage_stats(user_context: dict = Depends(get_user_context)):
+    """获取用户存储统计信息"""
+    try:
+        user_id = user_context["user_id"]
+        logger.info(f"GET /files/user/stats request from user: {user_id}")
+
+        # 获取用户存储统计
+        stats = await secure_file_db_manager.get_storage_statistics(user_id)
+
+        return {
+            "success": True,
+            "data": stats,
+            "message": "Storage statistics retrieved successfully",
+        }
+
+    except Exception as e:
+        logger.error(f"Error in user stats endpoint: {e}")
+        raise HTTPException(
+            status_code=500, detail=f"Failed to get user statistics: {e!s}"
+        )
+
+
+# 错误处理中间件集成
+@router.middleware("http")
+async def security_logging_middleware(request: Request, call_next):
+    """安全日志中间件"""
+    start_time = datetime.now()
+
+    # 记录请求开始
+    client_ip = getattr(request.state, "client_ip", "unknown")
+    user_id = getattr(request.state, "user_id", "anonymous")
+
+    logger.info(
+        f"API Request: {request.method} {request.url.path} from {client_ip} by {user_id}"
+    )
+
+    try:
+        response = await call_next(request)
+
+        # 记录成功响应
+        duration = (datetime.now() - start_time).total_seconds()
+        logger.info(
+            f"API Response: {response.status_code} for {request.url.path} in {duration:.3f}s"
+        )
+
+        return response
+
+    except Exception as e:
+        # 记录异常
+        duration = (datetime.now() - start_time).total_seconds()
+        logger.error(f"API Error: {request.url.path} failed in {duration:.3f}s: {e!s}")
+        raise
