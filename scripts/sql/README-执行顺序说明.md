@@ -13,7 +13,7 @@
 - 向量化扩展（pgvector）
 - 全文搜索扩展（rum）
 - 数据结构扩展（ltree）
-- 创建主要数据库模式（chunk_schema）
+- 创建主要数据库模式（unifiles）
 
 **执行命令**:
 ```bash
@@ -284,24 +284,24 @@ vector.hnsw_ef_search = 64
 -- 检查所有表是否创建成功
 SELECT schemaname, tablename, tableowner 
 FROM pg_tables 
-WHERE schemaname = 'chunk_schema'
+WHERE schemaname = 'unifiles'
 ORDER BY tablename;
 
 -- 检查索引是否创建成功
 SELECT schemaname, tablename, indexname 
 FROM pg_indexes 
-WHERE schemaname = 'chunk_schema'
+WHERE schemaname = 'unifiles'
 ORDER BY tablename, indexname;
 
 -- 检查触发器是否创建成功
-SELECT * FROM chunk_schema.trigger_status;
+SELECT * FROM unifiles.trigger_status;
 ```
 
 ### 5. 回滚方案
 如果需要回滚，按相反顺序执行：
 ```sql
 -- 删除整个schema（谨慎使用）
-DROP SCHEMA IF EXISTS chunk_schema CASCADE;
+DROP SCHEMA IF EXISTS unifiles CASCADE;
 
 -- 或者逐个删除表
 -- 注意：由于有外键依赖，需要按相反的创建顺序删除
@@ -312,14 +312,14 @@ DROP SCHEMA IF EXISTS chunk_schema CASCADE;
 ### 1. 批量数据导入时的优化
 ```sql
 -- 导入大量数据前，禁用触发器
-SELECT chunk_schema.disable_stats_triggers();
-SELECT chunk_schema.disable_audit_triggers();
+SELECT unifiles.disable_stats_triggers();
+SELECT unifiles.disable_audit_triggers();
 
 -- 导入数据...
 
 -- 导入完成后，重新启用触发器
-SELECT chunk_schema.enable_stats_triggers();
-SELECT chunk_schema.enable_audit_triggers();
+SELECT unifiles.enable_stats_triggers();
+SELECT unifiles.enable_audit_triggers();
 
 -- 手动更新统计信息
 ANALYZE;
@@ -334,12 +334,12 @@ ALTER INDEX idx_components_embedding SET (lists = 1000);  -- 适用于大数据�
 ### 3. 定期维护
 ```sql
 -- 定期清理和重建索引
-REINDEX SCHEMA chunk_schema;
+REINDEX SCHEMA unifiles;
 
 -- 更新表统计信息
-ANALYZE chunk_schema.components;
-ANALYZE chunk_schema.chunks;
-ANALYZE chunk_schema.photos;
+ANALYZE unifiles.components;
+ANALYZE unifiles.chunks;
+ANALYZE unifiles.photos;
 ```
 
 ## 监控和维护
@@ -347,10 +347,10 @@ ANALYZE chunk_schema.photos;
 ### 1. 性能监控查询
 ```sql
 -- 查看索引使用情况
-SELECT * FROM chunk_schema.index_usage_stats WHERE usage_level = 'UNUSED';
+SELECT * FROM unifiles.index_usage_stats WHERE usage_level = 'UNUSED';
 
 -- 查看向量索引统计
-SELECT * FROM chunk_schema.vector_index_stats;
+SELECT * FROM unifiles.vector_index_stats;
 
 -- 查看表大小
 SELECT 
@@ -358,19 +358,19 @@ SELECT
     tablename,
     pg_size_pretty(pg_total_relation_size(schemaname||'.'||tablename)) as size
 FROM pg_tables 
-WHERE schemaname = 'chunk_schema'
+WHERE schemaname = 'unifiles'
 ORDER BY pg_total_relation_size(schemaname||'.'||tablename) DESC;
 ```
 
 ### 2. 定期清理任务
 ```sql
 -- 清理旧的处理日志
-DELETE FROM chunk_schema.file_processing_logs 
+DELETE FROM unifiles.file_processing_logs 
 WHERE created_at < CURRENT_TIMESTAMP - INTERVAL '30 days'
 AND status IN ('completed', 'failed');
 
 -- 清理旧的活动日志
-DELETE FROM chunk_schema.user_activity_logs 
+DELETE FROM unifiles.user_activity_logs 
 WHERE created_at < CURRENT_TIMESTAMP - INTERVAL '90 days';
 ```
 

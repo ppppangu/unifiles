@@ -31,18 +31,18 @@
 #### 1.1 添加新字段到现有表
 ```sql
 -- 为文件表添加安全字段
-ALTER TABLE chunk_schema.files 
+ALTER TABLE unifiles.files 
 ADD COLUMN IF NOT EXISTS is_public BOOLEAN DEFAULT FALSE,
 ADD COLUMN IF NOT EXISTS storage_config_id VARCHAR(100) DEFAULT 'minio-default',
 ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP,
 ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMP;
 
 -- 为用户表添加创建时间
-ALTER TABLE chunk_schema.users 
+ALTER TABLE unifiles.users 
 ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT NOW();
 
 -- 创建访问令牌表（如果不存在）
-CREATE TABLE IF NOT EXISTS chunk_schema.access_tokens (
+CREATE TABLE IF NOT EXISTS unifiles.access_tokens (
     id SERIAL PRIMARY KEY,
     token VARCHAR(255) UNIQUE NOT NULL,
     user_id VARCHAR(255) NOT NULL,
@@ -52,24 +52,24 @@ CREATE TABLE IF NOT EXISTS chunk_schema.access_tokens (
     created_at TIMESTAMP DEFAULT NOW(),
     last_used_at TIMESTAMP,
     usage_count INTEGER DEFAULT 0,
-    FOREIGN KEY (user_id) REFERENCES chunk_schema.users(id)
+    FOREIGN KEY (user_id) REFERENCES unifiles.users(id)
 );
 
 -- 创建索引
-CREATE INDEX IF NOT EXISTS idx_files_user_status ON chunk_schema.files(user_id, status);
-CREATE INDEX IF NOT EXISTS idx_files_public ON chunk_schema.files(is_public) WHERE is_public = TRUE;
-CREATE INDEX IF NOT EXISTS idx_access_tokens_active ON chunk_schema.access_tokens(token) WHERE is_active = TRUE;
+CREATE INDEX IF NOT EXISTS idx_files_user_status ON unifiles.files(user_id, status);
+CREATE INDEX IF NOT EXISTS idx_files_public ON unifiles.files(is_public) WHERE is_public = TRUE;
+CREATE INDEX IF NOT EXISTS idx_access_tokens_active ON unifiles.access_tokens(token) WHERE is_active = TRUE;
 ```
 
 #### 1.2 数据迁移脚本
 ```sql
 -- 更新现有文件的storage_config_id
-UPDATE chunk_schema.files 
+UPDATE unifiles.files 
 SET storage_config_id = 'minio-default' 
 WHERE storage_config_id IS NULL;
 
 -- 为现有用户添加创建时间
-UPDATE chunk_schema.users 
+UPDATE unifiles.users 
 SET created_at = NOW() 
 WHERE created_at IS NULL;
 ```
@@ -176,13 +176,13 @@ python test_migration.py
 
 ```sql
 -- 回滚脚本示例（谨慎使用）
-ALTER TABLE chunk_schema.files 
+ALTER TABLE unifiles.files 
 DROP COLUMN IF EXISTS is_public,
 DROP COLUMN IF EXISTS storage_config_id,
 DROP COLUMN IF EXISTS updated_at,
 DROP COLUMN IF EXISTS deleted_at;
 
-DROP TABLE IF EXISTS chunk_schema.access_tokens;
+DROP TABLE IF EXISTS unifiles.access_tokens;
 ```
 
 ## 监控和维护
@@ -252,10 +252,10 @@ valid, user_info = await auth_service.validate_token(token, client_ip)
 #### 数据库优化
 ```sql
 -- 检查查询性能
-EXPLAIN ANALYZE SELECT * FROM chunk_schema.files WHERE user_id = 'user123';
+EXPLAIN ANALYZE SELECT * FROM unifiles.files WHERE user_id = 'user123';
 
 -- 添加缺失的索引
-CREATE INDEX IF NOT EXISTS idx_files_created_at ON chunk_schema.files(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_files_created_at ON unifiles.files(created_at DESC);
 ```
 
 #### 存储优化

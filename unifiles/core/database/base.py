@@ -78,11 +78,11 @@ class FileDBManager(DatabaseManager):
     async def ensure_user_exists(self, user_id: str) -> None:
         """确保用户在数据库中存在，如果不存在则创建"""
         exists = await self.fetch_value(
-            "SELECT EXISTS(SELECT 1 FROM chunk_schema.users WHERE id = $1)", user_id
+            "SELECT EXISTS(SELECT 1 FROM unifiles.users WHERE id = $1)", user_id
         )
         if not exists:
             await self.execute_query(
-                "INSERT INTO chunk_schema.users (id) VALUES ($1)", user_id
+                "INSERT INTO unifiles.users (id) VALUES ($1)", user_id
             )
             logger.info(f"Created new user in database: {user_id}")
 
@@ -100,7 +100,7 @@ class FileDBManager(DatabaseManager):
         await self.ensure_user_exists(user_id)
         await self.execute_query(
             """
-            INSERT INTO chunk_schema.files (
+            INSERT INTO unifiles.files (
                 id, user_id, bytes, filename, mime_type,
                 file_path, raw_file_public_url, status
             ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
@@ -122,7 +122,7 @@ class FileDBManager(DatabaseManager):
             """
             SELECT id, filename, bytes, mime_type, raw_file_public_url,
                    file_path, created_at, user_id
-            FROM chunk_schema.files
+            FROM unifiles.files
             WHERE id = $1
             """,
             file_id,
@@ -136,7 +136,7 @@ class FileDBManager(DatabaseManager):
             """
             SELECT id, filename, bytes, mime_type, raw_file_public_url,
                    file_path, created_at, user_id
-            FROM chunk_schema.files
+            FROM unifiles.files
             WHERE user_id = $1
             ORDER BY created_at DESC
             LIMIT $2 OFFSET $3
@@ -149,7 +149,7 @@ class FileDBManager(DatabaseManager):
     async def delete_file_record(self, file_id: str) -> None:
         """删除文件记录"""
         result = await self.execute_query(
-            "DELETE FROM chunk_schema.files WHERE id = $1", file_id
+            "DELETE FROM unifiles.files WHERE id = $1", file_id
         )
         if " 0" in result:
             logger.warning(f"Attempted to delete non-existent file record: {file_id}")
@@ -159,7 +159,7 @@ class FileDBManager(DatabaseManager):
     async def update_file_public_url(self, file_id: str, public_url: str) -> None:
         """更新文件的公共访问链接"""
         await self.execute_query(
-            "UPDATE chunk_schema.files SET raw_file_public_url = $2 WHERE id = $1",
+            "UPDATE unifiles.files SET raw_file_public_url = $2 WHERE id = $1",
             file_id,
             public_url,
         )
@@ -168,7 +168,7 @@ class FileDBManager(DatabaseManager):
     async def get_file_object_path(self, file_id: str) -> Optional[str]:
         """获取文件的对象路径"""
         result = await self.fetch_value(
-            "SELECT file_path FROM chunk_schema.files WHERE id = $1", file_id
+            "SELECT file_path FROM unifiles.files WHERE id = $1", file_id
         )
         return result
 
@@ -186,14 +186,14 @@ class FileDBManager(DatabaseManager):
                 param_count += 1
 
         if update_fields:
-            query = f"UPDATE chunk_schema.files SET {', '.join(update_fields)} WHERE id = $1"
+            query = f"UPDATE unifiles.files SET {', '.join(update_fields)} WHERE id = $1"
             await self.execute_query(query, file_id, *values)
             logger.info(f"Updated file access info for {file_id}: {kwargs}")
 
     async def update_file_public_status(self, file_id: str, is_public: bool) -> None:
         """更新文件的公开访问状态"""
         await self.execute_query(
-            "UPDATE chunk_schema.files SET is_public = $2 WHERE id = $1",
+            "UPDATE unifiles.files SET is_public = $2 WHERE id = $1",
             file_id,
             is_public,
         )
@@ -204,7 +204,7 @@ class FileDBManager(DatabaseManager):
         return await self.fetch_one(
             """
             SELECT storage_path, is_public, mime_type, filename
-            FROM chunk_schema.files
+            FROM unifiles.files
             WHERE id = $1
             """,
             file_id,

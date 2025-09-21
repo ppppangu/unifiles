@@ -32,7 +32,7 @@
 -- ================================
 
 -- 组件表（文档分块后的统一组件抽象）
-CREATE TABLE IF NOT EXISTS chunk_schema.components (
+CREATE TABLE IF NOT EXISTS unifiles.components (
     -- 主键标识
     id TEXT PRIMARY KEY,                                    -- 组件唯一标识
     
@@ -61,7 +61,7 @@ CREATE TABLE IF NOT EXISTS chunk_schema.components (
     
     -- 外键约束
     CONSTRAINT fk_components_document_id 
-        FOREIGN KEY (document_id) REFERENCES chunk_schema.documents(id) ON DELETE CASCADE,
+        FOREIGN KEY (document_id) REFERENCES unifiles.documents(id) ON DELETE CASCADE,
     
     -- 检查约束
     CONSTRAINT chk_components_type 
@@ -85,7 +85,7 @@ CREATE TABLE IF NOT EXISTS chunk_schema.components (
 -- ================================
 
 -- 文本块表（组件的文本子类）
-CREATE TABLE IF NOT EXISTS chunk_schema.chunks (
+CREATE TABLE IF NOT EXISTS unifiles.chunks (
     -- 主键标识
     id TEXT PRIMARY KEY,                                    -- 文本块唯一标识
     
@@ -106,7 +106,7 @@ CREATE TABLE IF NOT EXISTS chunk_schema.chunks (
     
     -- 外键约束
     CONSTRAINT fk_chunks_component_id 
-        FOREIGN KEY (component_id) REFERENCES chunk_schema.components(id) ON DELETE CASCADE,
+        FOREIGN KEY (component_id) REFERENCES unifiles.components(id) ON DELETE CASCADE,
     
     -- 检查约束
     CONSTRAINT chk_chunks_char_count_positive 
@@ -121,7 +121,7 @@ CREATE TABLE IF NOT EXISTS chunk_schema.chunks (
 -- ================================
 
 -- 图片表（组件的图片子类）
-CREATE TABLE IF NOT EXISTS chunk_schema.photos (
+CREATE TABLE IF NOT EXISTS unifiles.photos (
     -- 主键标识
     id TEXT PRIMARY KEY,                                    -- 图片块唯一标识
     
@@ -148,9 +148,9 @@ CREATE TABLE IF NOT EXISTS chunk_schema.photos (
     
     -- 外键约束
     CONSTRAINT fk_photos_component_id 
-        FOREIGN KEY (component_id) REFERENCES chunk_schema.components(id) ON DELETE CASCADE,
+        FOREIGN KEY (component_id) REFERENCES unifiles.components(id) ON DELETE CASCADE,
     CONSTRAINT fk_photos_extracted_asset_id 
-        FOREIGN KEY (extracted_asset_id) REFERENCES chunk_schema.extracted_assets(id) ON DELETE SET NULL,
+        FOREIGN KEY (extracted_asset_id) REFERENCES unifiles.extracted_assets(id) ON DELETE SET NULL,
     
     -- 检查约束
     CONSTRAINT chk_photos_subtype 
@@ -168,7 +168,7 @@ CREATE TABLE IF NOT EXISTS chunk_schema.photos (
 -- ================================
 
 -- 清理文本内容，去除markdown标记和多余空白
-CREATE OR REPLACE FUNCTION chunk_schema.clean_text_for_search(input_text TEXT)
+CREATE OR REPLACE FUNCTION unifiles.clean_text_for_search(input_text TEXT)
 RETURNS TEXT AS $$
 BEGIN
     IF input_text IS NULL THEN
@@ -187,7 +187,7 @@ END;
 $$ LANGUAGE plpgsql IMMUTABLE;
 
 -- 检测文本主要语言
-CREATE OR REPLACE FUNCTION chunk_schema.detect_content_language(input_text TEXT)
+CREATE OR REPLACE FUNCTION unifiles.detect_content_language(input_text TEXT)
 RETURNS TEXT AS $$
 DECLARE
     chinese_chars INTEGER;
@@ -219,14 +219,14 @@ END;
 $$ LANGUAGE plpgsql IMMUTABLE;
 
 -- 自动更新组件搜索字段的触发器函数
-CREATE OR REPLACE FUNCTION chunk_schema.update_component_search_fields()
+CREATE OR REPLACE FUNCTION unifiles.update_component_search_fields()
 RETURNS TRIGGER AS $$
 BEGIN
     -- 清理和优化搜索文本
-    NEW.searchable_text := chunk_schema.clean_text_for_search(NEW.content);
+    NEW.searchable_text := unifiles.clean_text_for_search(NEW.content);
     
     -- 检测内容语言
-    NEW.content_language := chunk_schema.detect_content_language(NEW.content);
+    NEW.content_language := unifiles.detect_content_language(NEW.content);
     
     -- 提取关键词（简单实现，可以后续优化）
     IF NEW.searchable_text IS NOT NULL AND length(NEW.searchable_text) > 0 THEN
@@ -247,9 +247,9 @@ $$ LANGUAGE plpgsql;
 
 -- 创建触发器
 CREATE TRIGGER trigger_update_component_search_fields
-    BEFORE INSERT OR UPDATE ON chunk_schema.components
+    BEFORE INSERT OR UPDATE ON unifiles.components
     FOR EACH ROW
-    EXECUTE FUNCTION chunk_schema.update_component_search_fields();
+    EXECUTE FUNCTION unifiles.update_component_search_fields();
 
 
 -- ================================
@@ -257,7 +257,7 @@ CREATE TRIGGER trigger_update_component_search_fields
 -- ================================
 
 -- 验证向量维度一致性的函数
-CREATE OR REPLACE FUNCTION chunk_schema.validate_embedding_dimensions()
+CREATE OR REPLACE FUNCTION unifiles.validate_embedding_dimensions()
 RETURNS TABLE(component_id TEXT, stored_dimensions INTEGER, actual_dimensions INTEGER) AS $$
 BEGIN
     RETURN QUERY
@@ -268,7 +268,7 @@ BEGIN
             WHEN c.embedding IS NOT NULL THEN array_length(c.embedding, 1)
             ELSE NULL 
         END
-    FROM chunk_schema.components c
+    FROM unifiles.components c
     WHERE c.embedding IS NOT NULL 
       AND c.embedding_dimensions IS NOT NULL
       AND c.embedding_dimensions != array_length(c.embedding, 1);
@@ -276,14 +276,14 @@ END;
 $$ LANGUAGE plpgsql;
 
 -- 获取向量维度统计的函数
-CREATE OR REPLACE FUNCTION chunk_schema.get_embedding_dimension_stats()
+CREATE OR REPLACE FUNCTION unifiles.get_embedding_dimension_stats()
 RETURNS TABLE(dimensions INTEGER, count BIGINT) AS $$
 BEGIN
     RETURN QUERY
     SELECT 
         c.embedding_dimensions,
         COUNT(*) as count
-    FROM chunk_schema.components c
+    FROM unifiles.components c
     WHERE c.embedding IS NOT NULL 
       AND c.embedding_dimensions IS NOT NULL
     GROUP BY c.embedding_dimensions
@@ -292,7 +292,7 @@ END;
 $$ LANGUAGE plpgsql;
 
 -- 创建向量索引的函数（需要有足够数据时调用）
-CREATE OR REPLACE FUNCTION chunk_schema.create_embedding_index(lists_count INTEGER DEFAULT 100)
+CREATE OR REPLACE FUNCTION unifiles.create_embedding_index(lists_count INTEGER DEFAULT 100)
 RETURNS TEXT AS $$
 DECLARE
     data_count INTEGER;
@@ -300,7 +300,7 @@ DECLARE
 BEGIN
     -- 检查数据量
     SELECT COUNT(*) INTO data_count 
-    FROM chunk_schema.components 
+    FROM unifiles.components 
     WHERE embedding IS NOT NULL;
     
     -- 建议至少有1000条数据时再创建IVF索引
@@ -309,16 +309,16 @@ BEGIN
     END IF;
     
     -- 删除现有索引
-    DROP INDEX IF EXISTS chunk_schema.idx_components_embedding;
+    DROP INDEX IF EXISTS unifiles.idx_components_embedding;
     
     -- 根据数据量选择索引类型
     IF data_count >= 1000 THEN
         -- 数据量足够，使用IVF索引
-        EXECUTE format('CREATE INDEX idx_components_embedding ON chunk_schema.components USING ivfflat (embedding vector_cosine_ops) WITH (lists = %s) WHERE embedding IS NOT NULL', lists_count);
+        EXECUTE format('CREATE INDEX idx_components_embedding ON unifiles.components USING ivfflat (embedding vector_cosine_ops) WITH (lists = %s) WHERE embedding IS NOT NULL', lists_count);
         result_msg := format('IVF向量索引创建成功，lists=%s，数据量=%s', lists_count, data_count);
     ELSE
         -- 数据量较少，使用简单的向量索引
-        CREATE INDEX idx_components_embedding ON chunk_schema.components USING ivfflat (embedding vector_cosine_ops) WHERE embedding IS NOT NULL;
+        CREATE INDEX idx_components_embedding ON unifiles.components USING ivfflat (embedding vector_cosine_ops) WHERE embedding IS NOT NULL;
         result_msg := format('基础向量索引创建成功，数据量=%s（建议数据量达到1000+时重建IVF索引）', data_count);
     END IF;
     
@@ -335,18 +335,18 @@ $$ LANGUAGE plpgsql;
 
 -- 为components表添加更新时间戳触发器
 CREATE TRIGGER trigger_components_updated_at
-    BEFORE UPDATE ON chunk_schema.components
+    BEFORE UPDATE ON unifiles.components
     FOR EACH ROW
-    EXECUTE FUNCTION chunk_schema.update_updated_at_column();
+    EXECUTE FUNCTION unifiles.update_updated_at_column();
 
 -- 为chunks表添加更新时间戳触发器
 CREATE TRIGGER trigger_chunks_updated_at
-    BEFORE UPDATE ON chunk_schema.chunks
+    BEFORE UPDATE ON unifiles.chunks
     FOR EACH ROW
-    EXECUTE FUNCTION chunk_schema.update_updated_at_column();
+    EXECUTE FUNCTION unifiles.update_updated_at_column();
 
 -- 为photos表添加更新时间戳触发器
 CREATE TRIGGER trigger_photos_updated_at
-    BEFORE UPDATE ON chunk_schema.photos
+    BEFORE UPDATE ON unifiles.photos
     FOR EACH ROW
-    EXECUTE FUNCTION chunk_schema.update_updated_at_column();
+    EXECUTE FUNCTION unifiles.update_updated_at_column();

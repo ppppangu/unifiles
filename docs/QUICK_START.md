@@ -102,14 +102,14 @@ python scripts/init_db.py
 psql -h localhost -U postgres -d unifiles
 
 -- 2. 创建一个测试用户
-INSERT INTO chunk_schema.users (id) VALUES ('test_user');
+INSERT INTO unifiles.users (id) VALUES ('test_user');
 
 -- 3. 为用户创建访问密钥
-INSERT INTO chunk_schema.access_keys (user_id, name)
+INSERT INTO unifiles.access_keys (user_id, name)
 VALUES ('test_user', 'Development API Key');
 
 -- 4. 查看生成的密钥（此密钥仅显示一次，请妥善保管）
-SELECT access_key FROM chunk_schema.access_keys
+SELECT access_key FROM unifiles.access_keys
 WHERE user_id = 'test_user' ORDER BY created_at DESC LIMIT 1;
 ```
 

@@ -22,7 +22,7 @@
 -- ================================
 
 -- 知识库表
-CREATE TABLE IF NOT EXISTS chunk_schema.knowledge_bases (
+CREATE TABLE IF NOT EXISTS unifiles.knowledge_bases (
     -- 主键标识
     id TEXT PRIMARY KEY,                                    -- 知识库唯一标识
     
@@ -100,11 +100,11 @@ CREATE TABLE IF NOT EXISTS chunk_schema.knowledge_bases (
     
     -- 外键约束
     CONSTRAINT fk_knowledge_bases_user_id 
-        FOREIGN KEY (user_id) REFERENCES chunk_schema.users(id) ON DELETE CASCADE,
+        FOREIGN KEY (user_id) REFERENCES unifiles.users(id) ON DELETE CASCADE,
     CONSTRAINT fk_knowledge_bases_parent_kb_id 
-        FOREIGN KEY (parent_kb_id) REFERENCES chunk_schema.knowledge_bases(id) ON DELETE SET NULL,
+        FOREIGN KEY (parent_kb_id) REFERENCES unifiles.knowledge_bases(id) ON DELETE SET NULL,
     CONSTRAINT fk_knowledge_bases_last_updated_by 
-        FOREIGN KEY (last_updated_by) REFERENCES chunk_schema.users(id),
+        FOREIGN KEY (last_updated_by) REFERENCES unifiles.users(id),
     
     -- 检查约束
     CONSTRAINT chk_knowledge_bases_kb_type 
@@ -129,7 +129,7 @@ CREATE TABLE IF NOT EXISTS chunk_schema.knowledge_bases (
 -- ================================
 
 -- 知识库文档表（知识库中的文档实例）
-CREATE TABLE IF NOT EXISTS chunk_schema.documents (
+CREATE TABLE IF NOT EXISTS unifiles.documents (
     -- 主键标识
     id TEXT PRIMARY KEY,                                    -- 文档实例唯一标识
     
@@ -196,11 +196,11 @@ CREATE TABLE IF NOT EXISTS chunk_schema.documents (
     
     -- 外键约束
     CONSTRAINT fk_documents_knowledge_base_id 
-        FOREIGN KEY (knowledge_base_id) REFERENCES chunk_schema.knowledge_bases(id) ON DELETE CASCADE,
+        FOREIGN KEY (knowledge_base_id) REFERENCES unifiles.knowledge_bases(id) ON DELETE CASCADE,
     CONSTRAINT fk_documents_extracted_document_id 
-        FOREIGN KEY (extracted_document_id) REFERENCES chunk_schema.extracted_documents(id) ON DELETE CASCADE,
+        FOREIGN KEY (extracted_document_id) REFERENCES unifiles.extracted_documents(id) ON DELETE CASCADE,
     CONSTRAINT fk_documents_parent_document_id 
-        FOREIGN KEY (parent_document_id) REFERENCES chunk_schema.documents(id) ON DELETE SET NULL,
+        FOREIGN KEY (parent_document_id) REFERENCES unifiles.documents(id) ON DELETE SET NULL,
     
     -- 检查约束
     CONSTRAINT chk_documents_processing_status 
@@ -227,7 +227,7 @@ CREATE TABLE IF NOT EXISTS chunk_schema.documents (
 -- ================================
 
 -- 知识库统计表
-CREATE TABLE IF NOT EXISTS chunk_schema.kb_statistics (
+CREATE TABLE IF NOT EXISTS unifiles.kb_statistics (
     -- 主键标识
     id TEXT PRIMARY KEY,                                    -- 统计记录ID
     
@@ -268,7 +268,7 @@ CREATE TABLE IF NOT EXISTS chunk_schema.kb_statistics (
     
     -- 外键约束
     CONSTRAINT fk_kb_statistics_knowledge_base_id 
-        FOREIGN KEY (knowledge_base_id) REFERENCES chunk_schema.knowledge_bases(id) ON DELETE CASCADE,
+        FOREIGN KEY (knowledge_base_id) REFERENCES unifiles.knowledge_bases(id) ON DELETE CASCADE,
     
     -- 唯一约束
     UNIQUE (knowledge_base_id)
@@ -279,23 +279,23 @@ CREATE TABLE IF NOT EXISTS chunk_schema.kb_statistics (
 -- ================================
 
 -- 为knowledge_bases表添加更新时间戳触发器
-DROP TRIGGER IF EXISTS trigger_knowledge_bases_updated_at ON chunk_schema.knowledge_bases;
+DROP TRIGGER IF EXISTS trigger_knowledge_bases_updated_at ON unifiles.knowledge_bases;
 CREATE TRIGGER trigger_knowledge_bases_updated_at
-    BEFORE UPDATE ON chunk_schema.knowledge_bases
+    BEFORE UPDATE ON unifiles.knowledge_bases
     FOR EACH ROW
-    EXECUTE FUNCTION chunk_schema.update_updated_at_column();
+    EXECUTE FUNCTION unifiles.update_updated_at_column();
 
 -- 为documents表添加更新时间戳触发器
-DROP TRIGGER IF EXISTS trigger_documents_updated_at ON chunk_schema.documents;
+DROP TRIGGER IF EXISTS trigger_documents_updated_at ON unifiles.documents;
 CREATE TRIGGER trigger_documents_updated_at
-    BEFORE UPDATE ON chunk_schema.documents
+    BEFORE UPDATE ON unifiles.documents
     FOR EACH ROW
-    EXECUTE FUNCTION chunk_schema.update_updated_at_column();
+    EXECUTE FUNCTION unifiles.update_updated_at_column();
 
 
 -- 为kb_statistics表添加更新时间戳触发器
-DROP TRIGGER IF EXISTS trigger_kb_statistics_updated_at ON chunk_schema.kb_statistics;
+DROP TRIGGER IF EXISTS trigger_kb_statistics_updated_at ON unifiles.kb_statistics;
 CREATE TRIGGER trigger_kb_statistics_updated_at
-    BEFORE UPDATE ON chunk_schema.kb_statistics
+    BEFORE UPDATE ON unifiles.kb_statistics
     FOR EACH ROW
-    EXECUTE FUNCTION chunk_schema.update_updated_at_column();
+    EXECUTE FUNCTION unifiles.update_updated_at_column();

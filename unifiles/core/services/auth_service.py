@@ -69,8 +69,8 @@ class AuthService:
                 query = """
                     SELECT u.id, u.username, at.expires_at, at.is_active, at.last_used_at,
                            at.created_at, at.usage_count
-                    FROM chunk_schema.access_tokens at
-                    JOIN chunk_schema.users u ON at.user_id = u.id
+                    FROM unifiles.access_tokens at
+                    JOIN unifiles.users u ON at.user_id = u.id
                     WHERE at.token = $1 AND at.is_active = true
                 """
 
@@ -150,7 +150,7 @@ class AuthService:
             async with self._connection_pool.acquire() as conn:
                 # 插入新令牌
                 query = """
-                    INSERT INTO chunk_schema.access_tokens
+                    INSERT INTO unifiles.access_tokens
                     (token, user_id, expires_at, description, is_active, created_at, usage_count)
                     VALUES ($1, $2, $3, $4, true, $5, 0)
                     RETURNING id
@@ -213,7 +213,7 @@ class AuthService:
                 # 如果提供了user_id，验证令牌所有权
                 if user_id:
                     verify_query = """
-                        SELECT user_id FROM chunk_schema.access_tokens
+                        SELECT user_id FROM unifiles.access_tokens
                         WHERE token = $1 AND is_active = true
                     """
                     result = await conn.fetchrow(verify_query, token)
@@ -252,7 +252,7 @@ class AuthService:
                 query = """
                     SELECT id, description, created_at, expires_at, last_used_at,
                            usage_count, is_active
-                    FROM chunk_schema.access_tokens
+                    FROM unifiles.access_tokens
                     WHERE user_id = $1
                     ORDER BY created_at DESC
                 """
@@ -298,7 +298,7 @@ class AuthService:
 
             async with self._connection_pool.acquire() as conn:
                 query = """
-                    UPDATE chunk_schema.access_tokens
+                    UPDATE unifiles.access_tokens
                     SET is_active = false
                     WHERE expires_at < $1 AND is_active = true
                 """
@@ -323,7 +323,7 @@ class AuthService:
         """更新令牌使用记录"""
         try:
             update_query = """
-                UPDATE chunk_schema.access_tokens
+                UPDATE unifiles.access_tokens
                 SET last_used_at = $1, usage_count = usage_count + 1
                 WHERE token = $2
             """
@@ -336,7 +336,7 @@ class AuthService:
         """停用令牌"""
         try:
             deactivate_query = """
-                UPDATE chunk_schema.access_tokens
+                UPDATE unifiles.access_tokens
                 SET is_active = false
                 WHERE token = $1
             """

@@ -56,7 +56,7 @@ class DatabaseManager:
             async with conn.transaction():
                 await conn.execute(
                     """
-                    INSERT INTO chunk_schema.users (id, knowledge_ids)
+                    INSERT INTO unifiles.users (id, knowledge_ids)
                     VALUES ($1, $2)
                     ON CONFLICT (id) DO NOTHING
                     """,
@@ -66,7 +66,7 @@ class DatabaseManager:
 
                 # 获取创建的用户信息
                 result = await conn.fetchrow(
-                    "SELECT * FROM chunk_schema.users WHERE id = $1", user_model.id
+                    "SELECT * FROM unifiles.users WHERE id = $1", user_model.id
                 )
 
                 if result:
@@ -86,7 +86,7 @@ class DatabaseManager:
         conn = await self.get_connection()
         try:
             result = await conn.fetchrow(
-                "SELECT * FROM chunk_schema.users WHERE id = $1", user_id
+                "SELECT * FROM unifiles.users WHERE id = $1", user_id
             )
 
             if result:
@@ -122,7 +122,7 @@ class DatabaseManager:
             async with conn.transaction():
                 await conn.execute(
                     """
-                    INSERT INTO chunk_schema.knowledge_bases (id, user_id, name, description, document_ids)
+                    INSERT INTO unifiles.knowledge_bases (id, user_id, name, description, document_ids)
                     VALUES ($1, $2, $3, $4, $5)
                     ON CONFLICT (id) DO NOTHING
                     """,
@@ -135,7 +135,7 @@ class DatabaseManager:
 
                 # 获取创建的知识库信息
                 result = await conn.fetchrow(
-                    "SELECT * FROM chunk_schema.knowledge_bases WHERE id = $1",
+                    "SELECT * FROM unifiles.knowledge_bases WHERE id = $1",
                     kb_model.id,
                 )
 
@@ -157,7 +157,7 @@ class DatabaseManager:
         conn = await self.get_connection()
         try:
             result = await conn.fetchrow(
-                "SELECT * FROM chunk_schema.knowledge_bases WHERE id = $1", kb_id
+                "SELECT * FROM unifiles.knowledge_bases WHERE id = $1", kb_id
             )
 
             if result:
@@ -202,7 +202,7 @@ class DatabaseManager:
             async with conn.transaction():
                 await conn.execute(
                     """
-                    INSERT INTO chunk_schema.documents
+                    INSERT INTO unifiles.documents
                     (id, knowledge_base_id, name, text, component_ids, hierarchy_path, markdown_public_url, raw_file_public_url)
                     VALUES ($1, $2, $3, $4, $5, $6::ltree, $7, $8)
                     ON CONFLICT (id) DO NOTHING
@@ -219,7 +219,7 @@ class DatabaseManager:
 
                 # 获取创建的文档信息
                 result = await conn.fetchrow(
-                    "SELECT * FROM chunk_schema.documents WHERE id = $1", doc_model.id
+                    "SELECT * FROM unifiles.documents WHERE id = $1", doc_model.id
                 )
 
                 if result:
@@ -241,7 +241,7 @@ class DatabaseManager:
         conn = await self.get_connection()
         try:
             result = await conn.fetchrow(
-                "SELECT * FROM chunk_schema.documents WHERE id = $1", doc_id
+                "SELECT * FROM unifiles.documents WHERE id = $1", doc_id
             )
 
             if result:
@@ -287,7 +287,7 @@ class DatabaseManager:
             async with conn.transaction():
                 await conn.execute(
                     """
-                    UPDATE chunk_schema.documents
+                    UPDATE unifiles.documents
                     SET markdown_public_url = $2, raw_file_public_url = $3, upload_time = now()
                     WHERE id = $1
                     """,
@@ -314,7 +314,7 @@ class DatabaseManager:
             async with conn.transaction():
                 await conn.execute(
                     """
-                    INSERT INTO chunk_schema.files
+                    INSERT INTO unifiles.files
                     (id, user_id, bytes, filename, mime_type, file_path, raw_file_public_url, status, metadata)
                     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
                     """,
@@ -331,7 +331,7 @@ class DatabaseManager:
 
                 # 获取创建的文件信息
                 result = await conn.fetchrow(
-                    "SELECT * FROM chunk_schema.files WHERE id = $1", file_model.id
+                    "SELECT * FROM unifiles.files WHERE id = $1", file_model.id
                 )
 
                 if result:
@@ -351,7 +351,7 @@ class DatabaseManager:
         conn = await self.get_connection()
         try:
             result = await conn.fetchrow(
-                "SELECT * FROM chunk_schema.files WHERE id = $1", file_id
+                "SELECT * FROM unifiles.files WHERE id = $1", file_id
             )
 
             if result:
@@ -393,7 +393,7 @@ class DatabaseManager:
 
                 result = await conn.fetchrow(
                     """
-                    INSERT INTO chunk_schema.chunks (id, document_id, doc_position, text, embedding)
+                    INSERT INTO unifiles.chunks (id, document_id, doc_position, text, embedding)
                     VALUES ($1, $2, $3, $4, $5::vector)
                     RETURNING id, doc_position, created_at, updated_at
                     """,
@@ -433,7 +433,7 @@ class DatabaseManager:
 
                 result = await conn.fetchrow(
                     """
-                    INSERT INTO chunk_schema.photos (id, document_id, type, text, base64_image, embedding, doc_position)
+                    INSERT INTO unifiles.photos (id, document_id, type, text, base64_image, embedding, doc_position)
                     VALUES ($1, $2, $3, $4, $5, $6::vector, $7)
                     RETURNING id, doc_position, created_at, updated_at
                     """,
@@ -472,7 +472,7 @@ class DatabaseManager:
             async with conn.transaction():
                 await conn.execute(
                     """
-                    INSERT INTO chunk_schema.file_processing_logs
+                    INSERT INTO unifiles.file_processing_logs
                     (id, file_id, user_id, status, stage, message, details, error_info)
                     VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
                     """,
@@ -488,7 +488,7 @@ class DatabaseManager:
 
                 # 获取创建的日志信息
                 result = await conn.fetchrow(
-                    "SELECT * FROM chunk_schema.file_processing_logs WHERE id = $1",
+                    "SELECT * FROM unifiles.file_processing_logs WHERE id = $1",
                     log_model.id,
                 )
 
@@ -523,7 +523,7 @@ class DatabaseManager:
 
                 await conn.execute(
                     """
-                    UPDATE chunk_schema.file_processing_logs
+                    UPDATE unifiles.file_processing_logs
                     SET status = $2, message = $3, error_info = $4, completed_at = $5
                     WHERE id = $1
                     """,

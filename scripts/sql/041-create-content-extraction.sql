@@ -22,7 +22,7 @@
 -- ================================
 
 -- 提取文档表（OCR后的完整文档）
-CREATE TABLE IF NOT EXISTS chunk_schema.extracted_documents (
+CREATE TABLE IF NOT EXISTS unifiles.extracted_documents (
     -- 主键标识
     id TEXT PRIMARY KEY,                                    -- 提取文档唯一标识
     
@@ -72,9 +72,9 @@ CREATE TABLE IF NOT EXISTS chunk_schema.extracted_documents (
     
     -- 外键约束
     CONSTRAINT fk_extracted_documents_file_id 
-        FOREIGN KEY (file_id) REFERENCES chunk_schema.files(id) ON DELETE CASCADE,
+        FOREIGN KEY (file_id) REFERENCES unifiles.files(id) ON DELETE CASCADE,
     CONSTRAINT fk_extracted_documents_user_id 
-        FOREIGN KEY (user_id) REFERENCES chunk_schema.users(id) ON DELETE CASCADE,
+        FOREIGN KEY (user_id) REFERENCES unifiles.users(id) ON DELETE CASCADE,
         
     -- 检查约束
     CONSTRAINT chk_extracted_documents_extraction_status 
@@ -90,7 +90,7 @@ CREATE TABLE IF NOT EXISTS chunk_schema.extracted_documents (
 -- ================================
 
 -- 提取资源表（文档中的图片、表格等）
-CREATE TABLE IF NOT EXISTS chunk_schema.extracted_assets (
+CREATE TABLE IF NOT EXISTS unifiles.extracted_assets (
     -- 主键标识
     id TEXT PRIMARY KEY,                                    -- 资源唯一标识
     
@@ -144,9 +144,9 @@ CREATE TABLE IF NOT EXISTS chunk_schema.extracted_assets (
     
     -- 外键约束
     CONSTRAINT fk_extracted_assets_document_id 
-        FOREIGN KEY (extracted_document_id) REFERENCES chunk_schema.extracted_documents(id) ON DELETE CASCADE,
+        FOREIGN KEY (extracted_document_id) REFERENCES unifiles.extracted_documents(id) ON DELETE CASCADE,
     CONSTRAINT fk_extracted_assets_storage_config_id 
-        FOREIGN KEY (storage_config_id) REFERENCES chunk_schema.storage_configs(id) ON DELETE SET NULL,
+        FOREIGN KEY (storage_config_id) REFERENCES unifiles.storage_configs(id) ON DELETE SET NULL,
     
     -- 检查约束
     CONSTRAINT chk_extracted_assets_type 
@@ -168,7 +168,7 @@ CREATE TABLE IF NOT EXISTS chunk_schema.extracted_assets (
 -- ================================
 
 -- 提取错误和警告日志表
-CREATE TABLE IF NOT EXISTS chunk_schema.extraction_logs (
+CREATE TABLE IF NOT EXISTS unifiles.extraction_logs (
     -- 主键标识
     id TEXT PRIMARY KEY,                                    -- 日志唯一标识
     
@@ -196,11 +196,11 @@ CREATE TABLE IF NOT EXISTS chunk_schema.extraction_logs (
     
     -- 外键约束（可选）
     CONSTRAINT fk_extraction_logs_document_id 
-        FOREIGN KEY (extracted_document_id) REFERENCES chunk_schema.extracted_documents(id) ON DELETE CASCADE,
+        FOREIGN KEY (extracted_document_id) REFERENCES unifiles.extracted_documents(id) ON DELETE CASCADE,
     CONSTRAINT fk_extraction_logs_asset_id 
-        FOREIGN KEY (extracted_asset_id) REFERENCES chunk_schema.extracted_assets(id) ON DELETE CASCADE,
+        FOREIGN KEY (extracted_asset_id) REFERENCES unifiles.extracted_assets(id) ON DELETE CASCADE,
     CONSTRAINT fk_extraction_logs_file_id 
-        FOREIGN KEY (file_id) REFERENCES chunk_schema.files(id) ON DELETE CASCADE,
+        FOREIGN KEY (file_id) REFERENCES unifiles.files(id) ON DELETE CASCADE,
     
     -- 检查约束
     CONSTRAINT chk_extraction_logs_level 

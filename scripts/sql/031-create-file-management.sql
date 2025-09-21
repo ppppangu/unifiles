@@ -22,7 +22,7 @@
 -- ================================
 
 -- 存储配置表 - 简洁设计
-CREATE TABLE IF NOT EXISTS chunk_schema.storage_configs (
+CREATE TABLE IF NOT EXISTS unifiles.storage_configs (
     -- 主键标识
     id TEXT PRIMARY KEY,                                    -- 配置唯一标识
     
@@ -52,7 +52,7 @@ CREATE TABLE IF NOT EXISTS chunk_schema.storage_configs (
 -- ================================
 
 -- 文件表
-CREATE TABLE IF NOT EXISTS chunk_schema.files (
+CREATE TABLE IF NOT EXISTS unifiles.files (
     -- 主键标识
     id TEXT PRIMARY KEY,                                    -- 文件唯一标识
     
@@ -100,9 +100,9 @@ CREATE TABLE IF NOT EXISTS chunk_schema.files (
     
     -- 外键约束
     CONSTRAINT fk_files_user_id 
-        FOREIGN KEY (user_id) REFERENCES chunk_schema.users(id) ON DELETE CASCADE,
+        FOREIGN KEY (user_id) REFERENCES unifiles.users(id) ON DELETE CASCADE,
     CONSTRAINT fk_files_storage_config_id 
-        FOREIGN KEY (storage_config_id) REFERENCES chunk_schema.storage_configs(id) ON DELETE SET NULL,
+        FOREIGN KEY (storage_config_id) REFERENCES unifiles.storage_configs(id) ON DELETE SET NULL,
     
     -- 检查约束
     CONSTRAINT chk_files_status 
@@ -120,7 +120,7 @@ CREATE TABLE IF NOT EXISTS chunk_schema.files (
 -- ================================
 
 -- 文件处理日志表（简化版）
-CREATE TABLE IF NOT EXISTS chunk_schema.file_processing_logs (
+CREATE TABLE IF NOT EXISTS unifiles.file_processing_logs (
     -- 主键标识
     id TEXT PRIMARY KEY,                                    -- 日志唯一标识
     
@@ -138,7 +138,7 @@ CREATE TABLE IF NOT EXISTS chunk_schema.file_processing_logs (
     
     -- 外键约束
     CONSTRAINT fk_file_processing_logs_file_id 
-        FOREIGN KEY (file_id) REFERENCES chunk_schema.files(id) ON DELETE CASCADE,
+        FOREIGN KEY (file_id) REFERENCES unifiles.files(id) ON DELETE CASCADE,
     
     -- 检查约束
     CONSTRAINT chk_file_processing_logs_status 
@@ -155,22 +155,22 @@ CREATE TABLE IF NOT EXISTS chunk_schema.file_processing_logs (
 
 -- 为storage_configs表添加更新时间戳触发器
 CREATE TRIGGER trigger_storage_configs_updated_at
-    BEFORE UPDATE ON chunk_schema.storage_configs
+    BEFORE UPDATE ON unifiles.storage_configs
     FOR EACH ROW
-    EXECUTE FUNCTION chunk_schema.update_updated_at_column();
+    EXECUTE FUNCTION unifiles.update_updated_at_column();
 
 -- 为files表添加更新时间戳触发器
 CREATE TRIGGER trigger_files_updated_at
-    BEFORE UPDATE ON chunk_schema.files
+    BEFORE UPDATE ON unifiles.files
     FOR EACH ROW
-    EXECUTE FUNCTION chunk_schema.update_updated_at_column();
+    EXECUTE FUNCTION unifiles.update_updated_at_column();
 
 -- ================================
 -- 初始数据 (Initial Data)
 -- ================================
 
 -- 插入默认存储配置
-INSERT INTO chunk_schema.storage_configs (id, storage_name, connection_config, is_active, public_url_prefix, config_source)
+INSERT INTO unifiles.storage_configs (id, storage_name, connection_config, is_active, public_url_prefix, config_source)
 VALUES 
     ('default-local', 'Local Storage', '{"provider": "local", "base_path": "/uploads", "create_if_missing": true}', true, 'http://localhost:8000/files', 'env'),
     ('example-minio', 'MinIO Object Storage', '{"provider": "minio", "endpoint": "localhost:9000", "access_key": "minioadmin", "secret_key": "minioadmin", "bucket_name": "unifiles", "region": "us-east-1", "secure": false}', false, 'https://minio.example.com/bucket', 'env')

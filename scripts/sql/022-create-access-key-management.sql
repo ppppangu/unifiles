@@ -16,7 +16,7 @@
 -- ================================
 
 -- 访问密钥概览视图（隐藏敏感信息）
-CREATE OR REPLACE VIEW chunk_schema.access_keys_overview AS
+CREATE OR REPLACE VIEW unifiles.access_keys_overview AS
 SELECT 
     id,
     user_id,
@@ -54,10 +54,10 @@ SELECT
             ROUND((requests_today::FLOAT / max_requests_per_day::FLOAT) * 100, 2)
         ELSE NULL
     END as daily_usage_percent
-FROM chunk_schema.access_keys;
+FROM unifiles.access_keys;
 
 -- 用户访问密钥统计视图
-CREATE OR REPLACE VIEW chunk_schema.user_access_key_stats AS
+CREATE OR REPLACE VIEW unifiles.user_access_key_stats AS
 SELECT 
     u.id as user_id,
     u.username,
@@ -69,12 +69,12 @@ SELECT
     SUM(ak.requests_today) as requests_today_all_keys,
     MAX(ak.last_used_at) as last_activity,
     MIN(ak.created_at) as first_key_created
-FROM chunk_schema.users u
-LEFT JOIN chunk_schema.access_keys ak ON u.id = ak.user_id
+FROM unifiles.users u
+LEFT JOIN unifiles.access_keys ak ON u.id = ak.user_id
 GROUP BY u.id, u.username, u.display_name;
 
 -- 访问密钥使用趋势视图（按小时）
-CREATE OR REPLACE VIEW chunk_schema.access_key_usage_trends AS
+CREATE OR REPLACE VIEW unifiles.access_key_usage_trends AS
 SELECT 
     ak.id,
     ak.name,
@@ -83,8 +83,8 @@ SELECT
     COUNT(*) as requests_in_hour,
     COUNT(DISTINCT ual.action_type) as unique_actions,
     AVG(CASE WHEN ual.action_result = 'success' THEN 1 ELSE 0 END) as success_rate
-FROM chunk_schema.access_keys ak
-LEFT JOIN chunk_schema.user_activity_logs ual ON ak.user_id = ual.user_id
+FROM unifiles.access_keys ak
+LEFT JOIN unifiles.user_activity_logs ual ON ak.user_id = ual.user_id
 WHERE ual.created_at >= CURRENT_TIMESTAMP - INTERVAL '24 hours'
 GROUP BY ak.id, ak.name, ak.user_id, DATE_TRUNC('hour', ual.created_at)
 ORDER BY hour_bucket DESC;
@@ -115,7 +115,7 @@ DECLARE
     new_access_key TEXT;
 BEGIN
     -- 检查用户是否存在
-    IF NOT EXISTS (SELECT 1 FROM chunk_schema.users WHERE id = p_user_id) THEN
+    IF NOT EXISTS (SELECT 1 FROM unifiles.users WHERE id = p_user_id) THEN
         RETURN jsonb_build_object(
             'success', false,
             'error', 'user_not_found',
@@ -128,7 +128,7 @@ BEGIN
     new_key_id := 'ak_' || encode(gen_random_bytes(16), 'hex');
     
     -- 插入新的访问密钥
-    INSERT INTO chunk_schema.access_keys (
+    INSERT INTO unifiles.access_keys (
         id, user_id, access_key, name, description, scopes, expires_at,
         max_requests_per_hour, max_requests_per_day, max_file_size_mb, max_knowledge_bases,
         can_create_kb, can_delete_files, can_share_files, can_export_data, allowed_ips
@@ -156,7 +156,7 @@ DECLARE
     updated_count INTEGER;
 BEGIN
     -- 更新访问密钥配置
-    UPDATE chunk_schema.access_keys 
+    UPDATE unifiles.access_keys 
     SET 
         name = COALESCE((p_config->>'name')::TEXT, name),
         description = COALESCE((p_config->>'description')::TEXT, description),
@@ -210,7 +210,7 @@ CREATE OR REPLACE FUNCTION revoke_access_key(p_key_id TEXT) RETURNS JSONB AS $$
 DECLARE
     updated_count INTEGER;
 BEGIN
-    UPDATE chunk_schema.access_keys 
+    UPDATE unifiles.access_keys 
     SET is_active = FALSE,
         updated_at = CURRENT_TIMESTAMP
     WHERE id = p_key_id;
@@ -241,7 +241,7 @@ CREATE OR REPLACE FUNCTION reset_daily_request_counters() RETURNS INTEGER AS $$
 DECLARE
     updated_count INTEGER;
 BEGIN
-    UPDATE chunk_schema.access_keys 
+    UPDATE unifiles.access_keys 
     SET requests_today = 0,
         requests_this_hour = 0,
         last_request_reset_date = CURRENT_DATE,
@@ -258,7 +258,7 @@ CREATE OR REPLACE FUNCTION cleanup_unused_access_keys(days_unused INTEGER DEFAUL
 DECLARE
     deleted_count INTEGER;
 BEGIN
-    DELETE FROM chunk_schema.access_keys 
+    DELETE FROM unifiles.access_keys 
     WHERE last_used_at < CURRENT_TIMESTAMP - (days_unused || ' days')::INTERVAL
       AND is_active = FALSE;
     

@@ -17,7 +17,7 @@ class SecureFileDBManager:
         self.pg_config = read_pg_config()
         self.security_enforcer = DatabaseSecurityEnforcer()
         self._connection_pool = None
-        self._schema_name = "chunk_schema"  # 从配置中读取
+        self._schema_name = "unifiles"  # 从配置中读取
 
     async def init_connection_pool(self, min_size: int = 5, max_size: int = 20):
         """初始化连接池"""

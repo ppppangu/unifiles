@@ -144,7 +144,7 @@ class DatabaseSecurityEnforcer:
             是否允许访问
         """
         if allowed_schemas is None:
-            allowed_schemas = ["chunk_schema", "public"]
+            allowed_schemas = ["unifiles", "public"]
 
         return schema_name in allowed_schemas
 

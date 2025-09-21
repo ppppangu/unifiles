@@ -42,7 +42,7 @@ class StorageConfig:
 ### 数据库Schema
 
 ```sql
-CREATE TABLE chunk_schema.storage_configs (
+CREATE TABLE unifiles.storage_configs (
     id TEXT PRIMARY KEY,
     storage_name TEXT NOT NULL,
     connection_config JSONB NOT NULL,        -- JSON存储连接配置

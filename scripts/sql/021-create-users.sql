@@ -21,7 +21,7 @@
 -- ================================
 
 -- 用户表
-CREATE TABLE IF NOT EXISTS chunk_schema.users (
+CREATE TABLE IF NOT EXISTS unifiles.users (
     -- 主键标识
     id TEXT PRIMARY KEY,                                    -- 用户唯一标识
     
@@ -59,7 +59,7 @@ CREATE TABLE IF NOT EXISTS chunk_schema.users (
 -- ================================
 
 -- 用户操作日志表
-CREATE TABLE IF NOT EXISTS chunk_schema.user_activity_logs (
+CREATE TABLE IF NOT EXISTS unifiles.user_activity_logs (
     -- 主键标识
     id TEXT PRIMARY KEY,                                    -- 日志ID
     user_id TEXT NOT NULL,                                 -- 用户ID
@@ -86,7 +86,7 @@ CREATE TABLE IF NOT EXISTS chunk_schema.user_activity_logs (
     
     -- 外键约束
     CONSTRAINT fk_user_activity_logs_user_id 
-        FOREIGN KEY (user_id) REFERENCES chunk_schema.users(id) ON DELETE CASCADE,
+        FOREIGN KEY (user_id) REFERENCES unifiles.users(id) ON DELETE CASCADE,
     
     -- 检查约束
     CONSTRAINT chk_user_activity_logs_action_result 
@@ -98,7 +98,7 @@ CREATE TABLE IF NOT EXISTS chunk_schema.user_activity_logs (
 -- ================================
 
 -- 创建更新时间戳的触发器函数
-CREATE OR REPLACE FUNCTION chunk_schema.update_updated_at_column()
+CREATE OR REPLACE FUNCTION unifiles.update_updated_at_column()
 RETURNS TRIGGER AS $$
 BEGIN
     NEW.updated_at = CURRENT_TIMESTAMP;
@@ -108,16 +108,16 @@ $$ language 'plpgsql';
 
 -- 为用户表添加更新时间戳触发器
 CREATE TRIGGER trigger_users_updated_at
-    BEFORE UPDATE ON chunk_schema.users
+    BEFORE UPDATE ON unifiles.users
     FOR EACH ROW
-    EXECUTE FUNCTION chunk_schema.update_updated_at_column();
+    EXECUTE FUNCTION unifiles.update_updated_at_column();
 
 -- ================================
 -- 用户访问密钥表 (User Access Keys)
 -- ================================
 
 -- 访问密钥表
-CREATE TABLE IF NOT EXISTS chunk_schema.access_keys (
+CREATE TABLE IF NOT EXISTS unifiles.access_keys (
     -- 主键标识
     id TEXT PRIMARY KEY DEFAULT ('ak_' || encode(gen_random_bytes(16), 'hex')),
     user_id TEXT NOT NULL,                                 -- 用户ID
@@ -161,7 +161,7 @@ CREATE TABLE IF NOT EXISTS chunk_schema.access_keys (
 
     -- 外键约束
     CONSTRAINT fk_access_keys_user_id
-        FOREIGN KEY (user_id) REFERENCES chunk_schema.users(id) ON DELETE CASCADE,
+        FOREIGN KEY (user_id) REFERENCES unifiles.users(id) ON DELETE CASCADE,
 
     -- 确保access_key的唯一性和安全性
     CONSTRAINT chk_access_keys_length CHECK (length(access_key) >= 32),
@@ -185,12 +185,12 @@ CREATE TABLE IF NOT EXISTS chunk_schema.access_keys (
 -- ================================
 
 -- 提高access_keys查询性能的索引
-CREATE INDEX IF NOT EXISTS idx_access_keys_user_id ON chunk_schema.access_keys(user_id);
-CREATE INDEX IF NOT EXISTS idx_access_keys_token ON chunk_schema.access_keys(access_key) WHERE is_active = TRUE;
-CREATE INDEX IF NOT EXISTS idx_access_keys_active ON chunk_schema.access_keys(is_active, expires_at);
-CREATE INDEX IF NOT EXISTS idx_access_keys_last_used ON chunk_schema.access_keys(last_used_at);
-CREATE INDEX IF NOT EXISTS idx_access_keys_reset_date ON chunk_schema.access_keys(last_request_reset_date);
-CREATE INDEX IF NOT EXISTS idx_access_keys_scopes ON chunk_schema.access_keys USING gin(scopes);
+CREATE INDEX IF NOT EXISTS idx_access_keys_user_id ON unifiles.access_keys(user_id);
+CREATE INDEX IF NOT EXISTS idx_access_keys_token ON unifiles.access_keys(access_key) WHERE is_active = TRUE;
+CREATE INDEX IF NOT EXISTS idx_access_keys_active ON unifiles.access_keys(is_active, expires_at);
+CREATE INDEX IF NOT EXISTS idx_access_keys_last_used ON unifiles.access_keys(last_used_at);
+CREATE INDEX IF NOT EXISTS idx_access_keys_reset_date ON unifiles.access_keys(last_request_reset_date);
+CREATE INDEX IF NOT EXISTS idx_access_keys_scopes ON unifiles.access_keys USING gin(scopes);
 
 -- ================================
 -- 密钥管理函数 (Key Management Functions)
@@ -218,7 +218,7 @@ BEGIN
 
     -- 查找有效的access_key
     SELECT * INTO ak_record
-    FROM chunk_schema.access_keys ak
+    FROM unifiles.access_keys ak
     WHERE ak.access_key = token
       AND ak.is_active = TRUE
       AND (ak.expires_at IS NULL OR ak.expires_at > CURRENT_TIMESTAMP);
@@ -247,7 +247,7 @@ BEGIN
 
     -- 重置请求计数器（如果需要）
     IF ak_record.last_request_reset_date < current_date THEN
-        UPDATE chunk_schema.access_keys
+        UPDATE unifiles.access_keys
         SET requests_today = 0,
             requests_this_hour = 0,
             last_request_reset_date = current_date,
@@ -256,7 +256,7 @@ BEGIN
         ak_record.requests_today := 0;
         ak_record.requests_this_hour := 0;
     ELSIF ak_record.last_request_reset_hour < current_hour THEN
-        UPDATE chunk_schema.access_keys
+        UPDATE unifiles.access_keys
         SET requests_this_hour = 0,
             last_request_reset_hour = current_hour
         WHERE access_key = token;
@@ -284,7 +284,7 @@ BEGIN
     END IF;
 
     -- 更新使用统计
-    UPDATE chunk_schema.access_keys
+    UPDATE unifiles.access_keys
     SET last_used_at = CURRENT_TIMESTAMP,
         total_requests = total_requests + 1,
         requests_today = requests_today + 1,
@@ -311,7 +311,7 @@ CREATE OR REPLACE FUNCTION cleanup_expired_access_keys() RETURNS INTEGER AS $$
 DECLARE
     deleted_count INTEGER;
 BEGIN
-    DELETE FROM chunk_schema.access_keys
+    DELETE FROM unifiles.access_keys
     WHERE expires_at IS NOT NULL
       AND expires_at < CURRENT_TIMESTAMP;
 
@@ -377,7 +377,7 @@ DECLARE
     ak_record RECORD;
 BEGIN
     SELECT * INTO ak_record
-    FROM chunk_schema.access_keys
+    FROM unifiles.access_keys
     WHERE access_key = token AND is_active = TRUE;
 
     IF ak_record IS NULL THEN
@@ -411,7 +411,7 @@ $$ LANGUAGE plpgsql;
 
 -- 触发器：自动生成access_key
 CREATE TRIGGER access_keys_auto_generate
-    BEFORE INSERT ON chunk_schema.access_keys
+    BEFORE INSERT ON unifiles.access_keys
     FOR EACH ROW
     EXECUTE FUNCTION auto_generate_access_key();
 
@@ -421,6 +421,6 @@ CREATE TRIGGER access_keys_auto_generate
 
 -- 插入系统管理员用户（示例）
 -- 注意: 生产环境中应该通过安全的方式创建管理员账户
-INSERT INTO chunk_schema.users (id, username, display_name, user_role, user_status)
+INSERT INTO unifiles.users (id, username, display_name, user_role, user_status)
 VALUES ('system-admin', 'admin', 'System Administrator', 'admin', 'active')
 ON CONFLICT (id) DO NOTHING;

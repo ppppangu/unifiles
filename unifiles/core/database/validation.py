@@ -17,7 +17,7 @@ async def validate_user_id(user_id: str) -> bool:
     pg_config = read_pg_config()
     async with asyncpg.create_pool(**pg_config) as pool, pool.acquire() as conn:
         async with conn.transaction():
-            query = "SELECT EXISTS(SELECT 1 FROM chunk_schema.users WHERE id = $1)"
+            query = "SELECT EXISTS(SELECT 1 FROM unifiles.users WHERE id = $1)"
             result = await conn.fetch(query, user_id)
             return result[0]["exists"]
 

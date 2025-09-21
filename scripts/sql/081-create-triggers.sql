@@ -23,7 +23,7 @@
 -- ================================
 
 -- 生成UUID函数
-CREATE OR REPLACE FUNCTION chunk_schema.generate_uuid() 
+CREATE OR REPLACE FUNCTION unifiles.generate_uuid() 
 RETURNS TEXT AS $$
 BEGIN
     RETURN gen_random_uuid()::TEXT;
@@ -31,7 +31,7 @@ END;
 $$ LANGUAGE plpgsql;
 
 -- 更新统计信息函数
-CREATE OR REPLACE FUNCTION chunk_schema.update_statistics(
+CREATE OR REPLACE FUNCTION unifiles.update_statistics(
     table_name TEXT,
     record_id TEXT,
     operation TEXT,
@@ -51,7 +51,7 @@ $$ LANGUAGE plpgsql;
 -- ================================
 
 -- 根据存储配置生成URL的函数（修正版本，基于实际表结构）
-CREATE OR REPLACE FUNCTION chunk_schema.generate_storage_urls(
+CREATE OR REPLACE FUNCTION unifiles.generate_storage_urls(
     storage_config_id_param TEXT,
     storage_path_param TEXT
 ) 
@@ -66,13 +66,13 @@ BEGIN
     -- 建议在应用层指定具体的storage_config_id
     IF storage_config_id_param IS NULL THEN
         SELECT * INTO config_rec
-        FROM chunk_schema.storage_configs
+        FROM unifiles.storage_configs
         WHERE is_active = true
         ORDER BY created_at ASC
         LIMIT 1;
     ELSE
         SELECT * INTO config_rec
-        FROM chunk_schema.storage_configs
+        FROM unifiles.storage_configs
         WHERE id = storage_config_id_param AND is_active = true;
     END IF;
     
@@ -107,7 +107,7 @@ $$ LANGUAGE plpgsql;
 -- ================================
 
 -- 更新知识库统计信息的函数（基于简化后的结构）
-CREATE OR REPLACE FUNCTION chunk_schema.update_knowledge_base_stats()
+CREATE OR REPLACE FUNCTION unifiles.update_knowledge_base_stats()
 RETURNS TRIGGER AS $$
 DECLARE
     kb_id TEXT;
@@ -125,26 +125,26 @@ BEGIN
     
     -- 计算统计数据
     SELECT COUNT(*) INTO doc_count 
-    FROM chunk_schema.documents 
+    FROM unifiles.documents 
     WHERE knowledge_base_id = kb_id;
     
     SELECT COUNT(*) INTO comp_count
-    FROM chunk_schema.components c
-    INNER JOIN chunk_schema.documents d ON c.document_id = d.id
+    FROM unifiles.components c
+    INNER JOIN unifiles.documents d ON c.document_id = d.id
     WHERE d.knowledge_base_id = kb_id;
     
     SELECT COUNT(*) INTO chunk_count
-    FROM chunk_schema.components c
-    INNER JOIN chunk_schema.documents d ON c.document_id = d.id
+    FROM unifiles.components c
+    INNER JOIN unifiles.documents d ON c.document_id = d.id
     WHERE d.knowledge_base_id = kb_id AND c.component_type = 'chunk';
     
     SELECT COUNT(*) INTO photo_count
-    FROM chunk_schema.components c
-    INNER JOIN chunk_schema.documents d ON c.document_id = d.id
+    FROM unifiles.components c
+    INNER JOIN unifiles.documents d ON c.document_id = d.id
     WHERE d.knowledge_base_id = kb_id AND c.component_type = 'photo';
     
     -- 更新知识库的document_ids字段（保留基本统计信息）
-    UPDATE chunk_schema.knowledge_bases 
+    UPDATE unifiles.knowledge_bases 
     SET 
         updated_at = CURRENT_TIMESTAMP
     WHERE id = kb_id;
@@ -159,12 +159,12 @@ $$ LANGUAGE plpgsql;
 
 -- 为文档表添加知识库统计更新触发器
 CREATE TRIGGER trigger_documents_update_kb_stats
-    AFTER INSERT OR UPDATE OR DELETE ON chunk_schema.documents
+    AFTER INSERT OR UPDATE OR DELETE ON unifiles.documents
     FOR EACH ROW
-    EXECUTE FUNCTION chunk_schema.update_knowledge_base_stats();
+    EXECUTE FUNCTION unifiles.update_knowledge_base_stats();
 
 -- 更新文档统计信息的函数（基于简化后的结构）
-CREATE OR REPLACE FUNCTION chunk_schema.update_document_stats()
+CREATE OR REPLACE FUNCTION unifiles.update_document_stats()
 RETURNS TRIGGER AS $$
 DECLARE
     doc_id TEXT;
@@ -181,19 +181,19 @@ BEGIN
     
     -- 计算统计数据
     SELECT COUNT(*) INTO comp_count
-    FROM chunk_schema.components
+    FROM unifiles.components
     WHERE document_id = doc_id;
     
     SELECT COUNT(*) INTO chunk_count
-    FROM chunk_schema.components
+    FROM unifiles.components
     WHERE document_id = doc_id AND component_type = 'chunk';
     
     SELECT COUNT(*) INTO photo_count
-    FROM chunk_schema.components
+    FROM unifiles.components
     WHERE document_id = doc_id AND component_type = 'photo';
     
     -- 更新文档统计（对于简化后的文档表，只更新updated_at）
-    UPDATE chunk_schema.documents 
+    UPDATE unifiles.documents 
     SET 
         updated_at = CURRENT_TIMESTAMP
     WHERE id = doc_id;
@@ -208,9 +208,9 @@ $$ LANGUAGE plpgsql;
 
 -- 为组件表添加文档统计更新触发器
 CREATE TRIGGER trigger_components_update_doc_stats
-    AFTER INSERT OR UPDATE OR DELETE ON chunk_schema.components
+    AFTER INSERT OR UPDATE OR DELETE ON unifiles.components
     FOR EACH ROW
-    EXECUTE FUNCTION chunk_schema.update_document_stats();
+    EXECUTE FUNCTION unifiles.update_document_stats();
 
 -- ================================
 -- 文件统计同步触发器 (File Statistics Triggers)
@@ -223,7 +223,7 @@ CREATE TRIGGER trigger_components_update_doc_stats
 -- ================================
 
 -- 记录用户活动的函数
-CREATE OR REPLACE FUNCTION chunk_schema.log_user_activity()
+CREATE OR REPLACE FUNCTION unifiles.log_user_activity()
 RETURNS TRIGGER AS $$
 DECLARE
     action_desc TEXT;
@@ -254,13 +254,13 @@ BEGIN
             resource_id_val := NEW.id;
             -- 需要通过知识库获取用户ID
             SELECT user_id INTO user_id_val 
-            FROM chunk_schema.knowledge_bases 
+            FROM unifiles.knowledge_bases 
             WHERE id = NEW.knowledge_base_id;
         ELSIF TG_OP = 'DELETE' THEN
             action_desc := 'Removed document: ' || COALESCE(OLD.title, 'Untitled');
             resource_id_val := OLD.id;
             SELECT user_id INTO user_id_val 
-            FROM chunk_schema.knowledge_bases 
+            FROM unifiles.knowledge_bases 
             WHERE id = OLD.knowledge_base_id;
         END IF;
     ELSIF TG_TABLE_NAME = 'files' THEN
@@ -298,19 +298,19 @@ $$ LANGUAGE plpgsql;
 -- 如果需要记录活动，建议在应用层处理
 /*
 CREATE TRIGGER trigger_knowledge_bases_activity_log
-    AFTER INSERT OR UPDATE OR DELETE ON chunk_schema.knowledge_bases
+    AFTER INSERT OR UPDATE OR DELETE ON unifiles.knowledge_bases
     FOR EACH ROW
-    EXECUTE FUNCTION chunk_schema.log_user_activity();
+    EXECUTE FUNCTION unifiles.log_user_activity();
 
 CREATE TRIGGER trigger_documents_activity_log
-    AFTER INSERT OR DELETE ON chunk_schema.documents
+    AFTER INSERT OR DELETE ON unifiles.documents
     FOR EACH ROW
-    EXECUTE FUNCTION chunk_schema.log_user_activity();
+    EXECUTE FUNCTION unifiles.log_user_activity();
 
 CREATE TRIGGER trigger_files_activity_log
-    AFTER INSERT OR UPDATE OR DELETE ON chunk_schema.files
+    AFTER INSERT OR UPDATE OR DELETE ON unifiles.files
     FOR EACH ROW
-    EXECUTE FUNCTION chunk_schema.log_user_activity();
+    EXECUTE FUNCTION unifiles.log_user_activity();
 */
 
 -- ================================
@@ -318,7 +318,7 @@ CREATE TRIGGER trigger_files_activity_log
 -- ================================
 
 -- 文件URL自动生成和更新函数（基于实际表结构）
-CREATE OR REPLACE FUNCTION chunk_schema.update_file_urls()
+CREATE OR REPLACE FUNCTION unifiles.update_file_urls()
 RETURNS TRIGGER AS $$
 BEGIN
     -- 由于files表中没有URL相关字段，此触发器保持为占位符
@@ -330,12 +330,12 @@ $$ LANGUAGE plpgsql;
 
 -- 为files表添加URL自动生成触发器
 CREATE TRIGGER trigger_files_update_urls
-    BEFORE INSERT OR UPDATE ON chunk_schema.files
+    BEFORE INSERT OR UPDATE ON unifiles.files
     FOR EACH ROW
-    EXECUTE FUNCTION chunk_schema.update_file_urls();
+    EXECUTE FUNCTION unifiles.update_file_urls();
 
 -- 提取资源URL自动生成和更新函数（基于实际表结构）
-CREATE OR REPLACE FUNCTION chunk_schema.update_asset_urls()
+CREATE OR REPLACE FUNCTION unifiles.update_asset_urls()
 RETURNS TRIGGER AS $$
 BEGIN
     -- 由于extracted_assets表中没有URL相关字段，此触发器保持为占位符
@@ -347,12 +347,12 @@ $$ LANGUAGE plpgsql;
 
 -- 为extracted_assets表添加URL自动生成触发器
 CREATE TRIGGER trigger_assets_update_urls
-    BEFORE INSERT OR UPDATE ON chunk_schema.extracted_assets
+    BEFORE INSERT OR UPDATE ON unifiles.extracted_assets
     FOR EACH ROW
-    EXECUTE FUNCTION chunk_schema.update_asset_urls();
+    EXECUTE FUNCTION unifiles.update_asset_urls();
 
 -- 存储配置变更时更新相关文件URL的函数（基于实际表结构）
-CREATE OR REPLACE FUNCTION chunk_schema.update_files_on_config_change()
+CREATE OR REPLACE FUNCTION unifiles.update_files_on_config_change()
 RETURNS TRIGGER AS $$
 BEGIN
     -- 当存储配置的关键信息发生变化时，更新相关文件的时间戳
@@ -364,12 +364,12 @@ BEGIN
         OLD.is_active IS DISTINCT FROM NEW.is_active
     ) THEN
         -- 更新files表中使用此配置的记录
-        UPDATE chunk_schema.files 
+        UPDATE unifiles.files 
         SET updated_at = CURRENT_TIMESTAMP
         WHERE storage_config_id = NEW.id;
         
         -- 更新extracted_assets表中使用此配置的记录
-        UPDATE chunk_schema.extracted_assets 
+        UPDATE unifiles.extracted_assets 
         SET created_at = created_at  -- 触发相关处理但不改变时间戳
         WHERE storage_config_id = NEW.id;
         
@@ -382,16 +382,16 @@ $$ LANGUAGE plpgsql;
 
 -- 为storage_configs表添加配置变更触发器
 CREATE TRIGGER trigger_storage_configs_update_urls
-    AFTER UPDATE ON chunk_schema.storage_configs
+    AFTER UPDATE ON unifiles.storage_configs
     FOR EACH ROW
-    EXECUTE FUNCTION chunk_schema.update_files_on_config_change();
+    EXECUTE FUNCTION unifiles.update_files_on_config_change();
 
 -- ================================
 -- 数据完整性维护触发器 (Data Integrity Triggers)
 -- ================================
 
 -- 维护文档ID列表的函数
-CREATE OR REPLACE FUNCTION chunk_schema.maintain_document_ids()
+CREATE OR REPLACE FUNCTION unifiles.maintain_document_ids()
 RETURNS TRIGGER AS $$
 DECLARE
     kb_id TEXT;
@@ -406,11 +406,11 @@ BEGIN
     
     -- 获取当前知识库的所有文档ID
     SELECT array_agg(id ORDER BY created_at) INTO doc_ids
-    FROM chunk_schema.documents
+    FROM unifiles.documents
     WHERE knowledge_base_id = kb_id;
     
     -- 更新知识库的文档ID列表
-    UPDATE chunk_schema.knowledge_bases
+    UPDATE unifiles.knowledge_bases
     SET 
         document_ids = COALESCE(doc_ids, '{}'),
         updated_at = CURRENT_TIMESTAMP
@@ -426,16 +426,16 @@ $$ LANGUAGE plpgsql;
 
 -- 为文档表添加文档ID列表维护触发器
 CREATE TRIGGER trigger_documents_maintain_ids
-    AFTER INSERT OR DELETE ON chunk_schema.documents
+    AFTER INSERT OR DELETE ON unifiles.documents
     FOR EACH ROW
-    EXECUTE FUNCTION chunk_schema.maintain_document_ids();
+    EXECUTE FUNCTION unifiles.maintain_document_ids();
 
 -- ================================
 -- 缓存无效化触发器 (Cache Invalidation Triggers)
 -- ================================
 
 -- 缓存无效化函数
-CREATE OR REPLACE FUNCTION chunk_schema.invalidate_cache()
+CREATE OR REPLACE FUNCTION unifiles.invalidate_cache()
 RETURNS TRIGGER AS $$
 BEGIN
     -- 这里可以实现缓存无效化逻辑
@@ -455,9 +455,9 @@ $$ LANGUAGE plpgsql;
 
 -- 为关键表添加缓存无效化触发器
 CREATE TRIGGER trigger_components_cache_invalidation
-    AFTER INSERT OR UPDATE OR DELETE ON chunk_schema.components
+    AFTER INSERT OR UPDATE OR DELETE ON unifiles.components
     FOR EACH ROW
-    EXECUTE FUNCTION chunk_schema.invalidate_cache();
+    EXECUTE FUNCTION unifiles.invalidate_cache();
 
 -- ================================
 -- 组件链关系维护触发器 (Component Chain Triggers)
@@ -468,7 +468,7 @@ CREATE TRIGGER trigger_components_cache_invalidation
 -- 或者扩展chunks表结构添加previous_chunk_id和next_chunk_id字段
 
 -- 占位符函数，避免触发器引用错误
-CREATE OR REPLACE FUNCTION chunk_schema.maintain_chunk_chain()
+CREATE OR REPLACE FUNCTION unifiles.maintain_chunk_chain()
 RETURNS TRIGGER AS $$
 BEGIN
     -- 此功能已禁用，因为chunks表中没有链关系字段
@@ -479,60 +479,60 @@ $$ LANGUAGE plpgsql;
 
 -- 暂时禁用此触发器，因为相关字段不存在
 -- CREATE TRIGGER trigger_chunks_maintain_chain
---     AFTER INSERT ON chunk_schema.chunks
+--     AFTER INSERT ON unifiles.chunks
 --     FOR EACH ROW
---     EXECUTE FUNCTION chunk_schema.maintain_chunk_chain();
+--     EXECUTE FUNCTION unifiles.maintain_chunk_chain();
 
 -- ================================
 -- 触发器管理函数 (Trigger Management Functions)
 -- ================================
 
 -- 禁用所有统计触发器的函数（用于批量数据操作）
-CREATE OR REPLACE FUNCTION chunk_schema.disable_stats_triggers()
+CREATE OR REPLACE FUNCTION unifiles.disable_stats_triggers()
 RETURNS VOID AS $$
 BEGIN
-    ALTER TABLE chunk_schema.documents DISABLE TRIGGER trigger_documents_update_kb_stats;
-    ALTER TABLE chunk_schema.components DISABLE TRIGGER trigger_components_update_doc_stats;
+    ALTER TABLE unifiles.documents DISABLE TRIGGER trigger_documents_update_kb_stats;
+    ALTER TABLE unifiles.components DISABLE TRIGGER trigger_components_update_doc_stats;
     -- 文件统计同步触发器已被移除
     RAISE NOTICE 'Statistics triggers disabled';
 END;
 $$ LANGUAGE plpgsql;
 
 -- 启用所有统计触发器的函数
-CREATE OR REPLACE FUNCTION chunk_schema.enable_stats_triggers()
+CREATE OR REPLACE FUNCTION unifiles.enable_stats_triggers()
 RETURNS VOID AS $$
 BEGIN
-    ALTER TABLE chunk_schema.documents ENABLE TRIGGER trigger_documents_update_kb_stats;
-    ALTER TABLE chunk_schema.components ENABLE TRIGGER trigger_components_update_doc_stats;
+    ALTER TABLE unifiles.documents ENABLE TRIGGER trigger_documents_update_kb_stats;
+    ALTER TABLE unifiles.components ENABLE TRIGGER trigger_components_update_doc_stats;
     -- 文件统计同步触发器已被移除
     RAISE NOTICE 'Statistics triggers enabled';
 END;
 $$ LANGUAGE plpgsql;
 
 -- 禁用URL生成触发器的函数（用于批量数据迁移）
-CREATE OR REPLACE FUNCTION chunk_schema.disable_url_triggers()
+CREATE OR REPLACE FUNCTION unifiles.disable_url_triggers()
 RETURNS VOID AS $$
 BEGIN
-    ALTER TABLE chunk_schema.files DISABLE TRIGGER trigger_files_update_urls;
-    ALTER TABLE chunk_schema.extracted_assets DISABLE TRIGGER trigger_assets_update_urls;
-    ALTER TABLE chunk_schema.storage_configs DISABLE TRIGGER trigger_storage_configs_update_urls;
+    ALTER TABLE unifiles.files DISABLE TRIGGER trigger_files_update_urls;
+    ALTER TABLE unifiles.extracted_assets DISABLE TRIGGER trigger_assets_update_urls;
+    ALTER TABLE unifiles.storage_configs DISABLE TRIGGER trigger_storage_configs_update_urls;
     RAISE NOTICE 'URL generation triggers disabled';
 END;
 $$ LANGUAGE plpgsql;
 
 -- 启用URL生成触发器的函数
-CREATE OR REPLACE FUNCTION chunk_schema.enable_url_triggers()
+CREATE OR REPLACE FUNCTION unifiles.enable_url_triggers()
 RETURNS VOID AS $$
 BEGIN
-    ALTER TABLE chunk_schema.files ENABLE TRIGGER trigger_files_update_urls;
-    ALTER TABLE chunk_schema.extracted_assets ENABLE TRIGGER trigger_assets_update_urls;
-    ALTER TABLE chunk_schema.storage_configs ENABLE TRIGGER trigger_storage_configs_update_urls;
+    ALTER TABLE unifiles.files ENABLE TRIGGER trigger_files_update_urls;
+    ALTER TABLE unifiles.extracted_assets ENABLE TRIGGER trigger_assets_update_urls;
+    ALTER TABLE unifiles.storage_configs ENABLE TRIGGER trigger_storage_configs_update_urls;
     RAISE NOTICE 'URL generation triggers enabled';
 END;
 $$ LANGUAGE plpgsql;
 
 -- 批量更新文件URL的函数（用于存储迁移）
-CREATE OR REPLACE FUNCTION chunk_schema.batch_update_file_urls(
+CREATE OR REPLACE FUNCTION unifiles.batch_update_file_urls(
     storage_config_id_param TEXT DEFAULT NULL
 )
 RETURNS INTEGER AS $$
@@ -541,24 +541,24 @@ DECLARE
     updated_assets_count INTEGER := 0;
 BEGIN
     -- 禁用URL触发器以避免递归调用
-    PERFORM chunk_schema.disable_url_triggers();
+    PERFORM unifiles.disable_url_triggers();
     
     -- 更新files表
-    UPDATE chunk_schema.files 
+    UPDATE unifiles.files 
     SET updated_at = CURRENT_TIMESTAMP
     WHERE (storage_config_id_param IS NULL OR storage_config_id = storage_config_id_param);
     
     GET DIAGNOSTICS updated_files_count = ROW_COUNT;
     
     -- 更新extracted_assets表
-    UPDATE chunk_schema.extracted_assets 
+    UPDATE unifiles.extracted_assets 
     SET created_at = created_at  -- 触发URL更新但不改变时间戳
     WHERE (storage_config_id_param IS NULL OR storage_config_id = storage_config_id_param);
     
     GET DIAGNOSTICS updated_assets_count = ROW_COUNT;
     
     -- 重新启用URL触发器
-    PERFORM chunk_schema.enable_url_triggers();
+    PERFORM unifiles.enable_url_triggers();
     
     RAISE NOTICE 'Batch updated URLs: % files, % assets', updated_files_count, updated_assets_count;
     
@@ -574,7 +574,7 @@ $$ LANGUAGE plpgsql;
 -- ================================
 
 -- 创建触发器状态监控视图
-CREATE OR REPLACE VIEW chunk_schema.trigger_status AS
+CREATE OR REPLACE VIEW unifiles.trigger_status AS
 SELECT 
     schemaname,
     tablename,
@@ -591,6 +591,6 @@ SELECT
 FROM pg_trigger t
 INNER JOIN pg_class c ON t.tgrelid = c.oid
 INNER JOIN pg_namespace n ON c.relnamespace = n.oid
-WHERE n.nspname = 'chunk_schema'
+WHERE n.nspname = 'unifiles'
 AND NOT t.tgisinternal
 ORDER BY schemaname, tablename, triggername;
