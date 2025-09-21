@@ -46,6 +46,7 @@ CREATE TABLE IF NOT EXISTS chunk_schema.storage_configs (
     -- 状态信息
     is_active BOOLEAN DEFAULT TRUE,                       -- 是否启用
     is_default BOOLEAN DEFAULT FALSE,                     -- 是否默认存储
+    config_source TEXT DEFAULT 'manual',                  -- 配置来源：'env' 从环境变量初始化, 'manual' 手动添加
     
     -- 时间戳
     created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,     -- 创建时间
@@ -53,7 +54,9 @@ CREATE TABLE IF NOT EXISTS chunk_schema.storage_configs (
     
     -- 检查约束
     CONSTRAINT chk_storage_configs_storage_type 
-        CHECK (storage_type IN ('local', 'object_storage'))
+        CHECK (storage_type IN ('local', 'object_storage')),
+    CONSTRAINT chk_storage_configs_config_source 
+        CHECK (config_source IN ('env', 'manual'))
 );
 
 -- ================================
@@ -179,12 +182,9 @@ CREATE TRIGGER trigger_files_updated_at
 -- ================================
 
 -- 插入默认存储配置
-INSERT INTO chunk_schema.storage_configs (id, storage_type, storage_name, is_active, is_default, base_path, public_url_prefix)
+INSERT INTO chunk_schema.storage_configs (id, storage_type, storage_name, is_active, is_default, base_path, public_url_prefix, config_source)
 VALUES 
-    ('default-local', 'local', 'Local Storage', true, true, '/uploads', 'http://localhost:8000/files'),
-    ('example-minio', 'object_storage', 'MinIO Object Storage', false, false, '', 'https://minio.example.com/bucket')
+    ('default-local', 'local', 'Local Storage', true, true, '/uploads', 'http://localhost:8000/files', 'env'),
+    ('example-minio', 'object_storage', 'MinIO Object Storage', false, false, '', 'https://minio.example.com/bucket', 'env')
 ON CONFLICT (id) DO NOTHING;
-
--- 文件公网访问链接生成
--- 文件公网访问关闭
 

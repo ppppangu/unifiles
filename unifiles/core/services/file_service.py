@@ -9,24 +9,25 @@ from unifiles.app.schemas import FileInfo, FileListResponse, FileUploadResponse
 from unifiles.core.database.base import FileDBManager
 from unifiles.core.security.authorization import FileAccessControl
 from unifiles.core.security.validators import FileSecurityValidator
-from unifiles.core.storage.base import StorageBackend
+from unifiles.core.storage import Storage, get_storage
 
 
 class FileService:
     """文件管理业务逻辑服务"""
 
-    def __init__(self, storage_backend: StorageBackend, db_manager: FileDBManager):
+    def __init__(self, storage: Optional[Storage] = None, db_manager: Optional[FileDBManager] = None):
         """
         初始化文件服务
 
         Args:
-            storage_backend: 存储后端
+            storage: 存储实例，如果为None则使用默认实例
             db_manager: 数据库管理器
         """
-        self.storage = storage_backend
+        self.storage = storage or get_storage()
         self.db = db_manager
         self.validator = FileSecurityValidator()
         self.access_control = FileAccessControl()
+        self._current_backend = None
 
     async def upload_file(
         self,
@@ -94,8 +95,9 @@ class FileService:
             if metadata:
                 file_metadata.update(metadata)
 
-            # 7. 上传到存储后端
-            storage_path = await self.storage.upload_file(
+            # 7. 获取存储后端并上传文件
+            storage_backend = await self.storage.get_default_backend()
+            storage_path = await storage_backend.upload_file(
                 object_path=object_path,
                 content=file_content,
                 content_type=detected_mime_type,
@@ -119,7 +121,7 @@ class FileService:
 
             # 10. 生成访问URL
             access_type = "public" if is_public else "presigned"
-            public_url = self.storage.get_access_url(
+            public_url = storage_backend.get_access_url(
                 object_path=storage_path,
                 access_type=access_type,
                 expires_in_hours=24 if not is_public else None,
@@ -183,8 +185,10 @@ class FileService:
                     # 重新生成访问URL以确保是最新的
                     is_public = record.get("is_public", False)
                     access_type = "public" if is_public else "presigned"
-
-                    fresh_url = self.storage.get_access_url(
+                    
+                    # 获取存储后端（可能需要根据文件的storage_config_id获取特定后端）
+                    storage_backend = await self._get_storage_backend_for_file(record)
+                    fresh_url = storage_backend.get_access_url(
                         object_path=record["storage_path"],
                         access_type=access_type,
                         expires_in_hours=24 if not is_public else None,
@@ -248,8 +252,9 @@ class FileService:
             # 生成最新的访问URL
             is_public = file_record.get("is_public", False)
             access_type = "public" if is_public else "presigned"
-
-            fresh_url = self.storage.get_access_url(
+            
+            storage_backend = await self._get_storage_backend_for_file(file_record)
+            fresh_url = storage_backend.get_access_url(
                 object_path=file_record["storage_path"],
                 access_type=access_type,
                 expires_in_hours=24 if not is_public else None,
@@ -331,7 +336,8 @@ class FileService:
             )
 
             # 从存储后端删除文件
-            storage_deleted = await self.storage.delete_file(
+            storage_backend = await self._get_storage_backend_for_file(file_record)
+            storage_deleted = await storage_backend.delete_file(
                 file_record["storage_path"]
             )
             if not storage_deleted:
@@ -379,7 +385,8 @@ class FileService:
             file_record = await self.access_control.verify_public_file_access(file_id)
 
             # 生成公共访问URL
-            public_url = self.storage.get_access_url(
+            storage_backend = await self._get_storage_backend_for_file(file_record)
+            public_url = storage_backend.get_access_url(
                 object_path=file_record["storage_path"], access_type="public"
             )
 
@@ -410,19 +417,12 @@ class FileService:
             健康状态信息
         """
         try:
-            if hasattr(self.storage, "health_check"):
-                return await self.storage.health_check()
-            # 简单的健康检查
-            return {
-                "status": "healthy",
-                "storage_type": self.storage.get_storage_type(),
-                "message": "Storage backend is accessible",
-            }
+            # 使用Storage的健康检查
+            return await self.storage.health_check()
         except Exception as e:
             logger.error(f"Storage health check failed: {e}")
             return {
                 "status": "unhealthy",
-                "storage_type": self.storage.get_storage_type(),
                 "error": str(e),
                 "message": "Storage backend is not accessible",
             }
@@ -435,12 +435,36 @@ class FileService:
             存储指标信息
         """
         try:
-            if hasattr(self.storage, "get_metrics"):
-                return self.storage.get_metrics()
+            # 获取默认存储后端的指标
+            storage_backend = await self.storage.get_default_backend()
+            if hasattr(storage_backend, "get_metrics"):
+                return storage_backend.get_metrics()
             return {
-                "storage_type": self.storage.get_storage_type(),
+                "storage_type": storage_backend.get_storage_type(),
                 "message": "Metrics not available for this storage backend",
             }
         except Exception as e:
             logger.error(f"Failed to get storage metrics: {e}")
             return {"error": str(e), "message": "Failed to retrieve storage metrics"}
+    
+    async def _get_storage_backend_for_file(self, file_record: Dict[str, Any]):
+        """
+        根据文件记录获取对应的存储后端
+        
+        Args:
+            file_record: 文件记录
+            
+        Returns:
+            存储后端实例
+        """
+        try:
+            # 尝试从文件记录中获取storage_config_id
+            storage_config_id = file_record.get("storage_config_id")
+            if storage_config_id:
+                return await self.storage.get_backend(storage_config_id)
+            else:
+                # 使用默认存储后端
+                return await self.storage.get_default_backend()
+        except Exception as e:
+            logger.warning(f"Failed to get specific storage backend, using default: {e}")
+            return await self.storage.get_default_backend()

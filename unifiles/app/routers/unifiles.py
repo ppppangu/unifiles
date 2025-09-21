@@ -14,7 +14,7 @@ from fastapi import (
 )
 from loguru import logger
 
-from unifiles.app.v1.schemas import (
+from unifiles.app.schemas import (
     FileInfo,
     FileListResponse,
     FileUploadResponse,
@@ -23,14 +23,14 @@ from unifiles.app.v1.schemas import (
 )
 from unifiles.core.database import secure_file_db_manager
 from unifiles.core.services import AuthService, FileService
-from unifiles.core.storage.factory import create_default_storage
+from unifiles.core.storage import get_initialized_storage
 
 
 # 创建服务实例
-def get_file_service() -> FileService:
+async def get_file_service() -> FileService:
     """获取文件服务实例"""
-    storage_backend = create_default_storage()
-    return FileService(storage_backend, secure_file_db_manager)
+    storage = await get_initialized_storage()
+    return FileService(storage, secure_file_db_manager)
 
 
 def get_auth_service() -> AuthService:
@@ -46,6 +46,11 @@ async def get_user_context(
 ) -> dict:
     """提取用户上下文"""
     return await auth_service.extract_user_from_request(request)
+
+
+async def get_file_service_instance() -> FileService:
+    """异步获取文件服务实例"""
+    return await get_file_service()
 
 
 # 常量定义（从原文件迁移）
@@ -97,7 +102,7 @@ async def upload_file(
     file: UploadFile = File(...),
     is_public: bool = Query(default=False, description="是否设置为公开访问"),
     user_context: dict = Depends(get_user_context),
-    file_service: FileService = Depends(get_file_service),
+    file_service: FileService = Depends(get_file_service_instance),
 ):
     """
     安全上传文件到存储
@@ -139,7 +144,7 @@ async def list_user_files(
     limit: int = Query(default=50, description="返回数量限制", ge=1, le=100),
     offset: int = Query(default=0, description="分页偏移量", ge=0),
     user_context: dict = Depends(get_user_context),
-    file_service: FileService = Depends(get_file_service),
+    file_service: FileService = Depends(get_file_service_instance),
 ):
     """获取当前用户的所有文件列表"""
     try:
@@ -167,7 +172,7 @@ async def list_user_files(
 async def get_file_info(
     file_id: str = FastAPIPath(..., description="文件ID"),
     user_context: dict = Depends(get_user_context),
-    file_service: FileService = Depends(get_file_service),
+    file_service: FileService = Depends(get_file_service_instance),
 ):
     """获取文件信息"""
     try:
@@ -191,7 +196,7 @@ async def update_file_public_status(
     file_id: str = FastAPIPath(..., description="文件ID"),
     is_public: bool = Query(description="是否设置为公开访问"),
     user_context: dict = Depends(get_user_context),
-    file_service: FileService = Depends(get_file_service),
+    file_service: FileService = Depends(get_file_service_instance),
 ):
     """更新文件的公开访问状态"""
     try:
@@ -224,7 +229,7 @@ async def update_file_public_status(
 async def delete_file(
     file_id: str = FastAPIPath(..., description="文件ID"),
     user_context: dict = Depends(get_user_context),
-    file_service: FileService = Depends(get_file_service),
+    file_service: FileService = Depends(get_file_service_instance),
 ):
     """删除文件"""
     try:
@@ -249,7 +254,7 @@ async def delete_file(
 @router.get("/public/{file_id}", response_model=FileInfo)
 async def get_public_file_info(
     file_id: str = FastAPIPath(..., description="文件ID"),
-    file_service: FileService = Depends(get_file_service),
+    file_service: FileService = Depends(get_file_service_instance),
 ):
     """获取公共文件信息（无需认证）"""
     try:
@@ -273,7 +278,7 @@ async def get_public_file_info(
 @router.get("/admin/health", response_model=dict)
 async def get_storage_health(
     user_context: dict = Depends(get_user_context),
-    file_service: FileService = Depends(get_file_service),
+    file_service: FileService = Depends(get_file_service_instance),
 ):
     """获取存储后端健康状态（管理员功能）"""
     try:
@@ -292,7 +297,7 @@ async def get_storage_health(
 @router.get("/admin/metrics", response_model=dict)
 async def get_storage_metrics(
     user_context: dict = Depends(get_user_context),
-    file_service: FileService = Depends(get_file_service),
+    file_service: FileService = Depends(get_file_service_instance),
 ):
     """获取存储指标（管理员功能）"""
     try:
@@ -331,33 +336,5 @@ async def get_user_storage_stats(user_context: dict = Depends(get_user_context))
         )
 
 
-# 错误处理中间件集成
-@router.middleware("http")
-async def security_logging_middleware(request: Request, call_next):
-    """安全日志中间件"""
-    start_time = datetime.now()
-
-    # 记录请求开始
-    client_ip = getattr(request.state, "client_ip", "unknown")
-    user_id = getattr(request.state, "user_id", "anonymous")
-
-    logger.info(
-        f"API Request: {request.method} {request.url.path} from {client_ip} by {user_id}"
-    )
-
-    try:
-        response = await call_next(request)
-
-        # 记录成功响应
-        duration = (datetime.now() - start_time).total_seconds()
-        logger.info(
-            f"API Response: {response.status_code} for {request.url.path} in {duration:.3f}s"
-        )
-
-        return response
-
-    except Exception as e:
-        # 记录异常
-        duration = (datetime.now() - start_time).total_seconds()
-        logger.error(f"API Error: {request.url.path} failed in {duration:.3f}s: {e!s}")
-        raise
+# Note: Security logging middleware should be added to the main app, not to the router
+# This is handled in unifiles.app.main.py

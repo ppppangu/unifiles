@@ -7,8 +7,8 @@
 import os
 from pathlib import Path
 from typing import Any, Dict, List, Optional
-
 from loguru import logger
+
 
 try:
     from dotenv import load_dotenv
@@ -165,25 +165,44 @@ class EnvironmentConfig:
                 "UNIFILES_STORAGE_MINIO_BUCKET_NAME", "unifiles"
             ),
             "region": self.get_env_value("UNIFILES_STORAGE_MINIO_REGION", "us-east-1"),
-            "use_public_url": self.get_env_value(
-                "UNIFILES_STORAGE_MINIO_USE_PUBLIC_URL", False, bool
-            ),
             "public_url_prefix": self.get_env_value(
                 "UNIFILES_STORAGE_MINIO_PUBLIC_URL_PREFIX", ""
             ),
-            "active": self.get_env_value("UNIFILES_STORAGE_MINIO_ACTIVE", True, bool),
         }
 
         # 解析address字段为host和port（为了向后兼容）
         if "address" in config:
             address = config["address"]
-            if ":" in address:
-                host, port = address.rsplit(":", 1)
-                config["host"] = host
-                config["port"] = int(port)
+            # Check if this is a full URL (contains ://)
+            if "://" in address:
+                # For full URLs like https://example.com/path, use as endpoint
+                config["endpoint"] = address
+                # Extract host for backward compatibility
+                from urllib.parse import urlparse
+                parsed = urlparse(address)
+                config["host"] = parsed.netloc
+                config["port"] = parsed.port or (443 if parsed.scheme == "https" else 80)
+                config["secure"] = parsed.scheme == "https"
+            elif ":" in address:
+                # Traditional host:port format
+                try:
+                    host, port = address.rsplit(":", 1)
+                    config["host"] = host
+                    config["port"] = int(port)
+                    config["endpoint"] = address
+                    config["secure"] = False
+                except ValueError:
+                    # Fallback if port is not a number
+                    config["host"] = address
+                    config["port"] = 9000
+                    config["endpoint"] = address
+                    config["secure"] = False
             else:
+                # Just hostname
                 config["host"] = address
                 config["port"] = 9000
+                config["endpoint"] = address
+                config["secure"] = False
 
         return config
 

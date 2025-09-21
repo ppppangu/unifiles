@@ -1,177 +1,26 @@
 """
-存储服务
-提供MinIO对象存储和向量数据库的统一存储接口
+存储服务适配器
+为document_processor提供兼容的存储服务接口
+保留原有的业务逻辑功能
 """
 
 import asyncio
-import io
 import uuid
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from loguru import logger
-from minio import Minio
 
-from ..config.env_config import read_config, read_minio_config
+from ..storage import get_storage, Storage
 from ..database.manager import DatabaseManager
 from ..database.models import ChunkModel, PhotoModel
-from ..utils.file_utils import detect_content_type
-
-
-class MinIOStorageManager:
-    """MinIO存储管理器"""
-
-    def __init__(self, config: Optional[Dict[str, Any]] = None):
-        self.config = config or read_config()
-        self.minio_config = read_minio_config()
-        self._client = None
-
-    def _get_client(self) -> Minio:
-        """获取MinIO客户端"""
-        if self._client is None:
-            # 处理address格式或host:port格式
-            if "address" in self.minio_config:
-                endpoint = self.minio_config["address"]
-            else:
-                endpoint = f"{self.minio_config['host']}:{self.minio_config['port']}"
-
-            self._client = Minio(
-                endpoint,
-                access_key=self.minio_config["access_key"],
-                secret_key=self.minio_config["secret_key"],
-                secure=self.minio_config.get("secure", False),
-                region=self.minio_config.get("region"),
-            )
-
-            # 确保bucket存在
-            bucket_name = self.minio_config["bucket_name"]
-            if not self._client.bucket_exists(bucket_name):
-                self._client.make_bucket(bucket_name)
-                logger.info(f"Created MinIO bucket: {bucket_name}")
-
-        return self._client
-
-    def generate_public_url(self, object_path: str) -> str:
-        """生成对象的公网访问URL"""
-        bucket_name = self.minio_config["bucket_name"]
-
-        if self.minio_config.get("use_public_url", False) and self.minio_config.get(
-            "public_url_prefix"
-        ):
-            return (
-                f"{self.minio_config['public_url_prefix']}/{bucket_name}/{object_path}"
-            )
-        # 使用内网地址
-        if "address" in self.minio_config:
-            return f"http://{self.minio_config['address']}/{bucket_name}/{object_path}"
-        return f"http://{self.minio_config['host']}:{self.minio_config['port']}/{bucket_name}/{object_path}"
-
-    async def upload_file(
-        self, object_path: str, file_content: bytes, content_type: Optional[str] = None
-    ) -> str:
-        """
-        上传文件到MinIO
-
-        Args:
-            object_path: 对象路径
-            file_content: 文件内容
-            content_type: 内容类型
-
-        Returns:
-            公网访问URL
-        """
-        try:
-            client = self._get_client()
-            bucket_name = self.minio_config["bucket_name"]
-
-            # 检测内容类型
-            if not content_type:
-                filename = object_path.split("/")[-1]
-                content_type = detect_content_type(filename)
-
-            # 上传文件
-            await asyncio.to_thread(
-                client.put_object,
-                bucket_name,
-                object_path,
-                io.BytesIO(file_content),
-                len(file_content),
-                content_type,
-                part_size=10 * 1024 * 1024,  # 10MB分片
-            )
-
-            public_url = self.generate_public_url(object_path)
-            logger.info(f"File uploaded to MinIO: {object_path}, URL: {public_url}")
-
-            return public_url
-
-        except Exception as e:
-            logger.error(f"Failed to upload file to MinIO: {e}")
-            raise
-
-    async def upload_file_from_path(
-        self, object_path: str, local_file_path: str, content_type: Optional[str] = None
-    ) -> str:
-        """
-        从本地文件路径上传到MinIO
-
-        Args:
-            object_path: 对象路径
-            local_file_path: 本地文件路径
-            content_type: 内容类型
-
-        Returns:
-            公网访问URL
-        """
-        try:
-            client = self._get_client()
-            bucket_name = self.minio_config["bucket_name"]
-
-            # 检测内容类型
-            if not content_type:
-                filename = Path(local_file_path).name
-                content_type = detect_content_type(filename)
-
-            # 上传文件
-            await asyncio.to_thread(
-                client.fput_object,
-                bucket_name,
-                object_path,
-                local_file_path,
-                content_type,
-            )
-
-            public_url = self.generate_public_url(object_path)
-            logger.info(
-                f"File uploaded from path to MinIO: {local_file_path} -> {object_path}, URL: {public_url}"
-            )
-
-            return public_url
-
-        except Exception as e:
-            logger.error(f"Failed to upload file from path to MinIO: {e}")
-            raise
-
-    async def delete_object(self, object_path: str) -> bool:
-        """删除对象"""
-        try:
-            client = self._get_client()
-            bucket_name = self.minio_config["bucket_name"]
-
-            await asyncio.to_thread(client.remove_object, bucket_name, object_path)
-            logger.info(f"Object deleted from MinIO: {object_path}")
-            return True
-
-        except Exception as e:
-            logger.warning(f"Failed to delete object from MinIO: {e}")
-            return False
 
 
 class VectorStorageManager:
     """向量数据库存储管理器"""
 
     def __init__(self, config: Optional[Dict[str, Any]] = None):
-        self.config = config or read_config()
+        self.config = config
         self.db_manager = DatabaseManager()
 
     async def save_text_chunk(
@@ -234,19 +83,7 @@ class VectorStorageManager:
         document_name: str,
         content_list: List[Dict[str, Any]],
     ) -> List[str]:
-        """
-        批量保存结构化内容到向量数据库
-
-        Args:
-            user_id: 用户ID
-            knowledge_base_id: 知识库ID
-            document_id: 文档ID
-            document_name: 文档名称
-            content_list: 结构化内容列表
-
-        Returns:
-            保存的组件ID列表
-        """
+        """批量保存结构化内容到向量数据库"""
         try:
             # 确保用户、知识库、文档存在
             await self.db_manager.ensure_user_exists(user_id)
@@ -273,13 +110,6 @@ class VectorStorageManager:
                         embedding=item["embedding"],
                     )
                 elif item["type"] == "image":
-                    # 从图片markdown中提取URL
-                    import re
-
-                    pattern = r"!\[([^\]]*)\]\(([^)]+)\)"
-                    match = re.search(pattern, item["content"])
-                    match.group(2) if match else ""
-
                     task = self.save_image_data(
                         photo_id=component_id,
                         document_id=document_id,
@@ -309,11 +139,11 @@ class VectorStorageManager:
 
 
 class StorageService:
-    """存储服务主类 - 统一的存储接口"""
+    """存储服务适配器 - 为document_processor提供兼容接口"""
 
     def __init__(self, config: Optional[Dict[str, Any]] = None):
-        self.config = config or read_config()
-        self.minio_manager = MinIOStorageManager(config)
+        self.config = config
+        self.storage = get_storage()
         self.vector_manager = VectorStorageManager(config)
         self.db_manager = DatabaseManager()
 
@@ -326,35 +156,25 @@ class StorageService:
         pdf_file_path: str,
         original_filename: str,
     ) -> Dict[str, str]:
-        """
-        存储处理后的文件（Markdown和PDF）
-
-        Args:
-            user_id: 用户ID
-            knowledge_base_id: 知识库ID
-            document_id: 文档ID
-            markdown_content: Markdown内容
-            pdf_file_path: PDF文件本地路径
-            original_filename: 原始文件名
-
-        Returns:
-            包含URL的字典
-        """
+        """存储处理后的文件（Markdown和PDF）"""
         try:
+            # 获取存储后端
+            backend = await self.storage.get_default_backend()
+            
             # 构建对象路径
             md_object_path = f"{user_id}/knowledgebase/{knowledge_base_id}/{document_id}/{document_id}.md"
             pdf_object_path = f"{user_id}/knowledgebase/{knowledge_base_id}/{document_id}/{document_id}.pdf"
 
             # 上传Markdown文件
             md_content_bytes = markdown_content.encode("utf-8")
-            md_url = await self.minio_manager.upload_file(
+            md_url = await backend.upload_file(
                 object_path=md_object_path,
-                file_content=md_content_bytes,
+                content=md_content_bytes,
                 content_type="text/markdown",
             )
 
             # 上传PDF文件
-            pdf_url = await self.minio_manager.upload_file_from_path(
+            pdf_url = await backend.upload_file_from_path(
                 object_path=pdf_object_path,
                 local_file_path=pdf_file_path,
                 content_type="application/pdf",
@@ -396,21 +216,7 @@ class StorageService:
         pdf_file_path: str,
         structured_content: List[Dict[str, Any]],
     ) -> Dict[str, Any]:
-        """
-        保存完整的处理结果
-
-        Args:
-            user_id: 用户ID
-            knowledge_base_id: 知识库ID
-            document_id: 文档ID
-            document_name: 文档名称
-            markdown_content: Markdown内容
-            pdf_file_path: PDF文件本地路径
-            structured_content: 结构化内容列表
-
-        Returns:
-            包含所有保存结果的字典
-        """
+        """保存完整的处理结果"""
         try:
             logger.info("=== Stage 5: Saving processing results ===")
 
@@ -467,24 +273,19 @@ class StorageService:
             await asyncio.gather(*cleanup_tasks)
             logger.info(f"Cleaned up {len(cleanup_tasks)} temporary files")
 
-    def get_service_info(self) -> Dict[str, Any]:
+    async def get_service_info(self) -> Dict[str, Any]:
         """获取服务信息"""
-        return {
-            "minio_endpoint": self.minio_manager.minio_config.get("address")
-            or f"{self.minio_manager.minio_config['host']}:{self.minio_manager.minio_config['port']}",
-            "minio_bucket": self.minio_manager.minio_config["bucket_name"],
-            "database_type": "postgresql_with_pgvector",
-            "supported_file_types": ["markdown", "pdf", "json"],
-        }
-
-
-# 默认存储服务实例
-_default_storage_service: Optional[StorageService] = None
-
-
-def get_storage_service(config: Optional[Dict[str, Any]] = None) -> StorageService:
-    """获取默认存储服务实例（单例模式）"""
-    global _default_storage_service
-    if _default_storage_service is None:
-        _default_storage_service = StorageService(config=config)
-    return _default_storage_service
+        try:
+            health = await self.storage.health_check()
+            return {
+                "storage_status": health.get("status", "unknown"),
+                "database_type": "postgresql_with_pgvector",
+                "supported_file_types": ["markdown", "pdf", "json"],
+            }
+        except Exception as e:
+            logger.error(f"Failed to get service info: {e}")
+            return {
+                "storage_status": "error",
+                "database_type": "postgresql_with_pgvector",
+                "supported_file_types": ["markdown", "pdf", "json"],
+            }
