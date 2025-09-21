@@ -57,7 +57,7 @@ END $$;
 -- END $$;
 
 -- 创建主要的数据库模式
-CREATE SCHEMA IF NOT EXISTS chunk_schema;
+CREATE SCHEMA IF NOT EXISTS unifiles;
 
 -- 注意: 生产环境中应该根据实际需要设置更严格的权限
-GRANT USAGE ON SCHEMA chunk_schema TO PUBLIC;
+GRANT USAGE ON SCHEMA unifiles TO PUBLIC;

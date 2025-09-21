@@ -21,42 +21,30 @@
 -- 存储配置表 (Storage Configuration) - 简化版
 -- ================================
 
--- 存储配置表（只区分本地存储和对象存储）
+-- 存储配置表 - 简洁设计
 CREATE TABLE IF NOT EXISTS chunk_schema.storage_configs (
     -- 主键标识
     id TEXT PRIMARY KEY,                                    -- 配置唯一标识
     
-    -- 存储类型（简化为两种）
-    storage_type TEXT NOT NULL,                            -- 存储类型：'local' 或 'object_storage'
+    -- 基本信息
     storage_name TEXT NOT NULL,                            -- 存储名称（用于显示）
+    connection_config JSONB NOT NULL,                     -- 连接配置（包含provider和所有连接参数）
     
-    -- 对象存储连接配置（仅对象存储使用）
-    endpoint TEXT,                                         -- 访问端点
-    bucket_name TEXT,                                      -- 存储桶名称
-    region TEXT,                                           -- 区域
-    
-    -- 认证配置（对象存储专用）
-    access_key_id TEXT,                                    -- 访问密钥ID
-    secret_access_key TEXT,                               -- 访问密钥Secret
-    
-    -- 路径和URL配置
-    base_path TEXT DEFAULT '',                             -- 基础路径前缀
-    public_url_prefix TEXT,                               -- 公网URL前缀（用于拼接访问地址）
-    
-    -- 状态信息
+    -- 元数据
     is_active BOOLEAN DEFAULT TRUE,                       -- 是否启用
-    is_default BOOLEAN DEFAULT FALSE,                     -- 是否默认存储
-    config_source TEXT DEFAULT 'manual',                  -- 配置来源：'env' 从环境变量初始化, 'manual' 手动添加
+    config_source TEXT DEFAULT 'manual',                  -- 配置来源：'env' 或 'manual'
+    public_url_prefix TEXT,                               -- 公网URL前缀
+    metadata JSONB DEFAULT '{}',                          -- 额外元数据
     
     -- 时间戳
     created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,     -- 创建时间
     updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,     -- 更新时间
     
     -- 检查约束
-    CONSTRAINT chk_storage_configs_storage_type 
-        CHECK (storage_type IN ('local', 'object_storage')),
     CONSTRAINT chk_storage_configs_config_source 
-        CHECK (config_source IN ('env', 'manual'))
+        CHECK (config_source IN ('env', 'manual')),
+    CONSTRAINT chk_storage_configs_connection_has_provider
+        CHECK (connection_config ? 'provider')
 );
 
 -- ================================
@@ -182,9 +170,9 @@ CREATE TRIGGER trigger_files_updated_at
 -- ================================
 
 -- 插入默认存储配置
-INSERT INTO chunk_schema.storage_configs (id, storage_type, storage_name, is_active, is_default, base_path, public_url_prefix, config_source)
+INSERT INTO chunk_schema.storage_configs (id, storage_name, connection_config, is_active, public_url_prefix, config_source)
 VALUES 
-    ('default-local', 'local', 'Local Storage', true, true, '/uploads', 'http://localhost:8000/files', 'env'),
-    ('example-minio', 'object_storage', 'MinIO Object Storage', false, false, '', 'https://minio.example.com/bucket', 'env')
+    ('default-local', 'Local Storage', '{"provider": "local", "base_path": "/uploads", "create_if_missing": true}', true, 'http://localhost:8000/files', 'env'),
+    ('example-minio', 'MinIO Object Storage', '{"provider": "minio", "endpoint": "localhost:9000", "access_key": "minioadmin", "secret_key": "minioadmin", "bucket_name": "unifiles", "region": "us-east-1", "secure": false}', false, 'https://minio.example.com/bucket', 'env')
 ON CONFLICT (id) DO NOTHING;
 

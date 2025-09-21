@@ -62,11 +62,13 @@ DECLARE
     config_rec RECORD;
     generated_public_url TEXT;
 BEGIN
-    -- 如果没有配置ID，使用默认配置
+    -- 如果没有配置ID，使用第一个活跃的配置
+    -- 建议在应用层指定具体的storage_config_id
     IF storage_config_id_param IS NULL THEN
         SELECT * INTO config_rec
         FROM chunk_schema.storage_configs
-        WHERE is_default = true AND is_active = true
+        WHERE is_active = true
+        ORDER BY created_at ASC
         LIMIT 1;
     ELSE
         SELECT * INTO config_rec

@@ -46,7 +46,7 @@ erDiagram
         string base_path
         string public_url_prefix
         boolean is_active
-        boolean is_default
+        string config_source
         datetime created_at
         datetime updated_at
     }
@@ -465,7 +465,7 @@ classDiagram
         +string endpoint
         +string bucket_name
         +boolean is_active
-        +boolean is_default
+        +string config_source
     }
     
     %% Content Layer

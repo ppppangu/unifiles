@@ -140,7 +140,7 @@ class StorageConfigModel:
     base_path: str = ""
     public_url_prefix: Optional[str] = None
     is_active: bool = True
-    is_default: bool = False
+    config_source: str = "manual"
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
 

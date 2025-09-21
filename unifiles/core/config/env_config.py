@@ -206,6 +206,13 @@ class EnvironmentConfig:
 
         return config
 
+    def get_storage_config(self) -> Dict[str, Any]:
+        """获取存储配置"""
+        return {
+            "default_storage_id": self.get_env_value("UNIFILES_STORAGE_DEFAULT_ID", "default-minio"),
+            "default_fallback_strategy": self.get_env_value("UNIFILES_STORAGE_DEFAULT_FALLBACK", "fail_fast")  # or "use_first_active"
+        }
+
     def get_convert_servers(self) -> List[Dict[str, Any]]:
         """获取格式转换服务器配置"""
         servers = []

@@ -42,13 +42,10 @@ CREATE INDEX IF NOT EXISTS idx_users_knowledge_ids ON chunk_schema.users USING g
 
 -- 存储配置表索引
 CREATE INDEX IF NOT EXISTS idx_storage_configs_storage_name ON chunk_schema.storage_configs(storage_name);
-CREATE INDEX IF NOT EXISTS idx_storage_configs_storage_type ON chunk_schema.storage_configs(storage_type);
 CREATE INDEX IF NOT EXISTS idx_storage_configs_is_active ON chunk_schema.storage_configs(is_active);
-CREATE INDEX IF NOT EXISTS idx_storage_configs_is_default ON chunk_schema.storage_configs(is_default);
-
--- 复合索引
-CREATE INDEX IF NOT EXISTS idx_storage_configs_active_default ON chunk_schema.storage_configs(is_active, is_default);
-CREATE INDEX IF NOT EXISTS idx_storage_configs_type_active ON chunk_schema.storage_configs(storage_type, is_active);
+-- 基于provider类型的索引  
+CREATE INDEX IF NOT EXISTS idx_storage_configs_provider ON chunk_schema.storage_configs USING gin((connection_config->>'provider'));
+CREATE INDEX IF NOT EXISTS idx_storage_configs_active_provider ON chunk_schema.storage_configs(is_active) WHERE connection_config ? 'provider';
 
 -- ================================
 -- 文件管理相关索引 (File Management Indexes)
