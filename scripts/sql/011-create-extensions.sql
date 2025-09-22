@@ -45,16 +45,16 @@ BEGIN
     END IF;
 END $$;
 
--- 启用 rum 插件 - 高级全文搜索索引（可选，通常不需要）
--- DO $$
--- BEGIN
---     IF EXISTS (SELECT 1 FROM pg_available_extensions WHERE name = 'rum') THEN
---         CREATE EXTENSION IF NOT EXISTS rum;
---         RAISE NOTICE 'rum extension created successfully';
---     ELSE
---         RAISE NOTICE 'rum extension is not available, skipping.';
---     END IF;
--- END $$;
+-- 启用 rum 插件 - 高级全文搜索索引
+DO $$
+BEGIN
+    IF EXISTS (SELECT 1 FROM pg_available_extensions WHERE name = 'rum') THEN
+        CREATE EXTENSION IF NOT EXISTS rum;
+        RAISE NOTICE 'rum extension created successfully';
+    ELSE
+        RAISE NOTICE 'rum extension is not available, skipping.';
+    END IF;
+END $$;
 
 -- 创建主要的数据库模式
 CREATE SCHEMA IF NOT EXISTS unifiles;

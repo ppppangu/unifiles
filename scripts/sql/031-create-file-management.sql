@@ -61,9 +61,9 @@ CREATE TABLE IF NOT EXISTS unifiles.files (
     
     -- 文件基本信息
     filename TEXT NOT NULL,                                -- 原始文件名
-    original_filename TEXT,                                -- 完整原始文件名（包含路径）
     mime_type TEXT,                                        -- MIME类型
     file_extension TEXT,                                   -- 文件扩展名
+    purpose TEXT[] DEFAULT '{}',                           -- 上传目的：'fine-tuning' 或 'extract'
     
     -- 文件大小和存储
     bytes BIGINT NOT NULL,                                 -- 文件大小（字节，使用BIGINT支持大文件）
@@ -79,8 +79,9 @@ CREATE TABLE IF NOT EXISTS unifiles.files (
     
     -- 访问地址（自动生成，不存储在数据库）
     is_public BOOLEAN DEFAULT FALSE,                      -- 是否公网可访问    
+    
     -- 文件状态管理
-    status TEXT DEFAULT 'uploaded',                        -- 文件处理状态
+    status TEXT DEFAULT 'active',                          -- 文件状态：active/error/deleted
     upload_source TEXT DEFAULT 'web',                     -- 上传来源
     is_deleted BOOLEAN DEFAULT FALSE,                      -- 软删除标记
     
@@ -106,7 +107,12 @@ CREATE TABLE IF NOT EXISTS unifiles.files (
     
     -- 检查约束
     CONSTRAINT chk_files_status 
-        CHECK (status IN ('uploaded', 'validating', 'processing', 'processed', 'error', 'deleted')),
+        CHECK (status IN ('active', 'error', 'deleted')),
+    CONSTRAINT chk_files_purpose
+        CHECK (
+            purpose <@ ARRAY['fine-tuning', 'extract']::TEXT[] AND
+            array_length(purpose, 1) > 0
+        ),
     CONSTRAINT chk_files_upload_source 
         CHECK (upload_source IN ('web', 'api', 'batch', 'sync')),
     CONSTRAINT chk_files_bytes_positive 
@@ -144,7 +150,7 @@ CREATE TABLE IF NOT EXISTS unifiles.file_processing_logs (
     CONSTRAINT chk_file_processing_logs_status 
         CHECK (status IN ('pending', 'running', 'completed', 'failed', 'cancelled')),
     CONSTRAINT chk_file_processing_logs_stage 
-        CHECK (stage IN ('upload', 'validation', 'ocr_extraction', 'markdown_generation'))
+        CHECK (stage IN ('upload', 'ocr_extraction'))
 );
 
 

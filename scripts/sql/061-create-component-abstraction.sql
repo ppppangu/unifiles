@@ -40,11 +40,11 @@ CREATE TABLE IF NOT EXISTS unifiles.components (
     document_id TEXT NOT NULL,                             -- 知识库文档ID
     
     -- 组件基本信息
-    component_type TEXT NOT NULL,                          -- 组件类型（chunk/photo）
+    component_type TEXT NOT NULL,                          -- 组件类型（chunk/photo/audio/video）
     component_index INTEGER NOT NULL,                      -- 组件在文档中的序号
     
     -- 组件内容（统一字段）
-    content TEXT,                                          -- 组件内容（文本或图片描述）
+    content TEXT,                                          -- 组件内容（文本或图片描述或视频描述）
     
     -- 搜索优化字段
     searchable_text TEXT,                                  -- 经过清洗和优化的搜索文本（去除markdown标记等）
@@ -97,7 +97,6 @@ CREATE TABLE IF NOT EXISTS unifiles.chunks (
     
     -- 文本统计
     char_count INTEGER,                                    -- 字符数
-    word_count INTEGER,                                    -- 词数
     token_count INTEGER,                                   -- token数
     
     -- 时间戳
