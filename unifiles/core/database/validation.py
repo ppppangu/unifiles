@@ -79,7 +79,7 @@ async def validate_storage_connection() -> bool:
             secret_key=minio_config["secret_key"],
             secure=False,
         )
-        
+
         # 检查桶是否存在
         bucket_exists = minio_client.bucket_exists(minio_config["bucket_name"])
         return bucket_exists

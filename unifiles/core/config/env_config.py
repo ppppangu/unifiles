@@ -7,8 +7,8 @@
 import os
 from pathlib import Path
 from typing import Any, Dict, List, Optional
-from loguru import logger
 
+from loguru import logger
 
 try:
     from dotenv import load_dotenv

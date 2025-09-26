@@ -13,6 +13,7 @@ from unifiles.app.schemas import (
     FileExtractResponse,
 )
 from unifiles.core.database import secure_file_db_manager
+
 # TODO: Add process_file_content import when implemented
 
 # Note: The prefix is /files, but these are processing actions.
@@ -55,10 +56,11 @@ async def extract_file_content(
         #     extract_request=extract_request,
         # )
         # Mock response for now
-        from unifiles.app.schemas import ExtractedContent
         import uuid
         from datetime import datetime
-        
+
+        from unifiles.app.schemas import ExtractedContent
+
         extracted_content = ExtractedContent(
             file_id=file_id,
             extraction_id=f"ext_{str(uuid.uuid4())[:8]}",

@@ -15,17 +15,21 @@ from pathlib import Path
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-# 导入核心工具
-from unifiles.core.config.env_config import mk_need_path
-from unifiles.core.logging import cleanup_logger, get_logger, init_logger
-from unifiles.core.storage import get_initialized_storage
-
 # 导入中间件和 schemas
-from unifiles.app.middlewares import AuthMiddleware, ClientIPMiddleware, FileValidationMiddleware
+from unifiles.app.middlewares import (
+    AuthMiddleware,
+    ClientIPMiddleware,
+    FileValidationMiddleware,
+)
 
 # 导入API路由
 from unifiles.app.routers import knowledge_bases, manager, processors, unifiles
 from unifiles.app.schemas import StandardResponse
+
+# 导入核心工具
+from unifiles.core.config.env_config import mk_need_path
+from unifiles.core.logging import cleanup_logger, get_logger, init_logger
+from unifiles.core.storage import get_initialized_storage
 
 
 @asynccontextmanager
@@ -47,11 +51,11 @@ async def lifespan(app: FastAPI):
 
         # 创建必要的目录
         mk_need_path()
-        
+
         # 初始化存储系统
         await get_initialized_storage()
         app_logger.info("Storage system initialized")
-        
+
         app_logger.info("Unifiles v1 started successfully", {"version": "1.1.0"})
     except Exception as e:
         app_logger = get_logger()
