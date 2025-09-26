@@ -21,7 +21,8 @@ ocr/
 │   ├── base.py            # BaseConfig：加载 .env，定义 validate/getters
 │   └── mistral.py         # MistralConfig：MISTRAL_API_KEY/MISTRAL_OCR_MODEL
 └── providers/
-    └── mistral.py         # MistralOCRProvider：具体实现（含原生异步）
+    ├── mistral.py         # MistralOCRProvider：具体实现（含原生异步）
+    └── selfhosted.py      # SelfHostedOCRProvider：自部署HTTP服务对接
 ```
 
 ## API 与契约
@@ -61,7 +62,7 @@ ocr/
 
 ## 使用示例
 
-环境变量（.env）：
+环境变量（.env，必填项）：
 
 ```
 MISTRAL_API_KEY=your_api_key_here
@@ -87,6 +88,46 @@ async def main():
 
 asyncio.run(main())
 ```
+
+### 自部署 HTTP 服务（SelfHosted）
+
+环境变量（.env）：
+
+```
+UNIFILES_SERVICE_OCR_SELFHOSTED_0_URL=http://192.168.132.149:1288/infer
+UNIFILES_SERVICE_OCR_SELFHOSTED_0_PROMPT=请输出版面元素的JSON（含bbox/category/text）
+```
+
+注意：自部署 OCR 需要设置完整的 URL 与 PROMPT 两个环境变量，其他行为如下：
+- 请求体总是携带 `prompt`
+- `image_path` 可传本地路径或可访问的 URL
+- 无需认证
+- 返回内容按字符串直返（不做 JSON 字段抽取/不下载外链）
+
+调用：
+
+```python
+from unifiles.core.ocr import OCRProcessor
+
+# 使用工厂创建自部署 Provider
+processor = OCRProcessor('selfhosted')
+
+# 处理本地图片（path 模式会直接传递本地路径，需服务端可访问该路径）
+md = processor.process_file('demo/222.png')
+
+# 或以 URL 方式（服务端可访问该 URL）
+md2 = processor.process_url('http://host/path/to/222.png')
+
+print(md[:500])
+```
+
+服务端接口默认假设：`POST <URL>`，JSON 请求体：
+
+```
+{"image_path": "<path-or-url>", "prompt": "..."}
+```
+
+响应处理：模块直接返回响应文本（`resp.text`）。如服务端返回 JSON，需要由调用方自行解析。
 
 运行示例脚本：
 

@@ -1,19 +1,23 @@
-from typing import Dict, Optional, Type
+from typing import ClassVar, Dict, Optional, Type
 
 from .base import BaseOCRProvider
 from .config.mistral import MistralConfig
+from .config.selfhosted import SelfHostedConfig
 from .providers.mistral import MistralOCRProvider
+from .providers.selfhosted import SelfHostedOCRProvider
 
 
 class OCRProviderFactory:
     """Factory class for creating OCR provider instances"""
 
-    _providers: Dict[str, Type[BaseOCRProvider]] = {
+    _providers: ClassVar[Dict[str, Type[BaseOCRProvider]]] = {
         "mistral": MistralOCRProvider,
+        "selfhosted": SelfHostedOCRProvider,
     }
 
-    _configs: Dict[str, Type] = {
+    _configs: ClassVar[Dict[str, Type]] = {
         "mistral": MistralConfig,
+        "selfhosted": SelfHostedConfig,
     }
 
     @classmethod
@@ -33,10 +37,11 @@ class OCRProviderFactory:
             ValueError: If provider_name is not supported
         """
         if provider_name not in cls._providers:
-            raise ValueError(
+            error_message = (
                 f"Unsupported OCR provider: {provider_name}. "
                 f"Supported providers: {list(cls._providers.keys())}"
             )
+            raise ValueError(error_message)
 
         provider_class = cls._providers[provider_name]
 
@@ -55,7 +60,10 @@ class OCRProviderFactory:
 
     @classmethod
     def register_provider(
-        cls, name: str, provider_class: Type[BaseOCRProvider], config_class: Optional[Type] = None
+        cls,
+        name: str,
+        provider_class: Type[BaseOCRProvider],
+        config_class: Optional[Type] = None,
     ):
         """Register a new OCR provider
 
