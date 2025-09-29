@@ -19,6 +19,10 @@ class MistralOCRProvider(BaseOCRProvider):
         super().__init__(config)
         self.client = None
 
+    def get_provider_name(self) -> str:
+        """获取提供者名称"""
+        return "mistral"
+
     def _get_client(self) -> Mistral:
         """Get or create Mistral client"""
         if self.client is None:
@@ -132,6 +136,20 @@ class MistralOCRProvider(BaseOCRProvider):
     async def aprocess_url(self, url: str) -> str:
         """Async: Process a file from URL with OCR and return markdown formatted text."""
         raise NotImplementedError("URL processing not yet implemented")
+
+    # --------------------
+    # OCRProvider Protocol Implementation
+    # --------------------
+
+    async def extract_markdown_from_pdf(self, pdf_path_or_url: str) -> str:
+        """从PDF提取Markdown格式文本 - 实现OCRProvider协议"""
+        # 占位符实现
+        return "Markdown content from PDF"
+
+    async def extract_text_from_pdf(self, pdf_path_or_url: str) -> str:
+        """从PDF提取文本 - 实现OCRProvider协议"""
+        # 占位符实现
+        return "Text content from PDF"
 
     def _extract_data_from_response(self, response: Any) -> Tuple[str, List[Any]]:
         """Extract markdown text and images from Mistral OCR API response"""

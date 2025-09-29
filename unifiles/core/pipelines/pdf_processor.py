@@ -22,6 +22,7 @@ from tenacity import (
 )
 
 from ..config.env_config import convert_to_internal_minio_url, read_config
+from ..ocr.factory import OCRProviderFactory
 
 
 # OCR接口定义
@@ -44,8 +45,51 @@ class OCRProvider(Protocol):
 class GenericOCRAdapter:
     """通用OCR适配器：按名称实例化ocr模块中的Provider并适配到本流水线接口。"""
 
-    def __init__(self):
+    def __init__(self, provider_name: str):
+        self.provider_name = provider_name
         self.provider = None
+        self._initialize_provider()
+
+    def _initialize_provider(self):
+        """根据名称初始化OCR供应商"""
+        try:
+            self.provider = OCRProviderFactory.create_provider(self.provider_name)
+            logger.info(
+                f"Initialized OCR provider: {self.provider.get_provider_name()}"
+            )
+        except Exception as e:
+            logger.error(f"Failed to initialize OCR provider {self.provider_name}: {e}")
+            raise
+
+    def get_provider_name(self) -> str:
+        """获取提供者名称"""
+        if self.provider:
+            return self.provider.get_provider_name()
+        return self.provider_name
+
+    async def extract_text_from_pdf(self, pdf_path_or_url: str) -> str:
+        """从PDF提取文本"""
+        if not self.provider:
+            logger.error("No OCR provider initialized")
+            return ""
+
+        try:
+            return await self.provider.extract_text_from_pdf(pdf_path_or_url)
+        except Exception as e:
+            logger.error(f"Error extracting text from PDF: {e}")
+            return ""
+
+    async def extract_markdown_from_pdf(self, pdf_path_or_url: str) -> str:
+        """从PDF提取Markdown格式文本"""
+        if not self.provider:
+            logger.error("No OCR provider initialized")
+            return ""
+
+        try:
+            return await self.provider.extract_markdown_from_pdf(pdf_path_or_url)
+        except Exception as e:
+            logger.error(f"Error extracting markdown from PDF: {e}")
+            return ""
 
 
 class SimplePDFReader:
