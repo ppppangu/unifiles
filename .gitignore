@@ -131,8 +131,11 @@ unfiles/app/v1/logs/
 *.sqlite3
 
 # MinIO/Storage related
+# Only ignore the runtime storage directory at repo root.
+# Do NOT ignore package module paths like `unifiles/core/storage/`.
+# 待修改暂未实现
 .minio/
-storage/
+# storage/
 
 # Test artifacts
 .coverage
