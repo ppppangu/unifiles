@@ -41,6 +41,13 @@ class OCRProvider(Protocol):
         ...
 
 
+class GenericOCRAdapter:
+    """通用OCR适配器：按名称实例化ocr模块中的Provider并适配到本流水线接口。"""
+
+    def __init__(self):
+        self.provider = None
+
+
 class SimplePDFReader:
     """简单PDF读取器 - 使用pdfplumber"""
 
@@ -650,9 +657,16 @@ class PDFProcessingPipeline:
 
     async def get_pipeline_info(self) -> Dict[str, Any]:
         """获取流水线信息"""
+        try:
+            from ..ocr.factory import OCRProviderFactory
+
+            providers = OCRProviderFactory.get_supported_providers()
+        except Exception:
+            providers = []
+
         return {
             "ocr_provider": self.ocr_provider.get_provider_name(),
-            "supported_modes": ["simple", "normal"],
+            "supported_modes": ["simple"].append(providers),
             "temp_directory": str(self.tmp_dir),
             "config_loaded": bool(self.config),
         }

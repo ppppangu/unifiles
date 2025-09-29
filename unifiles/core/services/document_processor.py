@@ -14,7 +14,7 @@ from loguru import logger
 from ..config.env_config import read_config
 from ..pipelines.format_validator import FormatValidationPipeline
 from ..pipelines.pdf_processor import (
-    MineruOCRProvider,
+    GenericOCRAdapter,
     PDFProcessingPipeline,
     SimplePDFReader,
 )
@@ -42,10 +42,8 @@ class DocumentProcessingService:
         """设置OCR提供者"""
         if provider_type == "simple":
             self.pdf_pipeline.set_ocr_provider(SimplePDFReader())
-        elif provider_type == "mineru":
-            self.pdf_pipeline.set_ocr_provider(MineruOCRProvider(self.config))
         else:
-            raise ValueError(f"Unknown OCR provider type: {provider_type}")
+            self.pdf_pipeline.set_ocr_provider(GenericOCRAdapter(provider_type))
 
         logger.info(f"OCR provider set to: {provider_type}")
 
@@ -65,7 +63,7 @@ class DocumentProcessingService:
             file_content: 文件内容
             user_id: 用户ID
             knowledge_base_id: 知识库ID，None时使用默认值
-            mode: 处理模式 ("simple" 或 "normal")
+            mode: 处理模式 ("simple" 或 特定的OCR提供商)
 
         Returns:
             处理结果字典
@@ -110,8 +108,8 @@ class DocumentProcessingService:
             # 设置OCR提供者
             if mode == "simple":
                 self.set_ocr_provider("simple")
-            elif mode == "normal":
-                self.set_ocr_provider("mineru")
+            else:
+                self.set_ocr_provider(mode)
 
             # 第二步：PDF处理和内容提取
             logger.info("=== Stage 2: PDF processing and content extraction ===")
@@ -207,7 +205,7 @@ class DocumentProcessingService:
             file_url: 文件URL
             user_id: 用户ID
             knowledge_base_id: 知识库ID，None时使用默认值
-            mode: 处理模式 ("simple" 或 "normal")
+            mode: 处理模式 ("simple" 或 特定的OCR提供商)
             raw_file_url_to_return: 要返回的原始文件URL
 
         Returns:
@@ -245,8 +243,8 @@ class DocumentProcessingService:
             # 设置OCR提供者
             if mode == "simple":
                 self.set_ocr_provider("simple")
-            elif mode == "normal":
-                self.set_ocr_provider("mineru")
+            else:
+                self.set_ocr_provider(mode)
 
             # 第二步：PDF处理和内容提取
             logger.info("=== Stage 2: PDF processing and content extraction ===")
@@ -357,7 +355,7 @@ class DocumentProcessingService:
         return {
             "service_name": "DocumentProcessingService",
             "version": "1.0.0",
-            "supported_modes": ["simple", "normal"],
+            "supported_modes": ["simple", "custom_ocr_provider"],
             "format_pipeline": self.format_pipeline.validator.SUPPORTED_FILE_TYPES,
             "pdf_pipeline": self.pdf_pipeline.get_pipeline_info(),
             "embedding_service": self.embedding_service.get_service_info(),
