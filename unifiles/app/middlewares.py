@@ -97,17 +97,21 @@ class FileValidationMiddleware:
     def _should_validate_file(self, request: Request) -> bool:
         """判断是否需要进行文件验证"""
         # 写死的路径检测逻辑
+        # NOTE: /files 端点使用自己的验证逻辑（FileSecurityValidator），
+        # 不在中间件层面验证，以避免消耗request body
         file_upload_paths = [
             "/v1/documents/upload",
             "/v1/documents/process",
             "/v1/files/upload",
             # TODO: 添加更多需要文件验证的路径
+            # NOTE: /files 端点已经在service层有验证，不需要中间件验证
         ]
 
         path = request.url.path
         method = request.method
 
         # 只对POST/PUT请求的特定路径进行验证
+        # /files 端点不在此列表中，因为它有自己的验证逻辑
         return method in ["POST", "PUT"] and any(
             path.startswith(upload_path) for upload_path in file_upload_paths
         )
@@ -312,10 +316,19 @@ class AuthMiddleware:
     async def _validate_token(self, token: str) -> Optional[str]:
         """验证token并返回用户ID"""
         try:
-            conn = await asyncpg.connect(**self.pg_config)
+            # 修复：asyncpg.connect 不接受 address 参数，需要使用 host 和 port
+            conn_config = {
+                'host': self.pg_config['host'],
+                'port': self.pg_config['port'],
+                'user': self.pg_config['user'],
+                'password': self.pg_config['password'],
+                'database': self.pg_config['database'],
+                'timeout': 5  # 5秒超时
+            }
+            conn = await asyncpg.connect(**conn_config)
             try:
-                # 使用数据库中的验证函数
-                user_id = await conn.fetchval("SELECT validate_access_key($1)", token)
+                # 使用简化的验证函数，直接返回user_id
+                user_id = await conn.fetchval("SELECT validate_access_key_simple($1)", token)
                 return user_id
             finally:
                 await conn.close()

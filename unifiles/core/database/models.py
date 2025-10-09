@@ -17,10 +17,7 @@ from typing import Any, Dict, List, Optional
 class FileStatus(Enum):
     """文件状态枚举"""
 
-    UPLOADED = "uploaded"
-    VALIDATING = "validating"
-    PROCESSING = "processing"
-    PROCESSED = "processed"
+    ACTIVE = "active"
     ERROR = "error"
     DELETED = "deleted"
 
@@ -161,7 +158,7 @@ class FileModel:
     hash_algorithm: str = "sha256"
     storage_config_id: Optional[str] = None
     storage_path: str = ""
-    status: FileStatus = FileStatus.UPLOADED
+    status: FileStatus = FileStatus.ACTIVE
     upload_source: str = "web"
     is_deleted: bool = False
     file_category: Optional[str] = None

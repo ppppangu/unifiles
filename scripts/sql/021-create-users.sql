@@ -210,11 +210,11 @@ DECLARE
     result JSONB;
     ak_record RECORD;
     current_hour INTEGER;
-    current_date DATE;
+    current_date_value DATE;
     requests_exceeded BOOLEAN := FALSE;
 BEGIN
     current_hour := EXTRACT(HOUR FROM CURRENT_TIMESTAMP);
-    current_date := CURRENT_DATE;
+    current_date_value := CURRENT_DATE;
 
     -- 查找有效的access_key
     SELECT * INTO ak_record
@@ -246,11 +246,11 @@ BEGIN
     END IF;
 
     -- 重置请求计数器（如果需要）
-    IF ak_record.last_request_reset_date < current_date THEN
+    IF ak_record.last_request_reset_date < current_date_value THEN
         UPDATE unifiles.access_keys
         SET requests_today = 0,
             requests_this_hour = 0,
-            last_request_reset_date = current_date,
+            last_request_reset_date = current_date_value,
             last_request_reset_hour = current_hour
         WHERE access_key = token;
         ak_record.requests_today := 0;

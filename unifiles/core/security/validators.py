@@ -1,7 +1,7 @@
 import mimetypes
 import re
 from pathlib import Path
-from typing import Dict, Optional, Tuple
+from typing import Any, Dict, Optional, Tuple
 
 
 class FileSecurityValidator:
@@ -299,7 +299,7 @@ class FileSecurityValidator:
         return f"{safe_user_id}/{date_prefix}/{safe_file_id}/{safe_filename}"
 
     @classmethod
-    def validate_upload_file(cls, content: bytes, filename: str) -> Dict[str, any]:
+    def validate_upload_file(cls, content: bytes, filename: str) -> Dict[str, Any]:
         """
         综合验证上传文件
 
@@ -345,6 +345,13 @@ class FileSecurityValidator:
             if not size_valid:
                 result["valid"] = False
                 result["errors"].append(size_error)
+
+        # Debug logging
+        import sys
+        print(f"DEBUG VALIDATOR: About to return result", file=sys.stderr)
+        print(f"DEBUG VALIDATOR: result type = {type(result)}", file=sys.stderr)
+        print(f"DEBUG VALIDATOR: result = {result}", file=sys.stderr)
+        sys.stderr.flush()
 
         return result
 
@@ -429,11 +436,14 @@ def require_file_ownership(func):
 
 # ==== 文件工具函数 (从 utils/file_utils.py 迁移) ====
 
+
 class FileUtils:
     """文件处理工具类，整合文件相关的通用功能"""
 
     @staticmethod
-    def detect_content_type(file_name: str, default: str = "application/octet-stream") -> str:
+    def detect_content_type(
+        file_name: str, default: str = "application/octet-stream"
+    ) -> str:
         """
         根据文件扩展名智能检测 Content-Type
 

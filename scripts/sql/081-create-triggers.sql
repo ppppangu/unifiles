@@ -576,12 +576,12 @@ $$ LANGUAGE plpgsql;
 -- 创建触发器状态监控视图
 CREATE OR REPLACE VIEW unifiles.trigger_status AS
 SELECT 
-    schemaname,
-    tablename,
-    triggername,
-    tgtype,
-    tgenabled,
-    CASE tgenabled
+    n.nspname AS schemaname,
+    c.relname AS tablename,
+    t.tgname AS triggername,
+    t.tgtype,
+    t.tgenabled,
+    CASE t.tgenabled
         WHEN 'O' THEN 'ENABLED'
         WHEN 'D' THEN 'DISABLED'
         WHEN 'R' THEN 'REPLICA_ONLY'
@@ -593,4 +593,4 @@ INNER JOIN pg_class c ON t.tgrelid = c.oid
 INNER JOIN pg_namespace n ON c.relnamespace = n.oid
 WHERE n.nspname = 'unifiles'
 AND NOT t.tgisinternal
-ORDER BY schemaname, tablename, triggername;
+ORDER BY n.nspname, c.relname, t.tgname;

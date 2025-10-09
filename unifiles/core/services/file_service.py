@@ -58,13 +58,34 @@ class FileService:
 
             # 2. 读取文件内容
             file_content = await file.read()
+            logger.info(f"File content read: {len(file_content)} bytes")
             if len(file_content) == 0:
                 raise HTTPException(status_code=400, detail="Empty file provided")
 
             # 3. 安全验证
+            import sys
+            print(f"DEBUG SERVICE: About to call validator", file=sys.stderr)
+            sys.stderr.flush()
+
+            logger.info(f"Validating file: {file.filename}")
             validation_result = self.validator.validate_upload_file(
                 file_content, file.filename
             )
+
+            print(f"DEBUG SERVICE: Received validation_result", file=sys.stderr)
+            print(f"DEBUG SERVICE: type = {type(validation_result)}", file=sys.stderr)
+            print(f"DEBUG SERVICE: value = {validation_result}", file=sys.stderr)
+            sys.stderr.flush()
+
+            logger.info(f"Validation result type: {type(validation_result)}")
+            logger.info(f"Validation result: {validation_result}")
+
+            # 调试：打印validation_result的所有key
+            if isinstance(validation_result, dict):
+                logger.info(f"Validation result keys: {list(validation_result.keys())}")
+                for key, value in validation_result.items():
+                    logger.info(f"  {key} = {value} (type: {type(value).__name__})")
+
             if not validation_result["valid"]:
                 error_msg = "; ".join(validation_result["errors"])
                 raise HTTPException(
@@ -96,7 +117,16 @@ class FileService:
                 file_metadata.update(metadata)
 
             # 7. 获取存储后端并上传文件
+            print(f"DEBUG SERVICE: Getting storage backend", file=sys.stderr)
+            sys.stderr.flush()
+
             storage_backend = await self.storage.get_default_backend()
+
+            print(f"DEBUG SERVICE: Got backend, uploading file", file=sys.stderr)
+            print(f"DEBUG SERVICE: object_path={object_path}", file=sys.stderr)
+            print(f"DEBUG SERVICE: content_type={detected_mime_type}", file=sys.stderr)
+            sys.stderr.flush()
+
             storage_path = await storage_backend.upload_file(
                 object_path=object_path,
                 content=file_content,
@@ -104,7 +134,13 @@ class FileService:
                 metadata=file_metadata,
             )
 
+            print(f"DEBUG SERVICE: Upload complete, storage_path={storage_path}", file=sys.stderr)
+            sys.stderr.flush()
+
             # 8. 记录到数据库
+            # 为避免外键不一致导致插入失败，这里不强制写入 storage_config_id，保持为 NULL
+            storage_config_id = None
+
             await self.db.add_file_record(
                 file_id=file_id,
                 user_id=user_id,
@@ -112,7 +148,7 @@ class FileService:
                 file_size=file_size,
                 content_type=detected_mime_type,
                 storage_path=storage_path,
-                storage_config_id="minio-default",  # 可以从配置中获取
+                storage_config_id=storage_config_id,
             )
 
             # 9. 设置公开状态（如果需要）
@@ -149,6 +185,7 @@ class FileService:
             raise
         except Exception as e:
             logger.error(f"Error in file upload service: {e}")
+            logger.exception("Full traceback:")  # 打印完整堆栈
             raise HTTPException(status_code=500, detail=f"Upload failed: {e!s}")
 
     async def get_user_files(

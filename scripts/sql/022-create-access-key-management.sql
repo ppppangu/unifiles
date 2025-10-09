@@ -46,12 +46,12 @@ SELECT
     END as expiry_status,
     CASE 
         WHEN max_requests_per_hour IS NOT NULL THEN 
-            ROUND((requests_this_hour::FLOAT / max_requests_per_hour::FLOAT) * 100, 2)
+            ROUND((requests_this_hour::NUMERIC / NULLIF(max_requests_per_hour::NUMERIC, 0)) * 100, 2)
         ELSE NULL
     END as hourly_usage_percent,
     CASE 
         WHEN max_requests_per_day IS NOT NULL THEN 
-            ROUND((requests_today::FLOAT / max_requests_per_day::FLOAT) * 100, 2)
+            ROUND((requests_today::NUMERIC / NULLIF(max_requests_per_day::NUMERIC, 0)) * 100, 2)
         ELSE NULL
     END as daily_usage_percent
 FROM unifiles.access_keys;

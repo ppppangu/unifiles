@@ -15,6 +15,8 @@ class SecureFileDBManager:
     def __init__(self):
         """初始化安全数据库管理器"""
         self.pg_config = read_pg_config()
+        # 过滤掉 asyncpg.connect() 不支持的参数
+        self.pg_config = {k: v for k, v in self.pg_config.items() if k in ['host', 'port', 'user', 'password', 'database']}
         self.security_enforcer = DatabaseSecurityEnforcer()
         self._connection_pool = None
         self._schema_name = "unifiles"  # 从配置中读取
@@ -158,7 +160,7 @@ class SecureFileDBManager:
                         content_type,
                         storage_path,
                         storage_config_id,
-                        "uploaded",
+                        "active",
                         datetime.now(),
                         False,  # 默认私有
                     )
@@ -411,7 +413,7 @@ class SecureFileDBManager:
                     COUNT(*) as total_files,
                     COALESCE(SUM(bytes), 0) as total_bytes,
                     COUNT(CASE WHEN is_public = true THEN 1 END) as public_files,
-                    COUNT(CASE WHEN status = 'uploaded' THEN 1 END) as active_files,
+                    COUNT(CASE WHEN status = 'active' THEN 1 END) as active_files,
                     COUNT(CASE WHEN status = 'deleted' THEN 1 END) as deleted_files
                 FROM {self._schema_name}.files
                 WHERE user_id = $1

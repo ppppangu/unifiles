@@ -167,3 +167,5 @@ Thumbs.db
 *.swp
 *.swo
 *~
+
+storage_data/

@@ -33,12 +33,16 @@ class DatabaseManager:
 
     async def get_connection(self) -> asyncpg.Connection:
         """获取数据库连接"""
-        return await asyncpg.connect(**self.pg_config)
+        # Filter out 'address' and 'active' keys - asyncpg only wants host, port, user, password, database
+        conn_params = {k: v for k, v in self.pg_config.items() if k in ['host', 'port', 'user', 'password', 'database']}
+        return await asyncpg.connect(**conn_params)
 
     async def create_pool(self) -> asyncpg.Pool:
         """创建连接池"""
         if self._pool is None:
-            self._pool = await asyncpg.create_pool(**self.pg_config)
+            # Filter out 'address' and 'active' keys - asyncpg only wants host, port, user, password, database
+            conn_params = {k: v for k, v in self.pg_config.items() if k in ['host', 'port', 'user', 'password', 'database']}
+            self._pool = await asyncpg.create_pool(**conn_params)
         return self._pool
 
     async def close_pool(self):

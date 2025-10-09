@@ -44,7 +44,9 @@ CREATE INDEX IF NOT EXISTS idx_users_knowledge_ids ON unifiles.users USING gin(k
 CREATE INDEX IF NOT EXISTS idx_storage_configs_storage_name ON unifiles.storage_configs(storage_name);
 CREATE INDEX IF NOT EXISTS idx_storage_configs_is_active ON unifiles.storage_configs(is_active);
 -- 基于provider类型的索引  
-CREATE INDEX IF NOT EXISTS idx_storage_configs_provider ON unifiles.storage_configs USING gin((connection_config->>'provider'));
+-- 使用表达式BTREE索引替代 GIN（避免为 TEXT 指定 opclass 要求）
+CREATE INDEX IF NOT EXISTS idx_storage_configs_provider 
+    ON unifiles.storage_configs ((connection_config->>'provider'));
 CREATE INDEX IF NOT EXISTS idx_storage_configs_active_provider ON unifiles.storage_configs(is_active) WHERE connection_config ? 'provider';
 
 -- ================================
@@ -88,7 +90,9 @@ CREATE INDEX IF NOT EXISTS idx_file_processing_logs_stage_status ON unifiles.fil
 -- 提取文档表索引（基于简化后的结构）
 CREATE INDEX IF NOT EXISTS idx_extracted_documents_file_id ON unifiles.extracted_documents(file_id);
 CREATE INDEX IF NOT EXISTS idx_extracted_documents_user_id ON unifiles.extracted_documents(user_id);
-CREATE INDEX IF NOT EXISTS idx_extracted_documents_method ON unifiles.extracted_documents(extraction_method);
+-- 兼容当前表结构：使用 extraction_strategy_id 替代已移除的 extraction_method 字段
+CREATE INDEX IF NOT EXISTS idx_extracted_documents_strategy 
+    ON unifiles.extracted_documents(extraction_strategy_id);
 CREATE INDEX IF NOT EXISTS idx_extracted_documents_status ON unifiles.extracted_documents(extraction_status);
 CREATE INDEX IF NOT EXISTS idx_extracted_documents_created_at ON unifiles.extracted_documents(created_at);
 
@@ -107,8 +111,18 @@ BEGIN
     END IF;
 END $$;
 
--- 备用英文搜索索引
-CREATE INDEX IF NOT EXISTS idx_extracted_documents_fts ON unifiles.extracted_documents USING gin(to_tsvector('english', full_markdown)) WHERE full_markdown IS NOT NULL;
+-- 备用英文搜索索引（在某些环境中，表达式索引要求函数 IMMUTABLE。若失败则跳过。）
+DO $$
+BEGIN
+    BEGIN
+        CREATE INDEX IF NOT EXISTS idx_extracted_documents_fts 
+            ON unifiles.extracted_documents 
+            USING gin(to_tsvector('english', full_markdown)) 
+            WHERE full_markdown IS NOT NULL;
+    EXCEPTION WHEN others THEN
+        RAISE NOTICE 'Skipping idx_extracted_documents_fts: %', SQLERRM;
+    END;
+END $$;
 
 -- 提取资源表索引（基于简化后的结构）
 CREATE INDEX IF NOT EXISTS idx_extracted_assets_document_id ON unifiles.extracted_assets(extracted_document_id);
@@ -205,8 +219,18 @@ END $$;
 -- 备用GIN索引
 CREATE INDEX IF NOT EXISTS idx_components_search_keywords ON unifiles.components USING gin(search_keywords) WHERE search_keywords IS NOT NULL;
 
--- 备用英文搜索索引
-CREATE INDEX IF NOT EXISTS idx_components_content_fts ON unifiles.components USING gin(to_tsvector('english', COALESCE(searchable_text, content))) WHERE COALESCE(searchable_text, content) IS NOT NULL;
+-- 备用英文搜索索引（同上，失败则跳过）
+DO $$
+BEGIN
+    BEGIN
+        CREATE INDEX IF NOT EXISTS idx_components_content_fts 
+            ON unifiles.components 
+            USING gin(to_tsvector('english', COALESCE(searchable_text, content))) 
+            WHERE COALESCE(searchable_text, content) IS NOT NULL;
+    EXCEPTION WHEN others THEN
+        RAISE NOTICE 'Skipping idx_components_content_fts: %', SQLERRM;
+    END;
+END $$;
 
 -- 复合索引
 CREATE INDEX IF NOT EXISTS idx_components_document_type ON unifiles.components(document_id, component_type);
@@ -215,7 +239,7 @@ CREATE INDEX IF NOT EXISTS idx_components_document_index ON unifiles.components(
 -- 文本块表索引（基于简化后的结构）
 CREATE INDEX IF NOT EXISTS idx_chunks_component_id ON unifiles.chunks(component_id);
 CREATE INDEX IF NOT EXISTS idx_chunks_char_count ON unifiles.chunks(char_count) WHERE char_count IS NOT NULL;
-CREATE INDEX IF NOT EXISTS idx_chunks_word_count ON unifiles.chunks(word_count) WHERE word_count IS NOT NULL;
+-- 移除不存在的 word_count 列索引（当前表结构无此列）
 CREATE INDEX IF NOT EXISTS idx_chunks_token_count ON unifiles.chunks(token_count) WHERE token_count IS NOT NULL;
 
 -- 全文搜索索引 (使用PGroonga支持中英文搜索)
@@ -233,8 +257,18 @@ BEGIN
     END IF;
 END $$;
 
--- 备用英文搜索索引
-CREATE INDEX IF NOT EXISTS idx_chunks_text_fts ON unifiles.chunks USING gin(to_tsvector('english', text_content)) WHERE text_content IS NOT NULL;
+-- 备用英文搜索索引（同上，失败则跳过）
+DO $$
+BEGIN
+    BEGIN
+        CREATE INDEX IF NOT EXISTS idx_chunks_text_fts 
+            ON unifiles.chunks 
+            USING gin(to_tsvector('english', text_content)) 
+            WHERE text_content IS NOT NULL;
+    EXCEPTION WHEN others THEN
+        RAISE NOTICE 'Skipping idx_chunks_text_fts: %', SQLERRM;
+    END;
+END $$;
 
 -- 图片表索引（基于简化后的结构）
 CREATE INDEX IF NOT EXISTS idx_photos_component_id ON unifiles.photos(component_id);
@@ -251,7 +285,8 @@ CREATE INDEX IF NOT EXISTS idx_photos_format ON unifiles.photos(format) WHERE fo
 
 -- 基于时间范围的查询优化
 CREATE INDEX IF NOT EXISTS idx_files_created_at_desc ON unifiles.files(created_at DESC);
-CREATE INDEX IF NOT EXISTS idx_extracted_documents_completed_at_desc ON unifiles.extracted_documents(completed_at DESC) WHERE completed_at IS NOT NULL;
+-- 当前 extracted_documents 无 completed_at 列，改为 created_at 降序索引
+CREATE INDEX IF NOT EXISTS idx_extracted_documents_created_at_desc ON unifiles.extracted_documents(created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_components_created_at_desc ON unifiles.components(created_at DESC);
 
 -- 文档处理状态索引
@@ -274,8 +309,10 @@ CREATE INDEX IF NOT EXISTS idx_components_document_type_created ON unifiles.comp
 CREATE INDEX IF NOT EXISTS idx_files_upload_monthly ON unifiles.files(user_id, date_trunc('month', created_at));
 
 -- 内容提取方法分析
-CREATE INDEX IF NOT EXISTS idx_extracted_documents_method_created ON unifiles.extracted_documents(extraction_method, created_at);
-CREATE INDEX IF NOT EXISTS idx_extracted_documents_method_status ON unifiles.extracted_documents(extraction_method, extraction_status);
+CREATE INDEX IF NOT EXISTS idx_extracted_documents_strategy_created 
+    ON unifiles.extracted_documents(extraction_strategy_id, created_at);
+CREATE INDEX IF NOT EXISTS idx_extracted_documents_strategy_status 
+    ON unifiles.extracted_documents(extraction_strategy_id, extraction_status);
 
 -- 用户活动日志索引
 CREATE INDEX IF NOT EXISTS idx_user_activity_logs_user_id ON unifiles.user_activity_logs(user_id);
@@ -312,7 +349,7 @@ SELECT
     idx_tup_read as tuples_read,
     idx_tup_fetch as tuples_fetched
 FROM pg_stat_user_indexes 
-WHERE indexname LIKE '%embedding%';
+WHERE indexname LIKE '%' || 'embedding' || '%';
 
 -- 创建索引使用统计视图
 CREATE OR REPLACE VIEW unifiles.index_usage_stats AS
