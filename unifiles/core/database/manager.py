@@ -15,10 +15,11 @@ from .models import (
     ChunkModel,
     DocumentModel,
     FileModel,
+    FileProcessingLogModel,
     FileStatus,
     KnowledgeBaseModel,
     PhotoModel,
-    ProcessingLogModel,
+    ProcessingStage,
     ProcessingStatus,
     UserModel,
 )
@@ -468,8 +469,8 @@ class DatabaseManager:
     # ==================== 处理日志操作 ====================
 
     async def create_processing_log(
-        self, log_model: ProcessingLogModel
-    ) -> ProcessingLogModel:
+        self, log_model: FileProcessingLogModel
+    ) -> FileProcessingLogModel:
         """创建处理日志"""
         conn = await self.get_connection()
         try:
@@ -477,17 +478,15 @@ class DatabaseManager:
                 await conn.execute(
                     """
                     INSERT INTO unifiles.file_processing_logs
-                    (id, file_id, user_id, status, stage, message, details, error_info)
-                    VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+                    (id, file_id, stage, status, message, error_details)
+                    VALUES ($1, $2, $3, $4, $5, $6)
                     """,
                     log_model.id,
                     log_model.file_id,
-                    log_model.user_id,
-                    log_model.status.value,
                     log_model.stage.value,
+                    log_model.status.value,
                     log_model.message,
-                    json.dumps(log_model.details),
-                    json.dumps(log_model.error_info),
+                    json.dumps(log_model.error_details or {}),
                 )
 
                 # 获取创建的日志信息
@@ -497,7 +496,7 @@ class DatabaseManager:
                 )
 
                 if result:
-                    log_model.started_at = result["started_at"]
+                    log_model.created_at = result["created_at"]
 
                 logger.info(f"Processing log created: {log_model.id}")
                 return log_model
@@ -519,23 +518,16 @@ class DatabaseManager:
         conn = await self.get_connection()
         try:
             async with conn.transaction():
-                completed_at = (
-                    datetime.now()
-                    if status in [ProcessingStatus.COMPLETED, ProcessingStatus.FAILED]
-                    else None
-                )
-
                 await conn.execute(
                     """
                     UPDATE unifiles.file_processing_logs
-                    SET status = $2, message = $3, error_info = $4, completed_at = $5
+                    SET status = $2, message = $3, error_details = $4
                     WHERE id = $1
                     """,
                     log_id,
                     status.value,
                     message,
                     json.dumps(error_info or {}),
-                    completed_at,
                 )
 
                 logger.info(f"Processing log updated: {log_id} -> {status.value}")

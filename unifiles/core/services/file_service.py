@@ -7,6 +7,12 @@ from unifiles.core.logging import get_logger
 
 from unifiles.app.schemas import FileInfo, FileListResponse, FileUploadResponse
 from unifiles.core.database.base import FileDBManager
+from unifiles.core.database.manager import DatabaseManager
+from unifiles.core.database.models import (
+    FileProcessingLogModel,
+    ProcessingStage,
+    ProcessingStatus,
+)
 from unifiles.core.pipelines.format_validator import FileFormatValidator, PDFConverter
 from unifiles.core.security.authorization import FileAccessControl
 from unifiles.core.security.validators import FileSecurityValidator
@@ -25,7 +31,8 @@ class FileService:
             db_manager: 数据库管理器
         """
         self.storage = storage or get_storage()
-        self.db = db_manager
+        self.db = db_manager  # 文件记录管理
+        self.db_manager = DatabaseManager()  # 处理日志管理
         self.validator = FileSecurityValidator()
         self.access_control = FileAccessControl()
         self._current_backend = None
@@ -104,6 +111,10 @@ class FileService:
             sanitized_filename = validation_result["sanitized_filename"]
             detected_mime_type = validation_result["detected_mime_type"]
             file_size = validation_result["file_size"]
+
+            # 处理日志：仅生成ID，占位，待文件记录写入后再创建，避免外键错误
+            log_id = f"log-{uuid.uuid4()!s}"
+            log_created = False
 
             # 5. 生成安全的存储路径
             object_path = FileSecurityValidator.generate_secure_path(
@@ -230,6 +241,28 @@ class FileService:
                 storage_config_id=storage_config_id,
             )
 
+            # 创建处理日志（此时 files 记录已存在，不会违反外键）
+            processing_log = FileProcessingLogModel(
+                id=log_id,
+                file_id=file_id,
+                stage=ProcessingStage.UPLOAD,
+                status=ProcessingStatus.PENDING,
+                message="File upload started",
+            )
+            await self.db_manager.create_processing_log(processing_log)
+            log_created = True
+            logger.info(
+                f"[PROCESSING LOG] Created log {log_id} for file {file_id}: stage=upload, status=pending"
+            )
+
+            # 更新处理日志 - 上传完成
+            await self.db_manager.update_processing_log(
+                log_id=log_id,
+                status=ProcessingStatus.COMPLETED,
+                message=f"File uploaded successfully: {sanitized_filename}",
+            )
+            logger.info(f"[PROCESSING LOG] Updated log {log_id} to COMPLETED")
+
             # 9. 设置公开状态（如果需要）
             if is_public:
                 await self.db.update_file_public_status(file_id, True)
@@ -265,8 +298,32 @@ class FileService:
             )
 
         except HTTPException:
+            # 更新处理日志为失败（仅在已创建时）
+            if 'log_id' in locals() and 'log_created' in locals() and log_created:
+                try:
+                    await self.db_manager.update_processing_log(
+                        log_id=log_id,
+                        status=ProcessingStatus.FAILED,
+                        message="File upload failed (HTTP exception)",
+                    )
+                    logger.info(f"[PROCESSING LOG] Updated log {log_id} to FAILED")
+                except Exception as log_error:
+                    logger.error(f"Failed to update processing log: {log_error}")
             raise
         except Exception as e:
+            # 更新处理日志为失败（仅在已创建时）
+            if 'log_id' in locals() and 'log_created' in locals() and log_created:
+                try:
+                    await self.db_manager.update_processing_log(
+                        log_id=log_id,
+                        status=ProcessingStatus.FAILED,
+                        message=f"Upload failed: {str(e)}",
+                        error_info={"error": str(e), "type": type(e).__name__}
+                    )
+                    logger.info(f"[PROCESSING LOG] Updated log {log_id} to FAILED with error details")
+                except Exception as log_error:
+                    logger.error(f"Failed to update processing log: {log_error}")
+
             logger.error(f"Error in file upload service: {e}")
             logger.exception("Full traceback:")  # 打印完整堆栈
             raise HTTPException(status_code=500, detail=f"Upload failed: {e!s}")

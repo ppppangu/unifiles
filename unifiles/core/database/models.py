@@ -23,12 +23,10 @@ class FileStatus(Enum):
 
 
 class ProcessingStage(Enum):
-    """处理阶段枚举"""
+    """处理阶段枚举 - 与数据库约束保持一致"""
 
     UPLOAD = "upload"
-    VALIDATION = "validation"
     OCR_EXTRACTION = "ocr_extraction"
-    MARKDOWN_GENERATION = "markdown_generation"
 
 
 class ProcessingStatus(Enum):
