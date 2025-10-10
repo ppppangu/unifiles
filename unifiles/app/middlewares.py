@@ -241,6 +241,7 @@ class AuthMiddleware:
     def __init__(self, app):
         self.app = app
         self.pg_config = read_pg_config()
+        self._connection_pool = None
 
         # 不需要认证的路径
         self.public_paths = {
@@ -313,29 +314,57 @@ class AuthMiddleware:
         # 检查是否以公开前缀开始
         return all(not path.startswith(prefix) for prefix in self.public_prefixes)
 
+    async def _init_connection_pool(self):
+        """初始化数据库连接池（延迟初始化）"""
+        if self._connection_pool is None:
+            try:
+                self._connection_pool = await asyncpg.create_pool(
+                    host=self.pg_config['host'],
+                    port=self.pg_config['port'],
+                    user=self.pg_config['user'],
+                    password=self.pg_config['password'],
+                    database=self.pg_config['database'],
+                    min_size=5,      # 最小连接数
+                    max_size=20,     # 最大连接数
+                    command_timeout=10.0,  # 命令超时10秒
+                    timeout=30.0,    # 连接超时30秒
+                )
+                print("Auth middleware connection pool initialized")
+            except Exception as e:
+                print(f"Failed to initialize connection pool: {e!s}")
+                raise
+
     async def _validate_token(self, token: str) -> Optional[str]:
         """验证token并返回用户ID"""
         try:
-            # 修复：asyncpg.connect 不接受 address 参数，需要使用 host 和 port
-            conn_config = {
-                'host': self.pg_config['host'],
-                'port': self.pg_config['port'],
-                'user': self.pg_config['user'],
-                'password': self.pg_config['password'],
-                'database': self.pg_config['database'],
-                'timeout': 5  # 5秒超时
-            }
-            conn = await asyncpg.connect(**conn_config)
-            try:
+            # 确保连接池已初始化
+            if self._connection_pool is None:
+                await self._init_connection_pool()
+
+            # 从连接池获取连接
+            async with self._connection_pool.acquire() as conn:
                 # 使用简化的验证函数，直接返回user_id
                 user_id = await conn.fetchval("SELECT validate_access_key_simple($1)", token)
                 return user_id
-            finally:
-                await conn.close()
-        except Exception as e:
-            # 记录错误但不暴露给客户端
-            print(f"Token validation error: {e!s}")  # 正式环境中应使用正式的日志系统
+        except asyncpg.exceptions.PostgresError as e:
+            # 数据库相关错误
+            print(f"Database error during token validation: {e!s}")
             return None
+        except asyncpg.exceptions.TooManyConnectionsError as e:
+            # 连接池耗尽
+            print(f"Connection pool exhausted: {e!s}")
+            return None
+        except Exception as e:
+            # 其他错误
+            print(f"Token validation error: {e!s}")
+            return None
+
+    async def close_connection_pool(self):
+        """关闭连接池"""
+        if self._connection_pool is not None:
+            await self._connection_pool.close()
+            self._connection_pool = None
+            print("Auth middleware connection pool closed")
 
 
 # 其他中间件示例：
