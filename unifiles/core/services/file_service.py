@@ -3,10 +3,11 @@ from datetime import datetime
 from typing import Any, Dict, Optional
 
 from fastapi import HTTPException, UploadFile
-from loguru import logger
+from unifiles.core.logging import get_logger
 
 from unifiles.app.schemas import FileInfo, FileListResponse, FileUploadResponse
 from unifiles.core.database.base import FileDBManager
+from unifiles.core.pipelines.format_validator import FileFormatValidator, PDFConverter
 from unifiles.core.security.authorization import FileAccessControl
 from unifiles.core.security.validators import FileSecurityValidator
 from unifiles.core.storage import Storage, get_storage
@@ -28,6 +29,12 @@ class FileService:
         self.validator = FileSecurityValidator()
         self.access_control = FileAccessControl()
         self._current_backend = None
+        # 初始化PDF转换器
+        self.pdf_converter = PDFConverter()
+        self.format_validator = FileFormatValidator()
+        # 使用应用统一日志（带 service 过滤），避免被全局 Loguru 过滤掉
+        global logger
+        logger = get_logger()
 
     async def upload_file(
         self,
@@ -116,28 +123,100 @@ class FileService:
             if metadata:
                 file_metadata.update(metadata)
 
-            # 7. 获取存储后端并上传文件
-            print(f"DEBUG SERVICE: Getting storage backend", file=sys.stderr)
-            sys.stderr.flush()
-
+            # 7. PDF转换处理（在上传之前）
+            # 先临时上传文件以获取URL，供转换服务使用
+            logger.info("=" * 80)
+            logger.info("[FILE UPLOAD] Step 7: Starting PDF conversion workflow")
+            logger.info(f"[FILE UPLOAD] Getting storage backend...")
             storage_backend = await self.storage.get_default_backend()
+            logger.info(f"[FILE UPLOAD] ✓ Storage backend obtained")
 
-            print(f"DEBUG SERVICE: Got backend, uploading file", file=sys.stderr)
-            print(f"DEBUG SERVICE: object_path={object_path}", file=sys.stderr)
-            print(f"DEBUG SERVICE: content_type={detected_mime_type}", file=sys.stderr)
-            sys.stderr.flush()
-
-            storage_path = await storage_backend.upload_file(
+            logger.info(f"[FILE UPLOAD] Uploading temporary file to storage...")
+            logger.info(f"[FILE UPLOAD] Object path: {object_path}")
+            temp_storage_path = await storage_backend.upload_file(
                 object_path=object_path,
                 content=file_content,
                 content_type=detected_mime_type,
                 metadata=file_metadata,
             )
+            logger.info(f"[FILE UPLOAD] ✓ Temporary file uploaded: {temp_storage_path}")
 
-            print(f"DEBUG SERVICE: Upload complete, storage_path={storage_path}", file=sys.stderr)
-            sys.stderr.flush()
+            # 生成临时访问URL - 使用 public 类型，因为 MinIO 配置为 public
+            temp_public_url = storage_backend.get_access_url(
+                object_path=temp_storage_path,
+                access_type="public",
+                expires_in_hours=None,  # public URL 不需要过期时间
+            )
 
-            # 8. 记录到数据库
+            logger.info("=" * 80)
+            logger.info(f"[FILE UPLOAD] Temporary file uploaded for PDF conversion check")
+            logger.info(f"[FILE UPLOAD] Temp storage path: {temp_storage_path}")
+            logger.info(f"[FILE UPLOAD] Temp PUBLIC URL generated: {temp_public_url}")
+            logger.info(f"[FILE UPLOAD] Checking if PDF conversion is needed for: {sanitized_filename}")
+            logger.info("=" * 80)
+
+            converted_info = await self._convert_to_pdf_if_needed(
+                file_content=file_content,
+                filename=sanitized_filename,
+                public_url=temp_public_url,
+            )
+
+            # 如果转换成功，使用转换后的PDF文件
+            if converted_info["converted"]:
+                logger.info("=" * 80)
+                logger.info(f"[FILE UPLOAD] ✅ PDF conversion successful!")
+                logger.info(f"[FILE UPLOAD] Original file: {sanitized_filename}")
+                logger.info(f"[FILE UPLOAD] Converted to: {converted_info['pdf_filename']}")
+                logger.info(f"[FILE UPLOAD] Original size: {len(file_content)} bytes")
+                logger.info(f"[FILE UPLOAD] PDF size: {len(converted_info['pdf_content'])} bytes")
+                logger.info("=" * 80)
+
+                # 更新文件内容、大小、类型
+                file_content = converted_info["pdf_content"]
+                file_size = len(file_content)
+                detected_mime_type = "application/pdf"
+                original_filename = sanitized_filename
+                sanitized_filename = converted_info["pdf_filename"]
+
+                # 重新生成存储路径（使用PDF文件名）
+                object_path = FileSecurityValidator.generate_secure_path(
+                    user_id, file_id, sanitized_filename
+                )
+
+                # 更新元数据
+                file_metadata["original_filename"] = original_filename
+                file_metadata["sanitized_filename"] = sanitized_filename
+                file_metadata["is_converted"] = True
+                file_metadata["conversion_status"] = "success"
+
+                # 删除临时文件
+                logger.info(f"[FILE UPLOAD] Deleting temporary file: {temp_storage_path}")
+                await storage_backend.delete_file(temp_storage_path)
+            else:
+                logger.info("=" * 80)
+                logger.info(f"[FILE UPLOAD] Conversion status: {converted_info['status']}")
+                logger.info(f"[FILE UPLOAD] Using original file: {sanitized_filename}")
+                if "error" in converted_info:
+                    logger.warning(f"[FILE UPLOAD] Conversion error: {converted_info['error']}")
+                logger.info("=" * 80)
+
+                # 不需要转换或转换失败，使用已上传的原文件
+                storage_path = temp_storage_path
+                file_metadata["is_converted"] = False
+                file_metadata["conversion_status"] = converted_info["status"]
+                # 跳到步骤9（数据库记录）
+
+            # 8. 上传最终文件到存储（如果转换成功，这里上传的是PDF）
+            if converted_info["converted"]:
+                storage_path = await storage_backend.upload_file(
+                    object_path=object_path,
+                    content=file_content,
+                    content_type=detected_mime_type,
+                    metadata=file_metadata,
+                )
+                logger.info(f"Converted PDF uploaded: {storage_path}")
+
+            # 9. 记录到数据库
             # 为避免外键不一致导致插入失败，这里不强制写入 storage_config_id，保持为 NULL
             storage_config_id = None
 
@@ -173,6 +252,10 @@ class FileService:
                 object_path=storage_path,
                 is_public=is_public,
                 created_at=datetime.now().isoformat(),
+                # PDF转换相关字段
+                original_filename=file_metadata.get("original_filename") if file_metadata.get("is_converted") else None,
+                is_converted=file_metadata.get("is_converted", False),
+                conversion_status=file_metadata.get("conversion_status"),
             )
 
             logger.info(f"File uploaded successfully: {file_id} by user: {user_id}")
@@ -487,10 +570,10 @@ class FileService:
     async def _get_storage_backend_for_file(self, file_record: Dict[str, Any]):
         """
         根据文件记录获取对应的存储后端
-        
+
         Args:
             file_record: 文件记录
-            
+
         Returns:
             存储后端实例
         """
@@ -504,3 +587,108 @@ class FileService:
         except Exception as e:
             logger.warning(f"Failed to get specific storage backend, using default: {e}")
             return await self.storage.get_default_backend()
+
+    async def _convert_to_pdf_if_needed(
+        self, file_content: bytes, filename: str, public_url: str
+    ) -> Dict[str, Any]:
+        """
+        如果需要，将文件转换为PDF
+
+        Args:
+            file_content: 文件内容
+            filename: 文件名
+            public_url: 文件的公共访问URL
+
+        Returns:
+            {
+                "converted": bool,  # 是否进行了转换
+                "pdf_content": Optional[bytes],  # PDF内容
+                "pdf_filename": Optional[str],  # PDF文件名
+                "status": str,  # "success" | "skipped" | "failed"
+            }
+        """
+        logger.info("=" * 80)
+        logger.info(f"[PDF CONVERSION] Starting PDF conversion check")
+        logger.info(f"[PDF CONVERSION] Filename: {filename}")
+        logger.info(f"[PDF CONVERSION] File size: {len(file_content)} bytes")
+        logger.info(f"[PDF CONVERSION] Public URL: {public_url[:100]}..." if len(public_url) > 100 else f"[PDF CONVERSION] Public URL: {public_url}")
+
+        try:
+            # 1. 检查是否已经是PDF
+            logger.info(f"[PDF CONVERSION] Step 1: Checking if file is already PDF")
+            if filename.lower().endswith('.pdf'):
+                logger.info(f"[PDF CONVERSION] ✓ File is already PDF, skipping conversion: {filename}")
+                logger.info("=" * 80)
+                return {
+                    "converted": False,
+                    "status": "skipped",
+                }
+            logger.info(f"[PDF CONVERSION] ✓ File is not PDF, continue checking")
+
+            # 2. 检查是否为可转换的文档格式
+            logger.info(f"[PDF CONVERSION] Step 2: Checking if file is a convertible document format")
+            if not self.format_validator.is_document_file(filename):
+                logger.info(f"[PDF CONVERSION] ✗ File is not a document format, skipping conversion: {filename}")
+                logger.info("=" * 80)
+                return {
+                    "converted": False,
+                    "status": "skipped",
+                }
+            logger.info(f"[PDF CONVERSION] ✓ File is a convertible document format")
+
+            # 3. 调用转换服务
+            logger.info(f"[PDF CONVERSION] Step 3: Calling PDF conversion service")
+            logger.info(f"[PDF CONVERSION] Sending file URL to conversion service: {public_url}")
+
+            pdf_url = await self.pdf_converter.convert_document_to_pdf(public_url)
+
+            if not pdf_url:
+                logger.error(f"[PDF CONVERSION] ✗ PDF conversion service returned empty result")
+                logger.error(f"[PDF CONVERSION] Conversion FAILED for: {filename}")
+                logger.info("=" * 80)
+                return {
+                    "converted": False,
+                    "status": "failed",
+                }
+
+            logger.info(f"[PDF CONVERSION] ✓ Conversion service returned PDF URL: {pdf_url}")
+
+            # 4. 下载转换后的PDF内容
+            logger.info(f"[PDF CONVERSION] Step 4: Downloading converted PDF content")
+            import httpx
+            from pathlib import Path
+
+            async with httpx.AsyncClient(timeout=30.0) as client:
+                logger.info(f"[PDF CONVERSION] Fetching PDF from: {pdf_url}")
+                response = await client.get(pdf_url)
+                response.raise_for_status()
+                pdf_content = response.content
+                logger.info(f"[PDF CONVERSION] ✓ Downloaded PDF content: {len(pdf_content)} bytes")
+
+            # 5. 生成PDF文件名
+            pdf_filename = Path(filename).stem + ".pdf"
+            logger.info(f"[PDF CONVERSION] Generated PDF filename: {pdf_filename}")
+
+            logger.info(f"[PDF CONVERSION] ✅ Successfully converted to PDF: {filename} -> {pdf_filename}")
+            logger.info(f"[PDF CONVERSION] Original size: {len(file_content)} bytes, PDF size: {len(pdf_content)} bytes")
+            logger.info("=" * 80)
+
+            return {
+                "converted": True,
+                "pdf_content": pdf_content,
+                "pdf_filename": pdf_filename,
+                "status": "success",
+            }
+
+        except Exception as e:
+            logger.error(f"[PDF CONVERSION] ❌ PDF conversion error for {filename}")
+            logger.error(f"[PDF CONVERSION] Error type: {type(e).__name__}")
+            logger.error(f"[PDF CONVERSION] Error message: {e}")
+            import traceback
+            logger.error(f"[PDF CONVERSION] Traceback:\n{traceback.format_exc()}")
+            logger.info("=" * 80)
+            return {
+                "converted": False,
+                "status": "failed",
+                "error": str(e),
+            }

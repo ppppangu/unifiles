@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import Any, Dict, Optional
 
 import httpx
-from loguru import logger
+from unifiles.core.logging import get_logger
 from tenacity import (
     retry,
     retry_if_exception_type,
@@ -24,6 +24,9 @@ class FileFormatValidator:
 
     def __init__(self, config: Optional[Dict[str, Any]] = None):
         self.config = config or read_config()
+        # 统一使用应用日志，保证控制台/文件输出
+        global logger
+        logger = get_logger()
 
         # 支持的文件类型定义
         self.DOCUMENT_FILE_TYPES = [
@@ -139,6 +142,9 @@ class PDFConverter:
     def __init__(self, config: Optional[Dict[str, Any]] = None):
         self.config = config or read_config()
         self.validator = FileFormatValidator(config)
+        # 统一使用应用日志
+        global logger
+        logger = get_logger()
 
     def _fix_public_url(self, original_url: str) -> str:
         """修正公网URL"""
@@ -182,19 +188,28 @@ class PDFConverter:
                 logger.error(f"Invalid file URL: {file_url}")
                 return None
 
-            # 文件格式校验
-            file_extension = file_url.split(".")[-1].lower() if "." in file_url else ""
+            # 从URL中正确提取文件名（去除查询参数）
+            from urllib.parse import urlparse, unquote
+
+            parsed_url = urlparse(file_url)
+            # 获取URL路径的最后一部分作为文件名
+            url_path = unquote(parsed_url.path)  # 解码URL编码
+            filename = url_path.split("/")[-1] if "/" in url_path else url_path
+
+            logger.info(f"Extracted filename from URL: {filename}")
+
+            # 提取文件扩展名
+            file_extension = Path(filename).suffix.lower()
             logger.info(f"Detected file extension: {file_extension}")
 
             # 如果已经是PDF，直接返回修正后的URL
-            if file_url.lower().endswith(".pdf"):
+            if file_extension == ".pdf":
                 logger.info(
-                    f"File is already PDF format, no conversion needed: {file_url}"
+                    f"File is already PDF format, no conversion needed: {filename}"
                 )
                 return self._fix_public_url(file_url)
 
             # 检查是否为支持的文档格式
-            filename = file_url.split("/")[-1] if "/" in file_url else file_url
             if not self.validator.is_document_file(filename):
                 logger.error(f"Unsupported file type for conversion: {file_extension}")
                 return None

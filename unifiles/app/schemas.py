@@ -17,6 +17,10 @@ class FileInfo(BaseModel):
     object_path: str = Field(description="存储路径")
     is_public: bool = Field(description="是否公开访问")
     created_at: str = Field(description="上传时间")
+    # PDF转换相关字段
+    original_filename: Optional[str] = Field(default=None, description="转换前的原始文件名")
+    is_converted: bool = Field(default=False, description="是否为转换后的文件")
+    conversion_status: Optional[str] = Field(default=None, description="转换状态: success|failed|skipped")
 
 
 class FileUploadResponse(BaseModel):
