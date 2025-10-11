@@ -18,6 +18,12 @@ from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional
 
 from loguru import logger
+try:
+    # Bind service name so logs pass Loguru filter configured by init_logger
+    logger = logger.bind(service="unifiles-v1")
+except Exception:
+    # Fallback: if binding fails for any reason, keep default logger
+    pass
 from minio import Minio
 from minio.error import S3Error
 from sqlalchemy import create_engine, text
@@ -67,6 +73,16 @@ class DatabaseBootstrapper:
         self._sql_dir = (
             sql_dir or Path(__file__).resolve().parents[3] / "scripts" / "sql"
         )
+        try:
+            logger.info(
+                "[DB] Bootstrapper initialized (host=%s, port=%s, db=%s, sql_dir=%s)",
+                self._pg_config.get("host"),
+                self._pg_config.get("port"),
+                self._pg_config.get("database"),
+                str(self._sql_dir),
+            )
+        except Exception:
+            pass
 
     def _build_engine(self) -> Engine:
         """Create a SQLAlchemy engine for the configured database."""
@@ -85,6 +101,12 @@ class DatabaseBootstrapper:
             ) from exc
 
         # 添加连接超时和池配置，加快启动速度
+        logger.info(
+            "[DB] Creating SQLAlchemy engine (host=%s, port=%s, db=%s)",
+            self._pg_config.get("host"),
+            self._pg_config.get("port"),
+            self._pg_config.get("database"),
+        )
         return create_engine(
             url,
             pool_pre_ping=True,
@@ -99,6 +121,7 @@ class DatabaseBootstrapper:
     async def ensure_database_ready(self) -> None:
         """Ensure the database is reachable and schema exists."""
         # 使用asyncpg直接测试连接，避免SQLAlchemy连接池问题
+        logger.info("[DB] ensure_database_ready: begin connectivity check via asyncpg")
         try:
             import asyncpg
             conn = await asyncpg.connect(
@@ -109,6 +132,7 @@ class DatabaseBootstrapper:
                 database=self._pg_config.get("database", "postgres"),
                 timeout=5,
             )
+            logger.info("[DB] asyncpg connected successfully")
             # 快速检查schema是否存在
             schema_exists = await conn.fetchval(
                 "SELECT EXISTS(SELECT 1 FROM information_schema.schemata WHERE schema_name = 'unifiles')"
@@ -116,10 +140,14 @@ class DatabaseBootstrapper:
             await conn.close()
 
             if schema_exists:
-                logger.info("Database schema already exists, skipping initialization")
+                logger.info(
+                    "[DB] Schema 'unifiles' exists; skipping bootstrap initialization"
+                )
                 return
             else:
-                logger.warning("unifiles schema not found, may need initialization")
+                logger.warning(
+                    "[DB] Schema 'unifiles' not found; may need initialization"
+                )
                 # 如果需要，可以在这里调用同步初始化
                 # await asyncio.to_thread(self._ensure_database_ready_sync)
 
@@ -131,10 +159,12 @@ class DatabaseBootstrapper:
             return
 
     def _ensure_database_ready_sync(self) -> None:
+        logger.info("[DB] _ensure_database_ready_sync: begin")
         engine = self._build_engine()
         try:
             with engine.connect() as conn:
                 conn.execute(text("SELECT 1"))
+                logger.info("[DB] Engine connectivity check OK")
         except SQLAlchemyError as exc:
             logger.warning(
                 f"Database connectivity check failed: {exc}. "
@@ -147,6 +177,10 @@ class DatabaseBootstrapper:
         try:
             with engine.connect() as conn:
                 missing_relations = self._detect_missing_relations(conn)
+                logger.info(
+                    "[DB] Missing relations detected: %s",
+                    ", ".join(missing_relations) if missing_relations else "<none>",
+                )
         except SQLAlchemyError as exc:
             raise StorageInitializationError(
                 f"Failed to inspect database schema: {exc}"
@@ -164,6 +198,7 @@ class DatabaseBootstrapper:
         try:
             with engine.begin() as conn:
                 self._run_bootstrap_scripts(conn)
+                logger.info("[DB] Bootstrap SQL scripts executed")
         except SQLAlchemyError as exc:
             raise StorageInitializationError(
                 f"Failed to execute bootstrap scripts: {exc}"
@@ -277,9 +312,16 @@ class LocalStorageBackend(BaseStorageBackend):
         self._metadata_suffix = ".meta.json"
 
     async def initialize(self) -> None:  # pragma: no cover - trivial
+        logger.info("[LocalStorage] initialize: begin")
         await asyncio.to_thread(self._prepare_directory)
+        logger.info("[LocalStorage] initialize: directory ready at %s", self._base_path)
 
     def _prepare_directory(self) -> None:
+        logger.info(
+            "[LocalStorage] Preparing directory (path=%s, create_if_missing=%s)",
+            str(self._base_path),
+            self._connection.create_if_missing,
+        )
         if self._connection.create_if_missing:
             self._base_path.mkdir(mode=0o755, parents=True, exist_ok=True)
         if not self._base_path.exists():
@@ -407,6 +449,12 @@ class MinioStorageBackend(BaseStorageBackend):
     def __init__(self, config: StorageConfig, connection: MinIOConnection):
         super().__init__(config)
         self._connection = connection
+        logger.info(
+            "[MinIO] Creating client (endpoint=%s, secure=%s, bucket=%s)",
+            connection.endpoint,
+            connection.secure,
+            connection.bucket_name,
+        )
         self._client = Minio(
             connection.endpoint,
             access_key=connection.access_key,
@@ -416,10 +464,13 @@ class MinioStorageBackend(BaseStorageBackend):
         self._bucket_name = connection.bucket_name
 
     async def initialize(self) -> None:
+        logger.info("[MinIO] initialize: begin ensure bucket '%s'", self._bucket_name)
         await asyncio.to_thread(self._ensure_bucket_exists)
+        logger.info("[MinIO] initialize: bucket ensured '%s'", self._bucket_name)
 
     def _ensure_bucket_exists(self) -> None:
         try:
+            logger.info("[MinIO] Checking if bucket exists: %s", self._bucket_name)
             if not self._client.bucket_exists(self._bucket_name):
                 self._client.make_bucket(self._bucket_name)
                 logger.info("Created MinIO bucket: %s", self._bucket_name)
@@ -546,27 +597,48 @@ class Storage:
         self._backends: dict[str, BaseStorageBackend] = {}
         self._db_bootstrapper = DatabaseBootstrapper()
         self._project_root = Path(__file__).resolve().parents[3]
+        logger.info(
+            "[Storage] Orchestrator created (project_root=%s)", str(self._project_root)
+        )
 
     async def initialize(self) -> None:
         """Initialize storage backends and ensure database readiness."""
         if self._state.initialized:
+            logger.info("[Storage] initialize: already initialized; skipping")
             return
 
         async with self._init_lock:
             if self._state.initialized:
+                logger.info("[Storage] initialize: already initialized (after lock)")
                 return
 
-            logger.info("Initializing Storage orchestrator...")
+            logger.info("[Storage] Initializing Storage orchestrator...")
+            logger.info("[Storage] Step 1/4: Ensuring database readiness")
             await self._db_bootstrapper.ensure_database_ready()
 
+            logger.info("[Storage] Step 2/4: Loading storage configs")
             configs = self._load_storage_configs()
             if not configs:
                 raise StorageInitializationError("No storage configurations available")
+            logger.info("[Storage] Loaded %d storage config(s)", len(configs))
 
+            logger.info("[Storage] Step 3/4: Initializing backends")
             for config in configs:
+                logger.info(
+                    "[Storage] Preparing backend id=%s provider=%s active=%s",
+                    config.id,
+                    getattr(config.connection.provider, "value", "unknown"),
+                    getattr(config, "is_active", False),
+                )
                 backend = self._create_backend(config)
                 try:
+                    logger.info(
+                        "[Storage] -> initializing backend '%s'", config.id
+                    )
                     await backend.initialize()
+                    logger.info(
+                        "[Storage] -> backend '%s' initialized OK", config.id
+                    )
                 except Exception as exc:
                     logger.error(
                         "Failed to initialize storage backend %s (%s): %s",
@@ -596,11 +668,13 @@ class Storage:
 
             self._state.initialized = True
             logger.info(
-                "Storage orchestrator initialized with default backend '%s'.",
+                "[Storage] Step 4/4: Initialization complete. Default backend='%s' (available=%d)",
                 self._state.default_backend_id,
+                len(self._backends),
             )
 
     async def get_backend(self, backend_id: str) -> BaseStorageBackend:
+        logger.info("[Storage] get_backend(%s)", backend_id)
         await self.initialize()
         backend = self._backends.get(backend_id)
         if backend is None:
@@ -608,6 +682,7 @@ class Storage:
         return backend
 
     async def get_default_backend(self) -> BaseStorageBackend:
+        logger.info("[Storage] get_default_backend()")
         await self.initialize()
         return await self.get_backend(self._state.default_backend_id)  # type: ignore[arg-type]
 
@@ -640,11 +715,18 @@ class Storage:
     def _load_storage_configs(self) -> List[StorageConfig]:
         """Load storage configurations from environment/defaults."""
         configs: List[StorageConfig] = []
+        logger.info("[Storage] _load_storage_configs: begin")
 
         # Try to load MinIO configuration first (if fully provided)
         try:
             minio_env = read_minio_config()
             if minio_env.get("access_key") and minio_env.get("secret_key"):
+                logger.info(
+                    "[Storage] MinIO config detected (endpoint=%s, bucket=%s, secure=%s)",
+                    minio_env.get("endpoint") or minio_env.get("address"),
+                    minio_env.get("bucket_name"),
+                    minio_env.get("secure"),
+                )
                 minio_config = StorageConfig.from_env_config(
                     minio_env, config_id="minio-default"
                 )
@@ -658,6 +740,10 @@ class Storage:
             str(self._project_root / "storage_data"),
         )
         try:
+            logger.info(
+                "[Storage] Adding local storage fallback (base_path=%s)",
+                local_base_path,
+            )
             local_connection = LocalConnection(
                 base_path=str(Path(local_base_path).expanduser().resolve()),
                 create_if_missing=True,
@@ -674,6 +760,7 @@ class Storage:
         except Exception as exc:
             logger.error("Failed to prepare local storage configuration: %s", exc)
 
+        logger.info("[Storage] _load_storage_configs: done (count=%d)", len(configs))
         return configs
 
     def _create_backend(self, config: StorageConfig) -> BaseStorageBackend:
@@ -702,6 +789,7 @@ def get_storage() -> Storage:
 
 async def get_initialized_storage() -> Storage:
     """Return the storage orchestrator ensuring initialization has run."""
+    logger.info("[Storage] get_initialized_storage(): ensure initialized")
     storage = get_storage()
     await storage.initialize()
     return storage

@@ -9,9 +9,10 @@ from pathlib import Path
 from typing import Any, Dict, Optional
 
 import aiofiles
-from loguru import logger
 
 from ..config.env_config import read_config
+from ..database import secure_file_db_manager
+from ..logging import get_logger
 from ..pipelines.format_validator import FormatValidationPipeline
 from ..pipelines.pdf_processor import (
     GenericOCRAdapter,
@@ -28,6 +29,9 @@ class DocumentProcessingService:
     def __init__(self, config: Optional[Dict[str, Any]] = None):
         self.config = config or read_config()
 
+        # 获取统一的日志实例
+        self.logger = get_logger()
+
         # 初始化各个组件
         self.format_pipeline = FormatValidationPipeline(config)
         self.pdf_pipeline = PDFProcessingPipeline(config=config)
@@ -39,13 +43,17 @@ class DocumentProcessingService:
         self.tmp_dir.mkdir(exist_ok=True)
 
     def set_ocr_provider(self, provider_type: str = "simple"):
-        """设置OCR提供者"""
+        """设置OCR提供者
+
+        Args:
+            provider_type: OCR提供者类型，"simple"表示使用简单PDF读取器，其他值表示使用对应的OCR提供商
+        """
         if provider_type == "simple":
             self.pdf_pipeline.set_ocr_provider(SimplePDFReader())
         else:
             self.pdf_pipeline.set_ocr_provider(GenericOCRAdapter(provider_type))
 
-        logger.info(f"OCR provider set to: {provider_type}")
+        self.logger.info(f"OCR provider set to: {provider_type}")
 
     async def process_file_from_upload(
         self,
@@ -63,7 +71,7 @@ class DocumentProcessingService:
             file_content: 文件内容
             user_id: 用户ID
             knowledge_base_id: 知识库ID，None时使用默认值
-            mode: 处理模式 ("simple" 或 特定的OCR提供商)
+            mode: 处理模式 ("simple" 或 特定的OCR提供商名称)
 
         Returns:
             处理结果字典
@@ -75,12 +83,12 @@ class DocumentProcessingService:
 
             document_id = str(uuid.uuid4())
 
-            logger.info("=== Starting file processing ===")
-            logger.info(f"User: {user_id}, KB: {knowledge_base_id}, Mode: {mode}")
-            logger.info(f"File: {filename}, Size: {len(file_content)} bytes")
+            self.logger.info("=== Starting file processing ===")
+            self.logger.info(f"User: {user_id}, KB: {knowledge_base_id}, Mode: {mode}")
+            self.logger.info(f"File: {filename}, Size: {len(file_content)} bytes")
 
             # 第一步：格式验证和PDF转换
-            logger.info("=== Stage 1: Format validation and PDF conversion ===")
+            self.logger.info("=== Stage 1: Format validation and PDF conversion ===")
 
             # 创建临时文件URL（实际应用中这应该是真实的文件URL）
             temp_file_path = self.tmp_dir / f"{document_id}_{filename}"
@@ -103,7 +111,7 @@ class DocumentProcessingService:
                 }
 
             pdf_url = validation_result["pdf_url"]
-            logger.info(f"PDF ready for processing: {pdf_url}")
+            self.logger.info(f"PDF ready for processing: {pdf_url}")
 
             # 设置OCR提供者
             if mode == "simple":
@@ -112,7 +120,7 @@ class DocumentProcessingService:
                 self.set_ocr_provider(mode)
 
             # 第二步：PDF处理和内容提取
-            logger.info("=== Stage 2: PDF processing and content extraction ===")
+            self.logger.info("=== Stage 2: PDF processing and content extraction ===")
 
             structured_content = (
                 await self.pdf_pipeline.process_pdf_to_structured_content(
@@ -124,22 +132,22 @@ class DocumentProcessingService:
                 )
             )
 
-            logger.info(
+            self.logger.info(
                 f"Content extraction completed: {len(structured_content)} segments"
             )
 
             # 第三步：嵌入处理
-            logger.info("=== Stage 3: Embedding processing ===")
+            self.logger.info("=== Stage 3: Embedding processing ===")
 
             embedded_content = await self.embedding_service.embed_content_batch(
                 structured_content
             )
-            logger.info(
+            self.logger.info(
                 f"Embedding processing completed for {len(embedded_content)} segments"
             )
 
             # 第四步：存储处理结果
-            logger.info("=== Stage 4: Storage processing ===")
+            self.logger.info("=== Stage 4: Storage processing ===")
 
             # 重新构建markdown内容
             markdown_content = ""
@@ -175,15 +183,15 @@ class DocumentProcessingService:
                 },
             }
 
-            logger.info("=== File processing completed successfully ===")
-            logger.info(
+            self.logger.info("=== File processing completed successfully ===")
+            self.logger.info(
                 f"Document ID: {document_id}, Components: {storage_result['component_count']}"
             )
 
             return result
 
         except Exception as e:
-            logger.error(f"File processing failed: {e!s}")
+            self.logger.error(f"File processing failed: {e!s}")
             return {
                 "success": False,
                 "error": f"Processing failed: {e!s}",
@@ -205,7 +213,7 @@ class DocumentProcessingService:
             file_url: 文件URL
             user_id: 用户ID
             knowledge_base_id: 知识库ID，None时使用默认值
-            mode: 处理模式 ("simple" 或 特定的OCR提供商)
+            mode: 处理模式 ("simple" 或 特定的OCR提供商名称)
             raw_file_url_to_return: 要返回的原始文件URL
 
         Returns:
@@ -222,23 +230,23 @@ class DocumentProcessingService:
             document_id = str(uuid.uuid4())
             filename = file_url.split("/")[-1] if "/" in file_url else "document.pdf"
 
-            logger.info("=== Starting URL file processing ===")
-            logger.info(f"User: {user_id}, KB: {knowledge_base_id}, Mode: {mode}")
-            logger.info(f"File URL: {file_url}")
+            self.logger.info("=== Starting URL file processing ===")
+            self.logger.info(f"User: {user_id}, KB: {knowledge_base_id}, Mode: {mode}")
+            self.logger.info(f"File URL: {file_url}")
 
             # 第一步：格式验证和PDF转换
-            logger.info("=== Stage 1: Format validation and PDF conversion ===")
+            self.logger.info("=== Stage 1: Format validation and PDF conversion ===")
 
             validation_result = await self.format_pipeline.process_file_url_only(
                 file_url
             )
 
             if not validation_result["success"]:
-                logger.error(f"Format validation failed: {validation_result['errors']}")
+                self.logger.error(f"Format validation failed: {validation_result['errors']}")
                 return None
 
             pdf_url = validation_result["pdf_url"]
-            logger.info(f"PDF ready for processing: {pdf_url}")
+            self.logger.info(f"PDF ready for processing: {pdf_url}")
 
             # 设置OCR提供者
             if mode == "simple":
@@ -247,7 +255,7 @@ class DocumentProcessingService:
                 self.set_ocr_provider(mode)
 
             # 第二步：PDF处理和内容提取
-            logger.info("=== Stage 2: PDF processing and content extraction ===")
+            self.logger.info("=== Stage 2: PDF processing and content extraction ===")
 
             structured_content = (
                 await self.pdf_pipeline.process_pdf_to_structured_content(
@@ -259,22 +267,22 @@ class DocumentProcessingService:
                 )
             )
 
-            logger.info(
+            self.logger.info(
                 f"Content extraction completed: {len(structured_content)} segments"
             )
 
             # 第三步：嵌入处理
-            logger.info("=== Stage 3: Embedding processing ===")
+            self.logger.info("=== Stage 3: Embedding processing ===")
 
             embedded_content = await self.embedding_service.embed_content_batch(
                 structured_content
             )
-            logger.info(
+            self.logger.info(
                 f"Embedding processing completed for {len(embedded_content)} segments"
             )
 
             # 第四步：存储到向量数据库
-            logger.info("=== Stage 4: Vector database storage ===")
+            self.logger.info("=== Stage 4: Vector database storage ===")
 
             component_ids = (
                 await self.storage_service.store_structured_content_to_vector_db(
@@ -286,12 +294,12 @@ class DocumentProcessingService:
                 )
             )
 
-            logger.info(
+            self.logger.info(
                 f"Vector database storage completed: {len(component_ids)} components stored"
             )
 
             # 第五步：云端存储处理结果
-            logger.info("=== Stage 5: Cloud storage ===")
+            self.logger.info("=== Stage 5: Cloud storage ===")
 
             # 重新构建markdown内容
             markdown_content = ""
@@ -339,15 +347,15 @@ class DocumentProcessingService:
                 "file_uuid": document_id,
             }
 
-            logger.info("=== URL file processing completed successfully ===")
-            logger.info(f"Document ID: {document_id}, Components: {len(component_ids)}")
-            logger.info(f"Markdown URL: {file_urls['markdown_public_url']}")
-            logger.info(f"PDF URL: {file_urls['pdf_file_public_url']}")
+            self.logger.info("=== URL file processing completed successfully ===")
+            self.logger.info(f"Document ID: {document_id}, Components: {len(component_ids)}")
+            self.logger.info(f"Markdown URL: {file_urls['markdown_public_url']}")
+            self.logger.info(f"PDF URL: {file_urls['pdf_file_public_url']}")
 
             return result
 
         except Exception as e:
-            logger.error(f"URL file processing failed: {e!s}")
+            self.logger.error(f"URL file processing failed: {e!s}")
             return None
 
     def get_service_info(self) -> Dict[str, Any]:
@@ -362,6 +370,105 @@ class DocumentProcessingService:
             "storage_service": self.storage_service.get_service_info(),
             "temp_directory": str(self.tmp_dir),
         }
+
+    async def process_file_by_id(
+        self,
+        file_id: str,
+        user_id: str,
+        mode: str = "simple",
+    ) -> Dict[str, Any]:
+        """
+        处理指定ID的文件内容
+
+        Args:
+            file_id: 文件ID
+            user_id: 用户ID
+            mode: 处理模式 ("simple" 或 特定的OCR提供商名称)
+
+        Returns:
+            处理结果字典
+        """
+        try:
+            # 从数据库获取文件信息
+            file_record = await secure_file_db_manager.get_file_record(file_id)
+            if not file_record:
+                raise ValueError(f"File not found: {file_id}")
+
+            # 验证权限
+            if file_record["user_id"] != user_id:
+                raise PermissionError("Access denied: file belongs to another user")
+
+            # 设置OCR提供者
+            if mode == "simple":
+                self.set_ocr_provider("simple")
+            else:
+                self.set_ocr_provider(mode)
+
+            self.logger.info(f"Processing file by ID: {file_id}, Mode: {mode}")
+
+            # 获取文件URL
+            self.logger.info(f"File record: {file_record}")
+            file_url = file_record.get("storage_path")
+            self.logger.info(f"File URL obtained: {file_url}")
+            if not file_url:
+                raise ValueError(f"File URL not available for file: {file_id}")
+
+            # 处理文件内容
+            # 创建一个文档ID
+            document_id = file_id
+
+            # 使用配置中的MinIO地址和桶名构建文件URL
+            minio_config = self.config.get("server_components", {}).get("minio", {})
+            minio_address = minio_config.get("address", "localhost:9000")
+            bucket_name = minio_config.get("bucket_name", "unifiles-bucket")
+            file_url = f"http://{minio_address}/{bucket_name}/" + file_url
+
+            # 格式验证和PDF转换
+            # /files上传文件端点现在已经实现了转PDF的功能
+            # validation_result = await self.format_pipeline.process_file_url_only(
+            #     file_url
+            # )
+            # if not validation_result["success"]:
+            #     raise ValueError(
+            #         f"Format validation failed: {validation_result['errors']}"
+            #     )
+
+            # pdf_url = validation_result["pdf_url"]
+            pdf_url = file_url
+            self.logger.info(
+                f"user_id {user_id}, document_id {document_id}, pdf_url {pdf_url}"
+            )
+
+            # PDF处理和内容提取
+            structured_content = await self.pdf_pipeline.process_pdf_to_structured_content(
+                pdf_url=pdf_url,
+                user_id=user_id,
+                knowledge_base_id=f"temp_{user_id}_{document_id}",  # 使用临时知识库ID
+                document_id=document_id,
+                mode=mode,
+            )
+
+            self.logger.info(f"Structured content: {structured_content}")
+
+            # 重新构建markdown内容
+            markdown_content = ""
+            for item in structured_content:
+                markdown_content += item["content"] + "\n\n"
+
+            # 构建返回结果
+            return {
+                "content_type": "text/markdown",
+                "extracted_text": "\n".join(
+                    [item["content"] for item in structured_content]
+                ),
+                "markdown_content": markdown_content,
+                "structured_data": {"segments": len(structured_content)},
+                "document_name": file_record.get("filename", "document"),
+            }
+
+        except Exception as e:
+            self.logger.error(f"Error processing file by ID {file_id}: {e!s}")
+            raise
 
 
 # 默认文档处理服务实例

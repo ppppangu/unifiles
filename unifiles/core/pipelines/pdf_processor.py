@@ -593,7 +593,7 @@ class PDFProcessingPipeline:
             text = await simple_reader.extract_text_from_pdf(pdf_path)
 
             if not text or text.strip() == "":
-                text = "这是一个占位符，用于保证边缘情况，需要图片处理走normal模式"
+                text = "这是一个占位符，用于保证边缘情况，需要图片处理请使用OCR提供商模式"
                 logger.info(
                     "PDF appears to be image-based or empty, using placeholder text"
                 )
@@ -605,26 +605,46 @@ class PDFProcessingPipeline:
 
         except Exception as e:
             logger.error(f"Simple mode PDF processing failed: {e}")
-            return "这是一个占位符，用于保证边缘情况，需要图片处理走normal模式"
+            return "这是一个占位符，用于保证边缘情况，需要图片处理请使用OCR提供商模式"
 
-    async def process_pdf_normal(self, pdf_url: str) -> str:
-        """标准模式：使用OCR服务处理PDF"""
+    async def process_pdf_with_ocr_provider(self, pdf_path: str, provider_name: str) -> str:
+        """使用指定的OCR提供商处理PDF文件
+
+        Args:
+            pdf_path: PDF文件路径
+            provider_name: OCR提供商名称
+
+        Returns:
+            str: 提取的文本内容
+        """
         try:
-            text = await self.ocr_provider.extract_markdown_from_pdf(pdf_url)
-
+            from unifiles.core.ocr.processor import OCRProcessor
+            from unifiles.core.ocr.factory import OCRProviderFactory
+            
+            # 检查提供商是否受支持
+            if provider_name not in OCRProviderFactory.get_supported_providers():
+                logger.warning(f"OCR provider '{provider_name}' not supported, falling back to Mistral")
+                provider_name = "mistral"
+            
+            # 创建OCR处理器
+            ocr_processor = OCRProcessor(provider_name)
+            
+            # 使用OCR提取文本
+            logger.info(f"Processing PDF with {provider_name} OCR provider")
+            text = await ocr_processor.aprocess_file(pdf_path)
+            
             if not text or text.strip() == "":
                 text = "这是一个占位符，用于保证边缘情况，文档已经过OCR处理"
                 logger.info(
-                    "OCR processing returned empty result, using placeholder text"
+                    f"{provider_name} OCR processing returned empty result, using placeholder text"
                 )
-
+            
             logger.info(
-                f"Normal mode PDF processing completed, {len(text)} characters extracted"
+                f"{provider_name} OCR PDF processing completed, {len(text)} characters extracted"
             )
             return text
-
         except Exception as e:
-            logger.error(f"Normal mode PDF processing failed: {e}")
+            logger.error(f"{provider_name} OCR PDF processing failed: {e}")
             return "这是一个占位符，用于保证边缘情况，文档已经过OCR处理"
 
     async def process_pdf_to_structured_content(
@@ -643,7 +663,7 @@ class PDFProcessingPipeline:
             user_id: 用户ID
             knowledge_base_id: 知识库ID
             document_id: 文档ID
-            mode: 处理模式 ("simple" 或 "normal")
+            mode: 处理模式 ("simple" 或 特定的OCR提供商名称)
 
         Returns:
             结构化内容列表
@@ -667,10 +687,10 @@ class PDFProcessingPipeline:
             # 根据模式处理PDF
             if mode == "simple":
                 text = await self.process_pdf_simple(str(local_file_path))
-            elif mode == "normal":
-                text = await self.process_pdf_normal(pdf_url)
             else:
-                raise ValueError(f"Invalid mode: {mode}")
+                # 模式直接作为OCR提供商名称处理
+                logger.info(f"Using OCR provider: {mode}")
+                text = await self.process_pdf_with_ocr_provider(str(local_file_path), mode)
 
             logger.info(f"Text extraction completed, {len(text)} characters")
 

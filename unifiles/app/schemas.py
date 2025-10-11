@@ -60,8 +60,7 @@ class FileListResponse(BaseModel):
 # ========== Files 资源相关模型（内容提取）==========
 class FileExtractRequest(BaseModel):
     """文件内容提取请求"""
-
-    mode: str = Field(default="simple", description="提取模式: simple|normalr")
+    mode: str = Field(default="simple", description="提取模式: simple|ocr_provider_name")
 
 
 class ExtractedContent(BaseModel):
