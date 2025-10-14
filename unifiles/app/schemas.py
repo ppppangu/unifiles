@@ -203,3 +203,26 @@ class UserCreateResponse(BaseModel):
     success: bool = Field(description="是否成功")
     message: str = Field(description="响应消息")
     user: UserInfo = Field(description="用户信息")
+
+
+# ========== Access Key 相关模型 ==========
+class AccessKeyCreateRequest(BaseModel):
+    """创建访问密钥请求"""
+
+    name: str = Field(..., min_length=1, max_length=128, description="密钥名称")
+    scopes: Optional[List[str]] = Field(
+        default=None, description="权限范围，如 ['read','write']"
+    )
+    description: Optional[str] = Field(default=None, description="密钥描述")
+    expires_at: Optional[str] = Field(
+        default=None, description="过期时间（RFC3339 日期时间字符串）"
+    )
+
+
+class AccessKeyCreateResponse(BaseModel):
+    """创建访问密钥响应"""
+
+    success: bool = Field(description="是否成功")
+    message: str = Field(description="响应消息")
+    key_id: Optional[str] = Field(default=None, description="访问密钥ID")
+    access_key: Optional[str] = Field(default=None, description="实际的Bearer Token")

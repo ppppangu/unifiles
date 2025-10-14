@@ -256,6 +256,7 @@ class AuthMiddleware:
         # 不需要认证的路径前缀
         self.public_prefixes = {
             "/static/",
+            "/users/",  # 允许用户相关操作不需要认证（用于bootstrap首个access key）
             # 可以添加更多公开路径前缀
         }
 
@@ -320,15 +321,15 @@ class AuthMiddleware:
         if self._connection_pool is None:
             try:
                 self._connection_pool = await asyncpg.create_pool(
-                    host=self.pg_config['host'],
-                    port=self.pg_config['port'],
-                    user=self.pg_config['user'],
-                    password=self.pg_config['password'],
-                    database=self.pg_config['database'],
-                    min_size=5,      # 最小连接数
-                    max_size=20,     # 最大连接数
+                    host=self.pg_config["host"],
+                    port=self.pg_config["port"],
+                    user=self.pg_config["user"],
+                    password=self.pg_config["password"],
+                    database=self.pg_config["database"],
+                    min_size=5,  # 最小连接数
+                    max_size=20,  # 最大连接数
                     command_timeout=10.0,  # 命令超时10秒
-                    timeout=30.0,    # 连接超时30秒
+                    timeout=30.0,  # 连接超时30秒
                 )
                 print("Auth middleware connection pool initialized")
             except Exception as e:
@@ -345,7 +346,9 @@ class AuthMiddleware:
             # 从连接池获取连接
             async with self._connection_pool.acquire() as conn:
                 # 使用简化的验证函数，直接返回user_id
-                user_id = await conn.fetchval("SELECT validate_access_key_simple($1)", token)
+                user_id = await conn.fetchval(
+                    "SELECT validate_access_key_simple($1)", token
+                )
                 return user_id
         except asyncpg.exceptions.PostgresError as e:
             # 数据库相关错误
