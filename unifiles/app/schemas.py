@@ -108,6 +108,21 @@ class KnowledgeBaseInfo(BaseModel):
     updated_at: str = Field(description="更新时间")
 
 
+class KnowledgeBaseCreateRequest(BaseModel):
+    """创建知识库请求"""
+
+    name: str = Field(..., min_length=1, max_length=128, description="知识库名称")
+    description: Optional[str] = Field(default="", description="知识库描述")
+
+
+class KnowledgeBaseCreateResponse(BaseModel):
+    """创建知识库响应"""
+
+    success: bool = Field(description="是否成功")
+    message: str = Field(description="响应消息")
+    knowledge_base: KnowledgeBaseInfo = Field(description="知识库信息")
+
+
 class KnowledgeBaseListResponse(BaseModel):
     """知识库列表响应"""
 
@@ -153,3 +168,38 @@ class ErrorResponse(BaseModel):
     message: str = Field(description="错误消息")
     error_code: Optional[str] = Field(default=None, description="错误代码")
     details: Optional[Dict[str, Any]] = Field(default=None, description="错误详情")
+
+
+# ========== User 用户相关模型 ==========
+class UserCreateRequest(BaseModel):
+    """用户创建请求"""
+
+    user_id: str = Field(..., min_length=1, max_length=128, description="用户ID")
+    username: Optional[str] = Field(default=None, max_length=128, description="用户名")
+    email: Optional[str] = Field(default=None, max_length=256, description="邮箱")
+    display_name: Optional[str] = Field(default=None, max_length=128, description="显示名称")
+    user_settings: Optional[Dict[str, Any]] = Field(default=None, description="用户设置")
+
+
+class UserInfo(BaseModel):
+    """用户信息"""
+
+    id: str = Field(description="用户ID")
+    username: Optional[str] = Field(default=None, description="用户名")
+    email: Optional[str] = Field(default=None, description="邮箱")
+    display_name: Optional[str] = Field(default=None, description="显示名称")
+    user_status: str = Field(description="用户状态")
+    user_role: str = Field(description="用户角色")
+    knowledge_ids: List[str] = Field(description="知识库ID列表")
+    user_settings: Dict[str, Any] = Field(description="用户设置")
+    created_at: str = Field(description="创建时间")
+    updated_at: Optional[str] = Field(default=None, description="更新时间")
+    last_login_at: Optional[str] = Field(default=None, description="最后登录时间")
+
+
+class UserCreateResponse(BaseModel):
+    """用户创建响应"""
+
+    success: bool = Field(description="是否成功")
+    message: str = Field(description="响应消息")
+    user: UserInfo = Field(description="用户信息")

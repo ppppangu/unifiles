@@ -10,8 +10,8 @@ from typing import Any, Dict, Optional
 import asyncpg
 from loguru import logger
 
-from ..config.env_config import read_pg_config
-from .models import (
+from unifiles.core.config.env_config import read_pg_config
+from ..models import (
     ChunkModel,
     DocumentModel,
     FileModel,

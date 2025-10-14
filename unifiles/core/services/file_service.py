@@ -6,8 +6,10 @@ from fastapi import HTTPException, UploadFile
 from unifiles.core.logging import get_logger
 
 from unifiles.app.schemas import FileInfo, FileListResponse, FileUploadResponse
-from unifiles.core.database.base import FileDBManager
-from unifiles.core.database.manager import DatabaseManager
+from unifiles.core.database import (
+    UnifiedFileDBManager,
+    UnifiedKnowledgeBaseDBManager,
+)
 from unifiles.core.database.models import (
     FileProcessingLogModel,
     ProcessingStage,
@@ -22,17 +24,17 @@ from unifiles.core.storage import Storage, get_storage
 class FileService:
     """文件管理业务逻辑服务"""
 
-    def __init__(self, storage: Optional[Storage] = None, db_manager: Optional[FileDBManager] = None):
+    def __init__(self, storage: Optional[Storage] = None, db_manager: Optional[UnifiedFileDBManager] = None):
         """
         初始化文件服务
 
         Args:
             storage: 存储实例，如果为None则使用默认实例
-            db_manager: 数据库管理器
+            db_manager: 数据库管理器（使用新的统一管理器）
         """
         self.storage = storage or get_storage()
-        self.db = db_manager  # 文件记录管理
-        self.db_manager = DatabaseManager()  # 处理日志管理
+        self.db = db_manager  # 文件记录管理（统一管理器）
+        self.db_manager = UnifiedKnowledgeBaseDBManager()  # 处理日志管理
         self.validator = FileSecurityValidator()
         self.access_control = FileAccessControl()
         self._current_backend = None

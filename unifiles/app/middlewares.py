@@ -249,6 +249,7 @@ class AuthMiddleware:
             "/docs",
             "/redoc",
             "/openapi.json",
+            "/users/create",
             # 可以添加更多公开路径
         }
 

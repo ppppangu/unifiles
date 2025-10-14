@@ -23,7 +23,7 @@ from unifiles.app.middlewares import (
 )
 
 # 导入API路由
-from unifiles.app.routers import knowledge_bases, manager, processors, unifiles
+from unifiles.app.routers import knowledge_bases, manager, processors, unifiles, users
 from unifiles.app.schemas import StandardResponse
 
 # 导入核心工具
@@ -104,6 +104,7 @@ def create_app() -> FastAPI:
     app.include_router(processors.router)
     app.include_router(knowledge_bases.router)
     app.include_router(manager.router)
+    app.include_router(users.router)
 
     # 顶级健康检查路由
     @app.get("/health", response_model=StandardResponse, tags=["System"])

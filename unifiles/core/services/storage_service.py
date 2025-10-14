@@ -11,7 +11,7 @@ from typing import Any, Dict, List, Optional
 
 from loguru import logger
 
-from ..database.manager import DatabaseManager
+from ..database import DatabaseManager
 from ..database.models import ChunkModel, PhotoModel
 from ..storage import get_storage
 
