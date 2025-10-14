@@ -226,3 +226,24 @@ class AccessKeyCreateResponse(BaseModel):
     message: str = Field(description="响应消息")
     key_id: Optional[str] = Field(default=None, description="访问密钥ID")
     access_key: Optional[str] = Field(default=None, description="实际的Bearer Token")
+
+
+class AccessKeyInfo(BaseModel):
+    """访问密钥信息（列表/详情用，不包含完整密钥值）"""
+
+    id: str = Field(description="访问密钥ID")
+    name: str = Field(description="密钥名称")
+    description: Optional[str] = Field(default=None, description="密钥描述")
+    scopes: List[str] = Field(description="权限范围")
+    is_active: bool = Field(description="是否启用")
+    created_at: str = Field(description="创建时间")
+    expires_at: Optional[str] = Field(default=None, description="过期时间")
+    last_used_at: Optional[str] = Field(default=None, description="最后使用时间")
+
+
+class AccessKeyListResponse(BaseModel):
+    """访问密钥列表响应"""
+
+    success: bool = Field(description="是否成功")
+    message: str = Field(description="响应消息")
+    access_keys: List[AccessKeyInfo] = Field(description="访问密钥列表")

@@ -4,6 +4,7 @@
 """
 
 import json
+from typing import List, Optional
 
 from fastapi import APIRouter, HTTPException
 from loguru import logger
@@ -13,6 +14,8 @@ logger.bind(service="unifiles-v1")
 from unifiles.app.schemas import (
     AccessKeyCreateRequest,
     AccessKeyCreateResponse,
+    AccessKeyInfo,
+    AccessKeyListResponse,
     StandardResponse,
     UserCreateRequest,
     UserCreateResponse,
@@ -326,3 +329,57 @@ async def create_user_access_key(user_id: str, body: AccessKeyCreateRequest):
     except Exception as e:
         logger.error(f"Error creating access key for user {user_id}: {e}")
         raise HTTPException(status_code=500, detail=f"Key creation error: {e!s}") from e
+
+
+@router.get("/{user_id}/access-keys", response_model=AccessKeyListResponse)
+async def list_user_access_keys(user_id: str, active: Optional[bool] = None):
+    """
+    获取指定用户的访问密钥列表
+
+    可选按是否启用过滤。
+    """
+    try:
+        # 确认用户是否存在
+        user = await unified_db_manager.users.get_user(user_id)
+        if not user:
+            raise HTTPException(status_code=404, detail=f"User '{user_id}' not found")
+
+        # 组装查询
+        base_sql = (
+            "SELECT id, name, description, scopes, is_active, created_at, "
+            "expires_at, last_used_at FROM unifiles.access_keys WHERE user_id = $1"
+        )
+        params = [user_id]
+        if active is True:
+            base_sql += " AND is_active = TRUE"
+        elif active is False:
+            base_sql += " AND is_active = FALSE"
+        base_sql += " ORDER BY created_at DESC"
+
+        rows = await unified_db_manager.users.fetch_many(base_sql, *params)
+
+        access_keys: List[AccessKeyInfo] = []
+        for r in rows:
+            access_keys.append(
+                AccessKeyInfo(
+                    id=r["id"],
+                    name=r.get("name", ""),
+                    description=r.get("description"),
+                    scopes=list(r.get("scopes") or []),
+                    is_active=bool(r.get("is_active", True)),
+                    created_at=r["created_at"].isoformat() if r.get("created_at") else "",
+                    expires_at=r["expires_at"].isoformat() if r.get("expires_at") else None,
+                    last_used_at=r["last_used_at"].isoformat() if r.get("last_used_at") else None,
+                )
+            )
+
+        return AccessKeyListResponse(
+            success=True,
+            message="Access keys retrieved successfully",
+            access_keys=access_keys,
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error listing access keys for user {user_id}: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to list access keys: {e!s}") from e
