@@ -45,7 +45,7 @@ class KnowledgeBaseDBManager(BaseDBManager):
                         kb_model.user_id,
                         kb_model.name,
                         kb_model.description,
-                        json.dumps(kb_model.document_ids),
+                        kb_model.document_ids,
                     )
 
                     # 获取创建的知识库信息

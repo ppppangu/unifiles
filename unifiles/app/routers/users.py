@@ -9,7 +9,7 @@ from typing import List, Optional
 from fastapi import APIRouter, HTTPException
 from loguru import logger
 
-logger.bind(service="unifiles-v1")
+logger = logger.bind(service="unifiles-v1")
 
 from unifiles.app.schemas import (
     AccessKeyCreateRequest,
@@ -201,7 +201,7 @@ async def login_user(email: str):
             "SELECT * FROM unifiles.users WHERE email = $1", email, operation="login"
         )
 
-        logger.info(f"User login result: {result}") 
+        logger.info(f"User login result: {result}")
 
         if not result:
             logger.warning(f"User not found for email: {email}")
@@ -216,7 +216,9 @@ async def login_user(email: str):
             try:
                 user_settings = json.loads(user_settings)
             except (json.JSONDecodeError, ValueError):
-                logger.warning(f"Failed to parse user_settings as JSON: {user_settings}")
+                logger.warning(
+                    f"Failed to parse user_settings as JSON: {user_settings}"
+                )
                 user_settings = {}
 
         user_info = UserInfo(
@@ -367,9 +369,15 @@ async def list_user_access_keys(user_id: str, active: Optional[bool] = None):
                     description=r.get("description"),
                     scopes=list(r.get("scopes") or []),
                     is_active=bool(r.get("is_active", True)),
-                    created_at=r["created_at"].isoformat() if r.get("created_at") else "",
-                    expires_at=r["expires_at"].isoformat() if r.get("expires_at") else None,
-                    last_used_at=r["last_used_at"].isoformat() if r.get("last_used_at") else None,
+                    created_at=r["created_at"].isoformat()
+                    if r.get("created_at")
+                    else "",
+                    expires_at=r["expires_at"].isoformat()
+                    if r.get("expires_at")
+                    else None,
+                    last_used_at=r["last_used_at"].isoformat()
+                    if r.get("last_used_at")
+                    else None,
                 )
             )
 
@@ -382,4 +390,84 @@ async def list_user_access_keys(user_id: str, active: Optional[bool] = None):
         raise
     except Exception as e:
         logger.error(f"Error listing access keys for user {user_id}: {e}")
-        raise HTTPException(status_code=500, detail=f"Failed to list access keys: {e!s}") from e
+        raise HTTPException(
+            status_code=500, detail=f"Failed to list access keys: {e!s}"
+        ) from e
+
+
+@router.delete("/{user_id}/access-keys/{key_id}", response_model=StandardResponse)
+async def delete_user_access_key(user_id: str, key_id: str):
+    """
+    删除（撤销）指定用户的访问密钥
+
+    实际执行软删除，将密钥标记为不活跃状态。
+
+    Args:
+        user_id: 用户ID
+        key_id: 访问密钥ID
+
+    Returns:
+        StandardResponse: 删除操作结果
+
+    Raises:
+        HTTPException: 当用户不存在、密钥不存在或删除失败时
+    """
+    try:
+        logger.info(f"Deleting access key {key_id} for user {user_id}")
+
+        # 1) 验证用户是否存在
+        user = await unified_db_manager.users.get_user(user_id)
+        if not user:
+            raise HTTPException(status_code=404, detail=f"User '{user_id}' not found")
+
+        # 2) 验证密钥是否属于该用户
+        check_sql = "SELECT user_id FROM unifiles.access_keys WHERE id = $1"
+        key_owner = await unified_db_manager.users.fetch_one(check_sql, key_id)
+
+        if not key_owner:
+            raise HTTPException(
+                status_code=404, detail=f"Access key '{key_id}' not found"
+            )
+
+        if key_owner["user_id"] != user_id:
+            raise HTTPException(
+                status_code=403,
+                detail=f"Access key '{key_id}' does not belong to user '{user_id}'",
+            )
+
+        # 3) 调用数据库函数撤销密钥（软删除）
+        result = await unified_db_manager.users.fetch_value(
+            "SELECT unifiles.revoke_access_key($1)",
+            key_id,
+        )
+
+        # 4) 解析结果
+        if not isinstance(result, dict):
+            try:
+                result = json.loads(result)
+            except Exception:
+                logger.error("Unexpected result type from revoke_access_key")
+                raise HTTPException(status_code=500, detail="Key deletion failed")
+
+        if result.get("success") is True:
+            logger.info(f"Access key {key_id} deleted successfully")
+            return StandardResponse(
+                success=True,
+                message="Access key deleted successfully",
+                data={"key_id": key_id},
+            )
+
+        # 删除失败
+        err = result.get("error")
+        msg = result.get("message", "Failed to delete access key")
+        if err == "key_not_found":
+            raise HTTPException(status_code=404, detail=msg)
+        raise HTTPException(status_code=400, detail=msg)
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error deleting access key {key_id} for user {user_id}: {e}")
+        raise HTTPException(
+            status_code=500, detail=f"Failed to delete access key: {e!s}"
+        ) from e

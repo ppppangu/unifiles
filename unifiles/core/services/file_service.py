@@ -525,7 +525,7 @@ class FileService:
                 )
 
             # 从数据库删除记录
-            await self.db.delete_file_record(file_id)
+            await self.db.delete_file_record(file_id, user_id)
 
             logger.info(f"File {file_id} deleted successfully by user {user_id}")
 

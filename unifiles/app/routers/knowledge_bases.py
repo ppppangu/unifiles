@@ -11,7 +11,10 @@ from fastapi import (
 from fastapi import (
     Path as FastAPIPath,
 )
-from loguru import logger
+
+from unifiles.core.logging import get_logger
+
+logger = get_logger()
 
 from unifiles.app.schemas import (
     KnowledgeBaseCreateRequest,
@@ -24,14 +27,13 @@ from unifiles.app.schemas import (
     StandardResponse,
 )
 from unifiles.core.database import (
-    DatabaseManager as KnowledgeBaseDBManager,
+    UnifiedKnowledgeBaseDBManager,
+    unified_kb_db_manager,
     unified_user_db_manager,
 )
 from unifiles.core.database.models import KnowledgeBaseModel
 
 router = APIRouter(prefix="/knowledge-bases", tags=["Knowledge Bases"])
-
-knowledge_db_manager = KnowledgeBaseDBManager()
 
 
 def _model_to_info(kb_model: KnowledgeBaseModel) -> KnowledgeBaseInfo:
@@ -64,8 +66,10 @@ async def create_knowledge_base(
     """创建新的知识库"""
     try:
         user_id = request.state.user_id
+        client_ip = getattr(request.state, 'client_ip', 'unknown')
         logger.info(f"POST /knowledge-bases request from user: {user_id}")
-        logger.info(f"Create request payload: {create_request.dict()}")
+        logger.debug(f"Create request payload: {create_request.dict()}")
+        logger.debug(f"Request state: user_id={user_id}, client_ip={client_ip}")
 
         kb_name = create_request.name.strip()
         if not kb_name:
@@ -74,17 +78,24 @@ async def create_knowledge_base(
             )
 
         # Ensure user exists before creating knowledge base
+        logger.debug(f"Ensuring user {user_id} exists in database")
         await unified_user_db_manager.ensure_user_exists(user_id)
+        logger.debug(f"User {user_id} verified/created successfully")
 
         kb_id = f"kb_{uuid.uuid4().hex}"
+        logger.debug(f"Generated kb_id: {kb_id}")
+
         kb_model = KnowledgeBaseModel(
             id=kb_id,
             user_id=user_id,
             name=kb_name,
             description=create_request.description or "",
         )
+        logger.debug(f"KnowledgeBaseModel created: id={kb_model.id}, name={kb_model.name}, user_id={kb_model.user_id}")
 
-        created_kb = await knowledge_db_manager.create_knowledge_base(kb_model)
+        logger.debug(f"Calling database create_knowledge_base for {kb_id}")
+        created_kb = await unified_kb_db_manager.create_knowledge_base(kb_model)
+        logger.debug(f"Database operation completed for {kb_id}")
         kb_info = _model_to_info(created_kb)
 
         logger.info(f"Knowledge base created successfully: {kb_id}")
@@ -96,20 +107,22 @@ async def create_knowledge_base(
 
     except HTTPException:
         raise
-    except asyncpg.exceptions.UniqueViolationError:
-        logger.warning("Knowledge base ID collision detected during creation")
+    except asyncpg.exceptions.UniqueViolationError as e:
+        logger.warning(f"Knowledge base ID collision detected during creation: {e}")
         raise HTTPException(
             status_code=409,
             detail="Knowledge base with the same ID already exists",
         )
     except (asyncpg.PostgresError, OSError) as e:
-        logger.error(f"Database error creating knowledge base: {e}")
+        logger.exception(f"Database error creating knowledge base: {e}")
+        logger.debug(f"KB model that failed: id={kb_id if 'kb_id' in locals() else 'not_generated'}, user_id={user_id}")
         raise HTTPException(
             status_code=503,
             detail="Database unavailable while creating knowledge base",
         )
     except Exception as e:
-        logger.error(f"Error creating knowledge base: {e}")
+        logger.exception(f"Unexpected error creating knowledge base: {e}")
+        logger.debug(f"Request context: user_id={user_id}, kb_name={kb_name if 'kb_name' in locals() else 'not_set'}")
         raise HTTPException(
             status_code=500, detail=f"Knowledge base creation failed: {e!s}"
         )

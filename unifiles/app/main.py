@@ -43,7 +43,7 @@ async def lifespan(app: FastAPI):
             logger_type="loguru",
             service_name="unifiles-v1",
             log_dir=log_path,
-            level="INFO",
+            level="DEBUG",  # Changed to DEBUG for detailed logging
             rotation="100 MB",
             retention="30 days",
         )

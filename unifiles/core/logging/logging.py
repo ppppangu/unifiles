@@ -72,15 +72,16 @@ class LoguruLogger(BaseLogger):
         # 移除默认的控制台处理器
         logger.remove()
 
-        # 添加控制台输出（开发时有用）
+        # 添加控制台输出（开发时有用）- 临时移除filter以便调试
         logger.add(
             sink=lambda msg: print(msg, end=""),
             format="<green>{time:YYYY-MM-DD HH:mm:ss}</green> | "
             "<level>{level: <8}</level> | "
             "<cyan>{name}</cyan>:<cyan>{function}</cyan>:<cyan>{line}</cyan> | "
-            "{extra[service]} | <level>{message}</level>",
+            "<level>{message}</level>",
             level=self.level,
-            filter=lambda record: record["extra"].get("service") == self.service_name,
+            # Temporarily removed filter for debugging
+            # filter=lambda record: record["extra"].get("service") == self.service_name,
         )
 
         # 添加文件输出
@@ -90,13 +91,14 @@ class LoguruLogger(BaseLogger):
         )
         self._logger_id = logger.add(
             sink=str(log_file),
-            format="{time:YYYY-MM-DD HH:mm:ss.SSS} | {level: <8} | {name}:{function}:{line} | {extra[service]} | {message}",
+            format="{time:YYYY-MM-DD HH:mm:ss.SSS} | {level: <8} | {name}:{function}:{line} | {message}",
             level=self.level,
             rotation=self.rotation,
             retention=self.retention,
             compression=self.compression,
             encoding="utf-8",
-            filter=lambda record: record["extra"].get("service") == self.service_name,
+            # Temporarily removed filter for debugging
+            # filter=lambda record: record["extra"].get("service") == self.service_name,
         )
 
     def _log_with_context(
