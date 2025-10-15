@@ -47,18 +47,18 @@ async def extract_file_content(
             mode=extract_request.mode,
         )
 
-        # 构建响应
-        import uuid
+        # 构建响应（使用数据库返回的真实 extraction_id）
         from datetime import datetime
 
         extracted_content = ExtractedContent(
             file_id=file_id,
-            extraction_id=f"ext_{str(uuid.uuid4())[:8]}",
+            extraction_id=extracted_content_data["extraction_id"],  # 使用数据库返回的真实ID
             content_type=extracted_content_data["content_type"],
-            extracted_text=extracted_content_data["extracted_text"],
-            markdown_content=extracted_content_data["markdown_content"],
-            structured_data=extracted_content_data["structured_data"],
+            extracted_text=extracted_content_data.get("extracted_text"),
+            markdown_content=extracted_content_data.get("markdown_content"),
+            structured_data=extracted_content_data.get("structured_data"),
             extraction_metadata={"mode": extract_request.mode, "processed_at": datetime.now().isoformat()},
+            extraction_strategy=f"OCR-{extract_request.mode}",
             status="completed",
             created_at=datetime.now().isoformat()
         )

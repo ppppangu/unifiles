@@ -5,13 +5,14 @@
 """
 
 import uuid
+from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, Optional
 
 import aiofiles
 
 from ..config.env_config import read_config
-from ..database import secure_file_db_manager
+from ..database import extraction_db_manager, secure_file_db_manager
 from ..logging import get_logger
 from ..pipelines.format_validator import FormatValidationPipeline
 from ..pipelines.pdf_processor import (
@@ -455,8 +456,62 @@ class DocumentProcessingService:
             for item in structured_content:
                 markdown_content += item["content"] + "\n\n"
 
+            # === 数据库持久化逻辑 ===
+            # 1. 创建或获取处理策略
+            strategy_id = await extraction_db_manager.create_or_get_processing_strategy(
+                strategy_name=f"OCR-{mode}",
+                strategy_type="ocr",
+                processing_config={
+                    "method": mode,
+                    "version": "1.0.0",
+                    "engine": mode if mode != "simple" else "pypdf",
+                },
+            )
+
+            # 2. 创建提取文档记录
+            extraction_id = await extraction_db_manager.create_extracted_document(
+                file_id=file_id,
+                user_id=user_id,
+                extraction_strategy_id=strategy_id,
+                full_markdown=markdown_content,
+                total_chars=len(markdown_content),
+                total_pages=0,  # 可以从structured_content中计算
+                total_assets=0,
+                extraction_metadata={
+                    "mode": mode,
+                    "segments_count": len(structured_content),
+                    "processed_at": datetime.now().isoformat(),
+                },
+                extraction_status="completed",
+            )
+
+            # 3. 记录处理日志
+            await extraction_db_manager.create_process_log(
+                entity_id=extraction_id,
+                entity_type="document",
+                process_type="extraction",
+                action="extract_content",
+                status="completed",
+                log_type="log",
+                log_level="info",
+                process_stage="content_extraction",
+                message=f"Successfully extracted content from file {file_id} using {mode} mode",
+                input_params={"file_id": file_id, "mode": mode},
+                output_results={
+                    "extraction_id": extraction_id,
+                    "markdown_length": len(markdown_content),
+                    "segments_count": len(structured_content),
+                },
+                user_id=user_id,
+            )
+
+            self.logger.info(
+                f"Extracted document persisted to database: {extraction_id} for file: {file_id}"
+            )
+
             # 构建返回结果
             return {
+                "extraction_id": extraction_id,  # 返回真实的数据库ID
                 "content_type": "text/markdown",
                 "extracted_text": "\n".join(
                     [item["content"] for item in structured_content]

@@ -5,6 +5,8 @@ from .connection import (
     get_connection_pool,
     initialize_connection_pool,
 )
+from .extraction_manager import ExtractionDBManager as UnifiedExtractionDBManager
+from .extraction_manager import extraction_db_manager
 from .file_manager import FileDBManager as UnifiedFileDBManager
 from .file_manager import unified_file_db_manager
 from .knowledge_base_manager import KnowledgeBaseDBManager as UnifiedKnowledgeBaseDBManager
@@ -63,6 +65,8 @@ __all__ = [
     "unified_kb_db_manager",
     "UnifiedUserDBManager",
     "unified_user_db_manager",
+    "UnifiedExtractionDBManager",
+    "extraction_db_manager",
     # Connection pool
     "DatabaseConnectionPool",
     "get_connection_pool",

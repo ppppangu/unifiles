@@ -67,12 +67,13 @@ class ExtractedContent(BaseModel):
     """提取的文件内容"""
 
     file_id: str = Field(description="文件ID")
-    extraction_id: str = Field(description="提取任务ID")
+    extraction_id: str = Field(description="提取文档ID（数据库中的extracted_documents表主键）")
     content_type: str = Field(description="内容类型")
     extracted_text: Optional[str] = Field(description="提取的文本内容")
     markdown_content: Optional[str] = Field(description="Markdown格式内容")
     structured_data: Optional[Dict[str, Any]] = Field(description="结构化数据")
     extraction_metadata: Dict[str, Any] = Field(description="提取元数据")
+    extraction_strategy: Optional[str] = Field(default=None, description="使用的提取策略")
     status: str = Field(description="提取状态")
     created_at: str = Field(description="提取时间")
 
