@@ -134,27 +134,44 @@ async def get_knowledge_bases(
     limit: int = 50,
     offset: int = 0,
 ):
-    """获取用户的知识库列表"""
-    user_id = request.state.user_id
-    logger.info(f"GET /knowledge-bases request from user: {user_id}")
-    logger.info(f"Query parameters: limit={limit}, offset={offset}")
-    mock_kb = KnowledgeBaseInfo(
-        kb_id="kb_sample_001",
-        name="示例知识库",
-        description="这是一个示例知识库",
-        user_id=user_id,
-        document_count=0,
-        created_at=datetime.now().isoformat(),
-        updated_at=datetime.now().isoformat(),
-    )
+    """获取用户的知识库列表（真实查询）"""
+    try:
+        user_id = request.state.user_id
+        logger.info(
+            f"GET /knowledge-bases request from user: {user_id}, limit={limit}, offset={offset}"
+        )
 
-    return KnowledgeBaseListResponse(
-        success=True,
-        message="Knowledge bases retrieved successfully",
-        knowledge_bases=[mock_kb],
-        total_count=1,
-        has_more=False,
-    )
+        # 查询数据库
+        kb_models, total_count = await unified_kb_db_manager.list_knowledge_bases(
+            user_id=user_id, limit=limit, offset=offset
+        )
+
+        kb_list: List[KnowledgeBaseInfo] = [
+            _model_to_info(m) for m in kb_models
+        ]
+
+        has_more = (offset + len(kb_list)) < total_count
+
+        return KnowledgeBaseListResponse(
+            success=True,
+            message="Knowledge bases retrieved successfully",
+            knowledge_bases=kb_list,
+            total_count=total_count,
+            has_more=has_more,
+        )
+
+    except HTTPException:
+        raise
+    except asyncpg.PostgresError as e:
+        logger.error(f"Database error listing knowledge bases: {e}")
+        raise HTTPException(
+            status_code=503, detail="Database unavailable while listing knowledge bases"
+        )
+    except Exception as e:
+        logger.error(f"Unexpected error listing knowledge bases: {e}")
+        raise HTTPException(
+            status_code=500, detail=f"Failed to list knowledge bases: {e!s}"
+        )
 
 
 @router.get("/{kb_id}", response_model=KnowledgeBaseInfo)

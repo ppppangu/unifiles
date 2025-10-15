@@ -11,8 +11,13 @@ from typing import Any, Dict, List, Optional
 
 from loguru import logger
 
-from ..database import DatabaseManager
-from ..database.models import ChunkModel, PhotoModel
+from ..database import unified_kb_db_manager, unified_user_db_manager
+from ..database.models import (
+    ChunkModel,
+    ComponentModel,
+    ComponentType,
+    PhotoModel,
+)
 from ..storage import get_storage
 
 
@@ -21,7 +26,8 @@ class VectorStorageManager:
 
     def __init__(self, config: Optional[Dict[str, Any]] = None):
         self.config = config
-        self.db_manager = DatabaseManager()
+        # 使用知识库管理器（与新表结构对齐）
+        self.db_manager = unified_kb_db_manager
 
     async def save_text_chunk(
         self,
@@ -31,17 +37,26 @@ class VectorStorageManager:
         doc_position: int,
         embedding: List[float],
     ) -> ChunkModel:
-        """保存文本块到向量数据库"""
+        """保存文本块到向量数据库（components + chunks）"""
         try:
-            chunk_model = ChunkModel(
+            # 1) 创建组件（使用与 chunk_id 相同的ID，便于追踪）
+            component = ComponentModel(
                 id=chunk_id,
                 document_id=document_id,
-                text=text,
-                doc_position=doc_position,
+                component_type=ComponentType.CHUNK,
+                component_index=doc_position,
+                content=text,
                 embedding=embedding,
             )
+            await self.db_manager.create_component(component)
 
-            return await self.db_manager.save_chunk(chunk_model)
+            # 2) 创建文本块子记录
+            chunk_model = ChunkModel(
+                id=chunk_id,
+                component_id=component.id,
+                text_content=text,
+            )
+            return await self.db_manager.create_chunk(chunk_model)
 
         except Exception as e:
             logger.error(f"Failed to save text chunk: {e}")
@@ -57,19 +72,27 @@ class VectorStorageManager:
         photo_type: str = "photo",
         base64_image: Optional[str] = None,
     ) -> PhotoModel:
-        """保存图片数据到向量数据库"""
+        """保存图片数据到向量数据库（components + photos）"""
         try:
-            photo_model = PhotoModel(
+            # 1) 创建组件（使用与 photo_id 相同的ID，便于追踪）
+            component = ComponentModel(
                 id=photo_id,
                 document_id=document_id,
-                type=photo_type,
-                text=image_text,
-                base64_image=base64_image,
+                component_type=ComponentType.PHOTO,
+                component_index=doc_position,
+                content=image_text,
                 embedding=embedding,
-                doc_position=doc_position,
             )
+            await self.db_manager.create_component(component)
 
-            return await self.db_manager.save_photo(photo_model)
+            # 2) 创建图片子记录（仅核心字段）
+            photo_model = PhotoModel(
+                id=photo_id,
+                component_id=component.id,
+                photo_description=image_text,
+                photo_subtype=photo_type,
+            )
+            return await self.db_manager.create_photo(photo_model)
 
         except Exception as e:
             logger.error(f"Failed to save image data: {e}")
@@ -86,12 +109,18 @@ class VectorStorageManager:
         """批量保存结构化内容到向量数据库"""
         try:
             # 确保用户、知识库、文档存在
-            await self.db_manager.ensure_user_exists(user_id)
+            # 使用统一用户/知识库管理器
+            await unified_user_db_manager.ensure_user_exists(user_id)
             await self.db_manager.ensure_knowledge_base_exists(
                 knowledge_base_id, user_id, f"Knowledge Base {knowledge_base_id}"
             )
+            # 注意：按新表结构，documents 需要 extracted_document_id 外键。
+            # 这里仅校验存在性，不自动创建。
             await self.db_manager.ensure_document_exists(
-                document_id, knowledge_base_id, document_name
+                document_id,
+                knowledge_base_id,
+                extracted_document_id=None,
+                display_name=document_name,
             )
 
             # 批量保存内容
@@ -145,7 +174,8 @@ class StorageService:
         self.config = config
         self.storage = get_storage()
         self.vector_manager = VectorStorageManager(config)
-        self.db_manager = DatabaseManager()
+        # 兼容旧引用：db_manager 提供文档相关方法（update_document_urls 等）
+        self.db_manager = unified_kb_db_manager
 
     async def store_processed_files(
         self,

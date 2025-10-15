@@ -117,6 +117,10 @@ class UnifiedDatabaseManager:
         """获取知识库（代理到知识库管理器）"""
         return await self._kb_manager.get_knowledge_base(kb_id)
 
+    async def list_knowledge_bases(self, user_id: str, limit: int = 50, offset: int = 0):
+        """列出用户知识库（代理到知识库管理器），返回 (items, total_count)"""
+        return await self._kb_manager.list_knowledge_bases(user_id, limit, offset)
+
     async def create_document(self, doc_model):
         """创建文档（代理到知识库管理器）"""
         return await self._kb_manager.create_document(doc_model)
@@ -125,13 +129,17 @@ class UnifiedDatabaseManager:
         """获取文档（代理到知识库管理器）"""
         return await self._kb_manager.get_document(doc_id)
 
-    async def save_chunk(self, chunk_model):
-        """保存文本块（代理到知识库管理器）"""
-        return await self._kb_manager.save_chunk(chunk_model)
+    async def create_component(self, component_model):
+        """创建组件（代理到知识库管理器）"""
+        return await self._kb_manager.create_component(component_model)
 
-    async def save_photo(self, photo_model):
-        """保存图片（代理到知识库管理器）"""
-        return await self._kb_manager.save_photo(photo_model)
+    async def create_chunk(self, chunk_model):
+        """创建文本块（代理到知识库管理器）"""
+        return await self._kb_manager.create_chunk(chunk_model)
+
+    async def create_photo(self, photo_model):
+        """创建图片（代理到知识库管理器）"""
+        return await self._kb_manager.create_photo(photo_model)
 
     async def create_processing_log(self, log_model):
         """创建处理日志（代理到知识库管理器）"""
