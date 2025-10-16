@@ -27,6 +27,23 @@ from unifiles.core.database.models import UserModel
 router = APIRouter(prefix="/users", tags=["Users"])
 
 
+def _user_model_to_info(user: UserModel) -> UserInfo:
+    """将用户模型转换为API响应模型"""
+    return UserInfo(
+        id=user.id,
+        username=user.username,
+        email=user.email,
+        display_name=user.display_name,
+        user_status=user.user_status,
+        user_role=user.user_role,
+        knowledge_ids=user.knowledge_ids,
+        user_settings=user.user_settings,
+        created_at=user.created_at.isoformat() if user.created_at else None,
+        updated_at=user.updated_at.isoformat() if user.updated_at else None,
+        last_login_at=user.last_login_at.isoformat() if user.last_login_at else None,
+    )
+
+
 @router.post("/create", response_model=UserCreateResponse)
 async def create_user(user_request: UserCreateRequest):
     """
@@ -69,27 +86,7 @@ async def create_user(user_request: UserCreateRequest):
         created_user = await unified_db_manager.users.create_user(user_model)
 
         # 构造响应
-        user_info = UserInfo(
-            id=created_user.id,
-            username=created_user.username,
-            email=created_user.email,
-            display_name=created_user.display_name,
-            user_status=created_user.user_status,
-            user_role=created_user.user_role,
-            knowledge_ids=created_user.knowledge_ids,
-            user_settings=created_user.user_settings,
-            created_at=(
-                created_user.created_at.isoformat() if created_user.created_at else None
-            ),
-            updated_at=(
-                created_user.updated_at.isoformat() if created_user.updated_at else None
-            ),
-            last_login_at=(
-                created_user.last_login_at.isoformat()
-                if created_user.last_login_at
-                else None
-            ),
-        )
+        user_info = _user_model_to_info(created_user)
 
         logger.info(f"User created successfully: {created_user.id}")
 
@@ -141,21 +138,7 @@ async def get_user(user_id: str):
             raise HTTPException(status_code=404, detail=f"User '{user_id}' not found")
 
         # 构造响应
-        user_info = UserInfo(
-            id=user.id,
-            username=user.username,
-            email=user.email,
-            display_name=user.display_name,
-            user_status=user.user_status,
-            user_role=user.user_role,
-            knowledge_ids=user.knowledge_ids,
-            user_settings=user.user_settings,
-            created_at=user.created_at.isoformat() if user.created_at else None,
-            updated_at=user.updated_at.isoformat() if user.updated_at else None,
-            last_login_at=(
-                user.last_login_at.isoformat() if user.last_login_at else None
-            ),
-        )
+        user_info = _user_model_to_info(user)
 
         logger.info(f"User retrieved successfully: {user_id}")
 
@@ -206,21 +189,7 @@ async def login_user(email: str):
             )
 
         # 构造用户信息响应
-        user_info = UserInfo(
-            id=user.id,
-            username=user.username,
-            email=user.email,
-            display_name=user.display_name,
-            user_status=user.user_status,
-            user_role=user.user_role,
-            knowledge_ids=user.knowledge_ids,
-            user_settings=user.user_settings,
-            created_at=user.created_at.isoformat() if user.created_at else None,
-            updated_at=user.updated_at.isoformat() if user.updated_at else None,
-            last_login_at=(
-                user.last_login_at.isoformat() if user.last_login_at else None
-            ),
-        )
+        user_info = _user_model_to_info(user)
 
         logger.info(f"User login successful: {email}")
 
