@@ -197,49 +197,28 @@ async def login_user(email: str):
         logger.info(f"User login attempt: {email}")
 
         # 通过邮箱查询用户
-        result = await unified_db_manager.users.fetch_one(
-            "SELECT * FROM unifiles.users WHERE email = $1", email, operation="login"
-        )
+        user = await unified_db_manager.users.get_user_by_email(email)
 
-        logger.info(f"User login result: {result}")
-
-        if not result:
+        if not user:
             logger.warning(f"User not found for email: {email}")
             raise HTTPException(
                 status_code=404, detail=f"User with email '{email}' not found"
             )
 
         # 构造用户信息响应
-        # 处理 user_settings：如果是字符串则解析为字典
-        user_settings = result.get("user_settings") or {}
-        if isinstance(user_settings, str):
-            try:
-                user_settings = json.loads(user_settings)
-            except (json.JSONDecodeError, ValueError):
-                logger.warning(
-                    f"Failed to parse user_settings as JSON: {user_settings}"
-                )
-                user_settings = {}
-
         user_info = UserInfo(
-            id=result["id"],
-            username=result.get("username"),
-            email=result.get("email"),
-            display_name=result.get("display_name"),
-            user_status=result.get("user_status", "active"),
-            user_role=result.get("user_role", "user"),
-            knowledge_ids=result.get("knowledge_ids") or [],
-            user_settings=user_settings,
-            created_at=result["created_at"].isoformat()
-            if result.get("created_at")
-            else None,
-            updated_at=result["updated_at"].isoformat()
-            if result.get("updated_at")
-            else None,
+            id=user.id,
+            username=user.username,
+            email=user.email,
+            display_name=user.display_name,
+            user_status=user.user_status,
+            user_role=user.user_role,
+            knowledge_ids=user.knowledge_ids,
+            user_settings=user.user_settings,
+            created_at=user.created_at.isoformat() if user.created_at else None,
+            updated_at=user.updated_at.isoformat() if user.updated_at else None,
             last_login_at=(
-                result["last_login_at"].isoformat()
-                if result.get("last_login_at")
-                else None
+                user.last_login_at.isoformat() if user.last_login_at else None
             ),
         )
 
@@ -277,40 +256,16 @@ async def create_user_access_key(user_id: str, body: AccessKeyCreateRequest):
         if not user:
             raise HTTPException(status_code=404, detail=f"User '{user_id}' not found")
 
-        # 2) 处理可选参数与默认权限范围
-        scopes = body.scopes or ["read", "write"]
-        description = body.description
-        expires_at = body.expires_at  # RFC3339字符串或None
-
-        # 3) 调用数据库函数创建Access Key
-        #    函数签名：create_access_key(
-        #      p_user_id TEXT,
-        #      p_name TEXT,
-        #      p_description TEXT DEFAULT NULL,
-        #      p_scopes TEXT[] DEFAULT '{"read", "write"}',
-        #      p_expires_at TIMESTAMPTZ DEFAULT NULL,
-        #      ... 其余参数使用默认值
-        #    ) RETURNS JSONB
-        result = await unified_db_manager.users.fetch_value(
-            "SELECT create_access_key($1, $2, $3, $4, $5)",
-            user_id,
-            body.name,
-            description,
-            scopes,
-            expires_at,
+        # 2) 调用数据库管理器创建 Access Key
+        result = await unified_db_manager.users.create_access_key(
+            user_id=user_id,
+            name=body.name,
+            description=body.description,
+            scopes=body.scopes,
+            expires_at=body.expires_at,
         )
 
-        # 4) 解析结果
-        if not isinstance(result, dict):
-            # 兼容性处理：某些驱动可能返回JSON字符串
-            try:
-                import json
-
-                result = json.loads(result)
-            except Exception:
-                logger.error("Unexpected result type from create_access_key")
-                raise HTTPException(status_code=500, detail="Key creation failed")
-
+        # 3) 处理结果
         if result.get("success") is True:
             return AccessKeyCreateResponse(
                 success=True,
@@ -346,20 +301,10 @@ async def list_user_access_keys(user_id: str, active: Optional[bool] = None):
         if not user:
             raise HTTPException(status_code=404, detail=f"User '{user_id}' not found")
 
-        # 组装查询
-        base_sql = (
-            "SELECT id, name, description, scopes, is_active, created_at, "
-            "expires_at, last_used_at FROM unifiles.access_keys WHERE user_id = $1"
-        )
-        params = [user_id]
-        if active is True:
-            base_sql += " AND is_active = TRUE"
-        elif active is False:
-            base_sql += " AND is_active = FALSE"
-        base_sql += " ORDER BY created_at DESC"
+        # 调用数据库管理器获取密钥列表
+        rows = await unified_db_manager.users.list_access_keys(user_id, active=active)
 
-        rows = await unified_db_manager.users.fetch_many(base_sql, *params)
-
+        # 构造响应
         access_keys: List[AccessKeyInfo] = []
         for r in rows:
             access_keys.append(
@@ -421,34 +366,23 @@ async def delete_user_access_key(user_id: str, key_id: str):
             raise HTTPException(status_code=404, detail=f"User '{user_id}' not found")
 
         # 2) 验证密钥是否属于该用户
-        check_sql = "SELECT user_id FROM unifiles.access_keys WHERE id = $1"
-        key_owner = await unified_db_manager.users.fetch_one(check_sql, key_id)
+        key_info = await unified_db_manager.users.get_access_key(key_id)
 
-        if not key_owner:
+        if not key_info:
             raise HTTPException(
                 status_code=404, detail=f"Access key '{key_id}' not found"
             )
 
-        if key_owner["user_id"] != user_id:
+        if key_info["user_id"] != user_id:
             raise HTTPException(
                 status_code=403,
                 detail=f"Access key '{key_id}' does not belong to user '{user_id}'",
             )
 
-        # 3) 调用数据库函数撤销密钥（软删除）
-        result = await unified_db_manager.users.fetch_value(
-            "SELECT unifiles.revoke_access_key($1)",
-            key_id,
-        )
+        # 3) 调用数据库管理器撤销密钥（软删除）
+        result = await unified_db_manager.users.revoke_access_key(key_id)
 
-        # 4) 解析结果
-        if not isinstance(result, dict):
-            try:
-                result = json.loads(result)
-            except Exception:
-                logger.error("Unexpected result type from revoke_access_key")
-                raise HTTPException(status_code=500, detail="Key deletion failed")
-
+        # 4) 处理结果
         if result.get("success") is True:
             logger.info(f"Access key {key_id} deleted successfully")
             return StandardResponse(
