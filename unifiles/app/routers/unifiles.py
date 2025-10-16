@@ -1,4 +1,3 @@
-
 from fastapi import (
     APIRouter,
     Depends,
@@ -11,7 +10,6 @@ from fastapi import (
 from fastapi import (
     Path as FastAPIPath,
 )
-from loguru import logger
 
 from unifiles.app.schemas import (
     FileInfo,
@@ -21,8 +19,11 @@ from unifiles.app.schemas import (
     SupportedFileTypes,
 )
 from unifiles.core.database import secure_file_db_manager
+from unifiles.core.logging import get_logger
 from unifiles.core.services import AuthService, FileService
 from unifiles.core.storage import get_initialized_storage
+
+logger = get_logger()
 
 
 # 创建服务实例
@@ -45,11 +46,6 @@ async def get_user_context(
 ) -> dict:
     """提取用户上下文"""
     return await auth_service.extract_user_from_request(request)
-
-
-async def get_file_service_instance() -> FileService:
-    """异步获取文件服务实例"""
-    return await get_file_service()
 
 
 # 常量定义（从原文件迁移）
@@ -101,7 +97,7 @@ async def upload_file(
     file: UploadFile = File(...),
     is_public: bool = Query(default=False, description="是否设置为公开访问"),
     user_context: dict = Depends(get_user_context),
-    file_service: FileService = Depends(get_file_service_instance),
+    file_service: FileService = Depends(get_file_service),
 ):
     """
     安全上传文件到存储
@@ -134,12 +130,7 @@ async def upload_file(
     except HTTPException:
         raise
     except Exception as e:
-        logger.error("=" * 80)
-        logger.error(f"ERROR IN UPLOAD ENDPOINT")
-        logger.error(f"Error: {e}")
-        logger.error(f"Error type: {type(e).__name__}")
-        logger.exception("Full traceback:")
-        logger.error("=" * 80)
+        logger.error(f"Error in upload file endpoint: {e}")
         raise HTTPException(status_code=500, detail=f"Upload failed: {e!s}")
 
 
@@ -148,7 +139,7 @@ async def list_user_files(
     limit: int = Query(default=50, description="返回数量限制", ge=1, le=100),
     offset: int = Query(default=0, description="分页偏移量", ge=0),
     user_context: dict = Depends(get_user_context),
-    file_service: FileService = Depends(get_file_service_instance),
+    file_service: FileService = Depends(get_file_service),
 ):
     """获取当前用户的所有文件列表"""
     try:
@@ -176,7 +167,7 @@ async def list_user_files(
 async def get_file_info(
     file_id: str = FastAPIPath(..., description="文件ID"),
     user_context: dict = Depends(get_user_context),
-    file_service: FileService = Depends(get_file_service_instance),
+    file_service: FileService = Depends(get_file_service),
 ):
     """获取文件信息"""
     try:
@@ -200,7 +191,7 @@ async def update_file_public_status(
     file_id: str = FastAPIPath(..., description="文件ID"),
     is_public: bool = Query(description="是否设置为公开访问"),
     user_context: dict = Depends(get_user_context),
-    file_service: FileService = Depends(get_file_service_instance),
+    file_service: FileService = Depends(get_file_service),
 ):
     """更新文件的公开访问状态"""
     try:
@@ -233,7 +224,7 @@ async def update_file_public_status(
 async def delete_file(
     file_id: str = FastAPIPath(..., description="文件ID"),
     user_context: dict = Depends(get_user_context),
-    file_service: FileService = Depends(get_file_service_instance),
+    file_service: FileService = Depends(get_file_service),
 ):
     """删除文件"""
     try:
@@ -258,7 +249,7 @@ async def delete_file(
 @router.get("/public/{file_id}", response_model=FileInfo)
 async def get_public_file_info(
     file_id: str = FastAPIPath(..., description="文件ID"),
-    file_service: FileService = Depends(get_file_service_instance),
+    file_service: FileService = Depends(get_file_service),
 ):
     """获取公共文件信息（无需认证）"""
     try:
@@ -282,7 +273,7 @@ async def get_public_file_info(
 @router.get("/admin/health", response_model=dict)
 async def get_storage_health(
     user_context: dict = Depends(get_user_context),
-    file_service: FileService = Depends(get_file_service_instance),
+    file_service: FileService = Depends(get_file_service),
 ):
     """获取存储后端健康状态（管理员功能）"""
     try:
@@ -301,7 +292,7 @@ async def get_storage_health(
 @router.get("/admin/metrics", response_model=dict)
 async def get_storage_metrics(
     user_context: dict = Depends(get_user_context),
-    file_service: FileService = Depends(get_file_service_instance),
+    file_service: FileService = Depends(get_file_service),
 ):
     """获取存储指标（管理员功能）"""
     try:

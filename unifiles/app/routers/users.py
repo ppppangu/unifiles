@@ -3,13 +3,10 @@
 处理用户相关的API请求
 """
 
-import json
 from typing import List, Optional
 
 from fastapi import APIRouter, HTTPException
 from loguru import logger
-
-logger = logger.bind(service="unifiles-v1")
 
 from unifiles.app.schemas import (
     AccessKeyCreateRequest,
@@ -23,6 +20,8 @@ from unifiles.app.schemas import (
 )
 from unifiles.core.database import unified_db_manager
 from unifiles.core.database.models import UserModel
+
+logger = logger.bind(service="unifiles-v1")
 
 router = APIRouter(prefix="/users", tags=["Users"])
 
