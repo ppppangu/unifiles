@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, Optional, Union
 
@@ -61,7 +61,8 @@ class LoguruLogger(BaseLogger):
         self.retention = retention
         self.compression = compression
         self.level = level
-        self._logger_id = None
+        self._console_handler_id = None  # 控制台handler ID
+        self._file_handler_id = None     # 文件handler ID
         super().__init__(service_name)
 
     def _setup(self) -> None:
@@ -72,8 +73,8 @@ class LoguruLogger(BaseLogger):
         # 移除默认的控制台处理器
         logger.remove()
 
-        # 添加控制台输出（开发时有用）- 临时移除filter以便调试
-        logger.add(
+        # 添加控制台输出（开发时有用）- 保存handler ID
+        self._console_handler_id = logger.add(
             sink=lambda msg: print(msg, end=""),
             format="<green>{time:YYYY-MM-DD HH:mm:ss}</green> | "
             "<level>{level: <8}</level> | "
@@ -87,9 +88,9 @@ class LoguruLogger(BaseLogger):
         # 添加文件输出
         log_file = (
             self.log_dir
-            / f"{self.service_name}_{datetime.now().strftime('%Y-%m-%d')}.log"
+            / f"{self.service_name}_{datetime.now(tz=timezone.utc).strftime('%Y-%m-%d')}.log"
         )
-        self._logger_id = logger.add(
+        self._file_handler_id = logger.add(
             sink=str(log_file),
             format="{time:YYYY-MM-DD HH:mm:ss.SSS} | {level: <8} | {name}:{function}:{line} | {message}",
             level=self.level,
@@ -141,9 +142,23 @@ class LoguruLogger(BaseLogger):
 
     def cleanup(self) -> None:
         """清理日志系统资源"""
-        if self._logger_id is not None:
-            logger.remove(self._logger_id)
-            self._logger_id = None
+        # 移除控制台handler
+        if self._console_handler_id is not None:
+            try:
+                logger.remove(self._console_handler_id)
+            except ValueError:
+                # Handler可能已经被移除
+                pass
+            self._console_handler_id = None
+
+        # 移除文件handler
+        if self._file_handler_id is not None:
+            try:
+                logger.remove(self._file_handler_id)
+            except ValueError:
+                # Handler可能已经被移除
+                pass
+            self._file_handler_id = None
 
 
 class PostgreSQLLogger(BaseLogger):
