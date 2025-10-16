@@ -39,7 +39,6 @@ dependencies = [
     "pathlib2>=2.3.0; python_version<'3.6'",
     "httpx>=0.28.1",
     "google-adk>=0.0.1",
-    "litellm>=1.77.3",
     "pandas>=2.0.3",
     "loguru>=0.7.3",
     "mistralai>=1.5.2",
