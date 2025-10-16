@@ -79,19 +79,14 @@ class FileService:
                 raise HTTPException(status_code=400, detail="Empty file provided")
 
             # 3. 安全验证
-            import sys
-            print(f"DEBUG SERVICE: About to call validator", file=sys.stderr)
-            sys.stderr.flush()
+            logger.debug(f"About to call validator for file: {file.filename}")
 
             logger.info(f"Validating file: {file.filename}")
             validation_result = self.validator.validate_upload_file(
                 file_content, file.filename
             )
 
-            print(f"DEBUG SERVICE: Received validation_result", file=sys.stderr)
-            print(f"DEBUG SERVICE: type = {type(validation_result)}", file=sys.stderr)
-            print(f"DEBUG SERVICE: value = {validation_result}", file=sys.stderr)
-            sys.stderr.flush()
+            logger.debug(f"Received validation_result, type={type(validation_result)}, value={validation_result}")
 
             logger.info(f"Validation result type: {type(validation_result)}")
             logger.info(f"Validation result: {validation_result}")

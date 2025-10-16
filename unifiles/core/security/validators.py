@@ -3,6 +3,8 @@ import re
 from pathlib import Path
 from typing import Any, Dict, Optional, Tuple
 
+from loguru import logger
+
 
 class FileSecurityValidator:
     """文件安全验证器，用于验证上传文件的安全性"""
@@ -347,11 +349,7 @@ class FileSecurityValidator:
                 result["errors"].append(size_error)
 
         # Debug logging
-        import sys
-        print(f"DEBUG VALIDATOR: About to return result", file=sys.stderr)
-        print(f"DEBUG VALIDATOR: result type = {type(result)}", file=sys.stderr)
-        print(f"DEBUG VALIDATOR: result = {result}", file=sys.stderr)
-        sys.stderr.flush()
+        logger.debug(f"File validation result: type={type(result)}, result={result}")
 
         return result
 

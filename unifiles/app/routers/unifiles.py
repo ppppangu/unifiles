@@ -134,17 +134,12 @@ async def upload_file(
     except HTTPException:
         raise
     except Exception as e:
-        import traceback
-        import sys
-        print(f"\n\n=== ERROR IN UPLOAD ENDPOINT ===", file=sys.stderr)
-        print(f"Error: {e}", file=sys.stderr)
-        print(f"Error type: {type(e)}", file=sys.stderr)
-        traceback.print_exc(file=sys.stderr)
-        print("=== END ERROR ===\n\n", file=sys.stderr)
-        sys.stderr.flush()
-
-        logger.error(f"Error in upload endpoint: {e}")
+        logger.error("=" * 80)
+        logger.error(f"ERROR IN UPLOAD ENDPOINT")
+        logger.error(f"Error: {e}")
+        logger.error(f"Error type: {type(e).__name__}")
         logger.exception("Full traceback:")
+        logger.error("=" * 80)
         raise HTTPException(status_code=500, detail=f"Upload failed: {e!s}")
 
 

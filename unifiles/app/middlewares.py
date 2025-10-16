@@ -9,6 +9,7 @@ from typing import Any, Dict, List, Optional
 import asyncpg
 from fastapi import Request, UploadFile
 from fastapi.responses import JSONResponse
+from loguru import logger
 
 # 导入数据库配置
 from unifiles.core.config.env_config import read_pg_config
@@ -331,9 +332,9 @@ class AuthMiddleware:
                     command_timeout=10.0,  # 命令超时10秒
                     timeout=30.0,  # 连接超时30秒
                 )
-                print("Auth middleware connection pool initialized")
+                logger.info("Auth middleware connection pool initialized")
             except Exception as e:
-                print(f"Failed to initialize connection pool: {e!s}")
+                logger.error(f"Failed to initialize connection pool: {e!s}")
                 raise
 
     async def _validate_token(self, token: str) -> Optional[str]:
@@ -352,15 +353,15 @@ class AuthMiddleware:
                 return user_id
         except asyncpg.exceptions.PostgresError as e:
             # 数据库相关错误
-            print(f"Database error during token validation: {e!s}")
+            logger.error(f"Database error during token validation: {e!s}")
             return None
         except asyncpg.exceptions.TooManyConnectionsError as e:
             # 连接池耗尽
-            print(f"Connection pool exhausted: {e!s}")
+            logger.warning(f"Connection pool exhausted: {e!s}")
             return None
         except Exception as e:
             # 其他错误
-            print(f"Token validation error: {e!s}")
+            logger.error(f"Token validation error: {e!s}")
             return None
 
     async def close_connection_pool(self):
@@ -368,7 +369,7 @@ class AuthMiddleware:
         if self._connection_pool is not None:
             await self._connection_pool.close()
             self._connection_pool = None
-            print("Auth middleware connection pool closed")
+            logger.info("Auth middleware connection pool closed")
 
 
 # 其他中间件示例：
