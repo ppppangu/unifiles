@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Protocol, Tuple
 
 import aiofiles
+import fitz  # PyMuPDF
 import httpx
 import pdfplumber
 from loguru import logger
@@ -21,8 +22,10 @@ from tenacity import (
     wait_exponential,
 )
 
+from unifiles.core.ocr.factory import OCRProviderFactory
+from unifiles.core.ocr.processor import OCRProcessor
+
 from ..config.env_config import convert_to_internal_minio_url, read_config
-from ..ocr.factory import OCRProviderFactory
 
 
 # OCR接口定义
@@ -163,6 +166,35 @@ class SimplePDFReader:
             logger.error(f"Error extracting text from PDF: {e}")
             return ""
 
+    async def extract_text_by_page(self, pdf_path: str) -> List[str]:
+        """按页提取PDF文本，返回每页的文本列表
+
+        Args:
+            pdf_path: PDF文件路径
+
+        Returns:
+            List[str]: 每页的文本内容列表
+        """
+        try:
+            # 获取页数
+            page_count = await asyncio.to_thread(self._get_pdf_page_count, pdf_path)
+            if page_count == 0:
+                return []
+
+            # 并行读取所有页面
+            tasks = [
+                asyncio.to_thread(self._read_pdf_page, pdf_path, page_num)
+                for page_num in range(page_count)
+            ]
+            results = await asyncio.gather(*tasks)
+
+            logger.info(f"Extracted text from {page_count} pages")
+            return list(results)
+
+        except Exception as e:
+            logger.error(f"Error extracting text by page from PDF: {e}")
+            return []
+
     async def extract_markdown_from_pdf(self, pdf_path_or_url: str) -> str:
         """从PDF提取Markdown（简单实现）"""
         text = await self.extract_text_from_pdf(pdf_path_or_url)
@@ -170,6 +202,121 @@ class SimplePDFReader:
         if text:
             return f"# PDF Content\n\n{text}"
         return ""
+
+    def _extract_images_from_page(
+        self, file_path: str, page_num: int, output_dir: Path
+    ) -> List[Dict[str, Any]]:
+        """从PDF指定页提取图片
+
+        Args:
+            file_path: PDF文件路径
+            page_num: 页码（从0开始）
+            output_dir: 图片输出目录
+
+        Returns:
+            图片信息列表，包含文件路径、页码、索引等元数据
+        """
+        images_info = []
+
+        try:
+            # 使用 PyMuPDF 提取图片
+            doc = fitz.open(file_path)
+            if page_num >= len(doc):
+                return images_info
+
+            page = doc[page_num]
+            image_list = page.get_images(full=True)
+
+            for img_index, img in enumerate(image_list):
+                try:
+                    xref = img[0]
+                    base_image = doc.extract_image(xref)
+                    image_bytes = base_image["image"]
+                    image_ext = base_image["ext"]  # png, jpeg, etc
+
+                    # 构建图片文件名
+                    image_filename = (
+                        f"page_{page_num:03d}_img_{img_index:03d}.{image_ext}"
+                    )
+                    image_path = output_dir / image_filename
+
+                    # 保存图片
+                    with open(image_path, "wb") as img_file:
+                        img_file.write(image_bytes)
+
+                    # 记录图片元数据
+                    images_info.append(
+                        {
+                            "page": page_num,
+                            "index": img_index,
+                            "filename": image_filename,
+                            "path": str(image_path),
+                            "extension": image_ext,
+                            "size_bytes": len(image_bytes),
+                        }
+                    )
+
+                    logger.debug(
+                        f"Extracted image: page {page_num}, index {img_index}, size {len(image_bytes)} bytes"
+                    )
+
+                except Exception as e:
+                    logger.error(
+                        f"Error extracting image {img_index} from page {page_num}: {e}"
+                    )
+                    continue
+
+            doc.close()
+
+        except Exception as e:
+            logger.error(f"Error extracting images from page {page_num}: {e}")
+
+        return images_info
+
+    async def extract_images_from_pdf(
+        self, pdf_path: str, output_dir: Path
+    ) -> List[Dict[str, Any]]:
+        """从PDF提取所有图片
+
+        Args:
+            pdf_path: PDF文件路径
+            output_dir: 图片输出目录
+
+        Returns:
+            所有图片的信息列表
+        """
+        try:
+            # 确保输出目录存在
+            output_dir.mkdir(parents=True, exist_ok=True)
+
+            # 获取页数
+            page_count = await asyncio.to_thread(self._get_pdf_page_count, pdf_path)
+            if page_count == 0:
+                return []
+
+            # 并行提取所有页面的图片
+            tasks = [
+                asyncio.to_thread(
+                    self._extract_images_from_page, pdf_path, page_num, output_dir
+                )
+                for page_num in range(page_count)
+            ]
+            results = await asyncio.gather(*tasks)
+
+            # 合并所有页面的图片信息
+            all_images = []
+            for page_images in results:
+                all_images.extend(page_images)
+
+            logger.info(
+                f"Extracted {len(all_images)} images from {page_count} pages to {output_dir}"
+            )
+
+            return all_images
+
+        except Exception as e:
+            logger.error(f"Error extracting images from PDF: {e}")
+            return []
 
 
 class MineruOCRProvider:
@@ -586,28 +733,87 @@ class PDFProcessingPipeline:
         self.ocr_provider = provider
         logger.info(f"OCR provider changed to: {provider.get_provider_name()}")
 
-    async def process_pdf_simple(self, pdf_path: str) -> str:
-        """简单模式：使用pdfplumber读取PDF"""
+    async def process_pdf_simple(
+        self, pdf_path: str, extract_images: bool = True
+    ) -> Tuple[str, List[Dict[str, Any]]]:
+        """简单模式：使用pdfplumber读取PDF
+
+        Args:
+            pdf_path: PDF文件路径
+            extract_images: 是否提取图片，默认为True
+
+        Returns:
+            Tuple[str, List[Dict]]: (markdown文本, 图片信息列表)
+        """
         try:
             simple_reader = SimplePDFReader()
-            text = await simple_reader.extract_text_from_pdf(pdf_path)
 
-            if not text or text.strip() == "":
-                text = "这是一个占位符，用于保证边缘情况，需要图片处理请使用OCR提供商模式"
-                logger.info(
-                    "PDF appears to be image-based or empty, using placeholder text"
+            # 提取图片
+            images_info = []
+            images_by_page: Dict[int, List[Dict[str, Any]]] = {}
+
+            if extract_images:
+                # 创建图片输出目录
+                pdf_path_obj = Path(pdf_path)
+                images_dir = self.tmp_dir / f"{pdf_path_obj.stem}_images"
+                images_info = await simple_reader.extract_images_from_pdf(
+                    pdf_path, images_dir
                 )
 
+                # 按页码分组图片
+                for img_info in images_info:
+                    page_num = img_info["page"]
+                    if page_num not in images_by_page:
+                        images_by_page[page_num] = []
+                    images_by_page[page_num].append(img_info)
+
+            # 按页提取文本
+            page_texts = await simple_reader.extract_text_by_page(pdf_path)
+
+            if not page_texts or all(not t.strip() for t in page_texts):
+                # 如果所有页都没有文本，使用占位符
+                logger.info("PDF appears to be image-based or empty, using placeholder text")
+                return (
+                    "# PDF Content\n\n这是一个占位符，用于保证边缘情况，需要图片处理请使用OCR提供商模式",
+                    images_info,
+                )
+
+            # 构建Markdown：每页文本后面紧跟该页的图片引用
+            markdown_parts = ["# PDF Content\n\n"]
+
+            for page_num, page_text in enumerate(page_texts):
+                # 添加页面标题（可选）
+                if len(page_texts) > 1:
+                    markdown_parts.append(f"## Page {page_num + 1}\n\n")
+
+                # 添加页面文本
+                if page_text and page_text.strip():
+                    markdown_parts.append(f"{page_text}\n\n")
+
+                # 添加该页的图片引用（紧跟在文本后面）
+                if page_num in images_by_page:
+                    for img_info in images_by_page[page_num]:
+                        markdown_parts.append(
+                            f"![{img_info['filename']}]({img_info['filename']})\n\n"
+                        )
+
+            text = "".join(markdown_parts)
+
             logger.info(
-                f"Simple mode PDF processing completed, {len(text)} characters extracted"
+                f"Simple mode PDF processing completed: {len(text)} characters, {len(images_info)} images extracted"
             )
-            return text
+            return text, images_info
 
         except Exception as e:
             logger.error(f"Simple mode PDF processing failed: {e}")
-            return "这是一个占位符，用于保证边缘情况，需要图片处理请使用OCR提供商模式"
+            return (
+                "这是一个占位符，用于保证边缘情况，需要图片处理请使用OCR提供商模式",
+                [],
+            )
 
-    async def process_pdf_with_ocr_provider(self, pdf_path: str, provider_name: str) -> str:
+    async def process_pdf_with_ocr_provider(
+        self, pdf_path: str, provider_name: str
+    ) -> str:
         """使用指定的OCR提供商处理PDF文件
 
         Args:
@@ -618,27 +824,26 @@ class PDFProcessingPipeline:
             str: 提取的文本内容
         """
         try:
-            from unifiles.core.ocr.processor import OCRProcessor
-            from unifiles.core.ocr.factory import OCRProviderFactory
-            
             # 检查提供商是否受支持
             if provider_name not in OCRProviderFactory.get_supported_providers():
-                logger.warning(f"OCR provider '{provider_name}' not supported, falling back to Mistral")
+                logger.warning(
+                    f"OCR provider '{provider_name}' not supported, falling back to Mistral"
+                )
                 provider_name = "mistral"
-            
+
             # 创建OCR处理器
             ocr_processor = OCRProcessor(provider_name)
-            
+
             # 使用OCR提取文本
             logger.info(f"Processing PDF with {provider_name} OCR provider")
             text = await ocr_processor.aprocess_file(pdf_path)
-            
+
             if not text or text.strip() == "":
                 text = "这是一个占位符，用于保证边缘情况，文档已经过OCR处理"
                 logger.info(
                     f"{provider_name} OCR processing returned empty result, using placeholder text"
                 )
-            
+
             logger.info(
                 f"{provider_name} OCR PDF processing completed, {len(text)} characters extracted"
             )
@@ -685,14 +890,22 @@ class PDFProcessingPipeline:
             logger.info("=== Stage 2: Extract text ===")
 
             # 根据模式处理PDF
+            images_info = []
             if mode == "simple":
-                text = await self.process_pdf_simple(str(local_file_path))
+                text, images_info = await self.process_pdf_simple(str(local_file_path))
             else:
                 # 模式直接作为OCR提供商名称处理
                 logger.info(f"Using OCR provider: {mode}")
-                text = await self.process_pdf_with_ocr_provider(str(local_file_path), mode)
+                text = await self.process_pdf_with_ocr_provider(
+                    str(local_file_path), mode
+                )
 
-            logger.info(f"Text extraction completed, {len(text)} characters")
+            logger.info(
+                f"Text extraction completed, {len(text)} characters, {len(images_info)} images"
+            )
+
+            logger.info(f"Extracted text from PDF: {text}")
+            logger.info(f"Extracted images info: {images_info}")
 
             logger.info("=== Stage 3: Process content structure ===")
 
@@ -700,6 +913,21 @@ class PDFProcessingPipeline:
             structured_content = await self.text_processor.process_text_content(
                 text, user_id, knowledge_base_id, document_id
             )
+
+            # 在 structured_content 中添加图片元数据信息
+            if images_info:
+                # 将图片信息添加到返回的元数据中
+                for content_item in structured_content:
+                    if "metadata" not in content_item:
+                        content_item["metadata"] = {}
+                    content_item["metadata"]["extracted_images_count"] = len(
+                        images_info
+                    )
+
+                # 可选：将图片信息作为额外的元数据返回
+                logger.info(
+                    f"Added {len(images_info)} images metadata to structured content"
+                )
 
             logger.info(
                 f"Content structure processing completed, {len(structured_content)} segments"

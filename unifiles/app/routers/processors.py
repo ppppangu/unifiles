@@ -9,11 +9,10 @@ from fastapi import (
 from loguru import logger
 
 from unifiles.app.schemas import (
+    ExtractedContent,
     FileExtractRequest,
     FileExtractResponse,
-    ExtractedContent
 )
-from unifiles.core.database import secure_file_db_manager
 from unifiles.core.services.document_processor import get_document_processor
 
 # Note: The prefix is /files, but these are processing actions.
@@ -52,15 +51,20 @@ async def extract_file_content(
 
         extracted_content = ExtractedContent(
             file_id=file_id,
-            extraction_id=extracted_content_data["extraction_id"],  # 使用数据库返回的真实ID
+            extraction_id=extracted_content_data[
+                "extraction_id"
+            ],  # 使用数据库返回的真实ID
             content_type=extracted_content_data["content_type"],
             extracted_text=extracted_content_data.get("extracted_text"),
             markdown_content=extracted_content_data.get("markdown_content"),
             structured_data=extracted_content_data.get("structured_data"),
-            extraction_metadata={"mode": extract_request.mode, "processed_at": datetime.now().isoformat()},
+            extraction_metadata={
+                "mode": extract_request.mode,
+                "processed_at": datetime.now().isoformat(),
+            },
             extraction_strategy=f"OCR-{extract_request.mode}",
             status="completed",
-            created_at=datetime.now().isoformat()
+            created_at=datetime.now().isoformat(),
         )
 
         return FileExtractResponse(

@@ -1,5 +1,6 @@
 import asyncio
 import base64
+import time
 from pathlib import Path
 from typing import Any, List, Optional, Tuple, Union
 
@@ -87,28 +88,55 @@ class MistralOCRProvider(BaseOCRProvider):
 
         Uses asyncio.to_thread to offload blocking file I/O and SDK calls.
         """
+        logger.info("=" * 80)
+        logger.info("[Mistral OCR] Starting async file processing")
+        logger.info("=" * 80)
+
         if not self.config.validate():
+            logger.error("[Mistral OCR] Configuration validation failed")
             return ""
 
         file_path = Path(file_path)
+        logger.info(f"[Mistral OCR] Input file: {file_path}")
+        logger.info(
+            f"[Mistral OCR] File size: {file_path.stat().st_size / 1024:.2f} KB"
+        )
 
         if not self.validate_file(file_path):
-            logger.error(f"File validation failed: {file_path}")
+            logger.error(f"[Mistral OCR] File validation failed: {file_path}")
             return ""
 
-        logger.info(f"[async] Processing file: {file_path.name}")
+        logger.info(f"[Mistral OCR] Model: {self.config.get_model()}")
 
         try:
+            # Step 1: Initialize client
+            logger.info("[Mistral OCR] Step 1/4: Initializing Mistral client...")
             client = self._get_client()
+            logger.success("[Mistral OCR] ✓ Client initialized")
 
-            # Read and encode file in a thread
+            # Step 2: Read and encode file
+            logger.info("[Mistral OCR] Step 2/4: Reading and encoding file...")
+
             def _read_b64(p: Path) -> str:
                 with open(p, "rb") as f:
-                    return base64.b64encode(f.read()).decode("utf-8")
+                    data = f.read()
+                    logger.debug(f"[Mistral OCR] Read {len(data)} bytes from file")
+                    return base64.b64encode(data).decode("utf-8")
 
             base64_data = await asyncio.to_thread(_read_b64, file_path)
+            logger.success(
+                f"[Mistral OCR] ✓ File encoded, base64 length: {len(base64_data)} chars"
+            )
 
-            # Use SDK native async API
+            # Step 3: Call Mistral OCR API
+            logger.info("[Mistral OCR] Step 3/4: Calling Mistral OCR API...")
+            logger.debug("[Mistral OCR] Request parameters:")
+            logger.debug("  - include_image_base64: True")
+            logger.debug(f"  - model: {self.config.get_model()}")
+            logger.debug("  - document type: document_url (base64)")
+
+            start_time = time.time()
+
             response = await client.ocr.process_async(
                 include_image_base64=True,
                 model=self.config.get_model(),
@@ -118,19 +146,47 @@ class MistralOCRProvider(BaseOCRProvider):
                 },
             )
 
-            # Extract and persist
+            elapsed = time.time() - start_time
+            logger.success(f"[Mistral OCR] ✓ API call completed in {elapsed:.2f}s")
+
+            # Step 4: Extract and process response
+            logger.info("[Mistral OCR] Step 4/4: Extracting data from response...")
+            logger.debug(f"[Mistral OCR] Response type: {type(response)}")
+            logger.debug(
+                f"[Mistral OCR] Response has 'pages': {hasattr(response, 'pages')}"
+            )
+            if hasattr(response, "pages"):
+                logger.debug(f"[Mistral OCR] Number of pages: {len(response.pages)}")
+
             text, images = self._extract_data_from_response(response)
-            # Create images directory based on input file name
+
+            logger.success(f"[Mistral OCR] ✓ Extracted text {text}")
+
+            logger.success(f"[Mistral OCR] ✓ Extracted {len(text)} characters")
+            logger.success(f"[Mistral OCR] ✓ Extracted {len(images)} images")
+
+            # Optional: Save images and markdown
             images_dir = file_path.parent / f"{file_path.stem}_images"
+            logger.info(f"[Mistral OCR] Saving outputs to: {file_path.parent}")
             await asyncio.gather(
                 self.asave_to_images(images, images_dir),
                 self.asave_to_markdown(text, file_path.parent / f"{file_path.stem}.md"),
             )
-            logger.success("[async] OCR processing completed")
+
+            logger.info("=" * 80)
+            logger.success("[Mistral OCR] Processing completed successfully!")
+            logger.info("=" * 80)
+
             return text
 
         except Exception as e:
-            logger.error(f"Error processing file (async): {e!s}")
+            logger.error("=" * 80)
+            logger.error(f"[Mistral OCR] ✗ Error processing file: {e!s}")
+            logger.error(f"[Mistral OCR] Error type: {type(e).__name__}")
+            import traceback
+
+            logger.error(f"[Mistral OCR] Traceback:\n{traceback.format_exc()}")
+            logger.error("=" * 80)
             return ""
 
     async def aprocess_url(self, url: str) -> str:
@@ -143,13 +199,28 @@ class MistralOCRProvider(BaseOCRProvider):
 
     async def extract_markdown_from_pdf(self, pdf_path_or_url: str) -> str:
         """从PDF提取Markdown格式文本 - 实现OCRProvider协议"""
-        # 占位符实现
-        return "Markdown content from PDF"
+        logger.info(
+            f"[Mistral OCR] extract_markdown_from_pdf called with: {pdf_path_or_url}"
+        )
+
+        # 判断是URL还是本地路径
+        if pdf_path_or_url.startswith(("http://", "https://")):
+            logger.warning(
+                "[Mistral OCR] URL processing not yet implemented, returning empty"
+            )
+            return ""
+        # 使用现有的 aprocess_file 实现
+        return await self.aprocess_file(pdf_path_or_url)
 
     async def extract_text_from_pdf(self, pdf_path_or_url: str) -> str:
         """从PDF提取文本 - 实现OCRProvider协议"""
-        # 占位符实现
-        return "Text content from PDF"
+        logger.info(
+            f"[Mistral OCR] extract_text_from_pdf called with: {pdf_path_or_url}"
+        )
+
+        # 提取Markdown后返回（Mistral OCR返回的就是Markdown格式）
+        markdown = await self.extract_markdown_from_pdf(pdf_path_or_url)
+        return markdown
 
     def _extract_data_from_response(self, response: Any) -> Tuple[str, List[Any]]:
         """Extract markdown text and images from Mistral OCR API response"""

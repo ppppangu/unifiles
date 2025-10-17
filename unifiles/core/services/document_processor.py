@@ -243,7 +243,9 @@ class DocumentProcessingService:
             )
 
             if not validation_result["success"]:
-                self.logger.error(f"Format validation failed: {validation_result['errors']}")
+                self.logger.error(
+                    f"Format validation failed: {validation_result['errors']}"
+                )
                 return None
 
             pdf_url = validation_result["pdf_url"]
@@ -349,7 +351,9 @@ class DocumentProcessingService:
             }
 
             self.logger.info("=== URL file processing completed successfully ===")
-            self.logger.info(f"Document ID: {document_id}, Components: {len(component_ids)}")
+            self.logger.info(
+                f"Document ID: {document_id}, Components: {len(component_ids)}"
+            )
             self.logger.info(f"Markdown URL: {file_urls['markdown_public_url']}")
             self.logger.info(f"PDF URL: {file_urls['pdf_file_public_url']}")
 
@@ -456,7 +460,22 @@ class DocumentProcessingService:
             for item in structured_content:
                 markdown_content += item["content"] + "\n\n"
 
-            # === 数据库持久化逻辑 ===
+            # 暂时不进行数据库持久化，直接返回提取结果
+            return {
+                "extraction_id": "temp_extraction_id",  # 临时值
+                "content_type": "text/markdown",
+                "extracted_text": "\n".join(
+                    [item["content"] for item in structured_content]
+                ),
+                "markdown_content": markdown_content,
+                "structured_data": {
+                    "segments": len(structured_content),
+                    "extracted_images_count": structured_content[0].get("metadata", {}).get("extracted_images_count", 0) if structured_content else 0,
+                },
+                "document_name": file_record.get("filename", "document"),
+            }
+
+            # === 数据库持久化逻辑 (暂时注释) ===
             # 1. 创建或获取处理策略
             strategy_id = await extraction_db_manager.create_or_get_processing_strategy(
                 strategy_name=f"OCR-{mode}",
