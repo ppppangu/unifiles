@@ -23,7 +23,6 @@ import argparse
 import datetime as dt
 import os
 import re
-import shutil
 from pathlib import Path
 from typing import Iterable, List, Tuple
 

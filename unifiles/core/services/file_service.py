@@ -185,7 +185,7 @@ class FileService:
                     # 重新生成访问URL以确保是最新的
                     is_public = record.get("is_public", False)
                     access_type = "public" if is_public else "presigned"
-                    
+
                     # 获取存储后端（可能需要根据文件的storage_config_id获取特定后端）
                     storage_backend = await self._get_storage_backend_for_file(record)
                     fresh_url = storage_backend.get_access_url(
@@ -252,7 +252,7 @@ class FileService:
             # 生成最新的访问URL
             is_public = file_record.get("is_public", False)
             access_type = "public" if is_public else "presigned"
-            
+
             storage_backend = await self._get_storage_backend_for_file(file_record)
             fresh_url = storage_backend.get_access_url(
                 object_path=file_record["storage_path"],
@@ -446,7 +446,7 @@ class FileService:
         except Exception as e:
             logger.error(f"Failed to get storage metrics: {e}")
             return {"error": str(e), "message": "Failed to retrieve storage metrics"}
-    
+
     async def _get_storage_backend_for_file(self, file_record: Dict[str, Any]):
         """
         根据文件记录获取对应的存储后端
@@ -462,9 +462,8 @@ class FileService:
             storage_config_id = file_record.get("storage_config_id")
             if storage_config_id:
                 return await self.storage.get_backend(storage_config_id)
-            else:
-                # 使用默认存储后端
-                return await self.storage.get_default_backend()
+            # 使用默认存储后端
+            return await self.storage.get_default_backend()
         except Exception as e:
             logger.warning(f"Failed to get specific storage backend, using default: {e}")
             return await self.storage.get_default_backend()

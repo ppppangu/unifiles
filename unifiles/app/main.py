@@ -15,17 +15,32 @@ from pathlib import Path
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+# 导入中间件和 schemas
+from unifiles.app.middlewares import (
+    AuthMiddleware,
+    ClientIPMiddleware,
+    FileValidationMiddleware,
+    QuotaCheckMiddleware,
+)
+
+# 导入API路由
+from unifiles.app.routers import (
+    api_keys,
+    knowledge_bases,
+    manager,
+    payments_placeholder,
+    processors,
+    subscriptions,
+    unifiles,
+    usage,
+    webhooks,
+)
+from unifiles.app.schemas import StandardResponse
+
 # 导入核心工具
 from unifiles.core.config.env_config import mk_need_path
 from unifiles.core.logging import cleanup_logger, get_logger, init_logger
 from unifiles.core.storage import get_initialized_storage
-
-# 导入中间件和 schemas
-from unifiles.app.middlewares import AuthMiddleware, ClientIPMiddleware, FileValidationMiddleware
-
-# 导入API路由
-from unifiles.app.routers import knowledge_bases, manager, processors, unifiles
-from unifiles.app.schemas import StandardResponse
 
 
 @asynccontextmanager
@@ -47,11 +62,11 @@ async def lifespan(app: FastAPI):
 
         # 创建必要的目录
         mk_need_path()
-        
+
         # 初始化存储系统
         await get_initialized_storage()
         app_logger.info("Storage system initialized")
-        
+
         app_logger.info("Unifiles v1 started successfully", {"version": "1.1.0"})
     except Exception as e:
         app_logger = get_logger()
@@ -80,10 +95,19 @@ def create_app() -> FastAPI:
         redoc_url="/redoc",
     )
 
+    # 从环境变量读取CORS配置
+    import os
+    allowed_origins = os.getenv("CORS_ALLOWED_ORIGINS", "http://localhost:3000,http://localhost:8080")
+    allowed_origins_list = [origin.strip() for origin in allowed_origins.split(",")]
+
+    # 如果明确设置为"*"，则允许所有来源（仅用于开发环境）
+    if allowed_origins == "*":
+        allowed_origins_list = ["*"]
+
     # 添加CORS中间件
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=["*"],
+        allow_origins=allowed_origins_list,
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],
@@ -95,11 +119,21 @@ def create_app() -> FastAPI:
     app.add_middleware(AuthMiddleware)
     app.add_middleware(FileValidationMiddleware)
 
+    # 可选的配额检查中间件（通过环境变量控制）
+    enable_quota_check = os.getenv("ENABLE_QUOTA_CHECK", "true").lower() == "true"
+    if enable_quota_check:
+        app.add_middleware(QuotaCheckMiddleware)
+
     # 包含API路由
     app.include_router(unifiles.router)
     app.include_router(processors.router)
     app.include_router(knowledge_bases.router)
     app.include_router(manager.router)
+    app.include_router(api_keys.router)
+    app.include_router(subscriptions.router)
+    app.include_router(usage.router)
+    app.include_router(webhooks.router)
+    app.include_router(payments_placeholder.router)
 
     # 顶级健康检查路由
     @app.get("/health", response_model=StandardResponse, tags=["System"])

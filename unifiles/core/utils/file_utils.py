@@ -19,16 +19,16 @@ def detect_content_type(filename: str) -> Optional[str]:
     """
     if not filename:
         return None
-    
+
     # Get the file extension
     file_path = Path(filename)
-    
+
     # Use mimetypes module to guess the content type
     content_type, _ = mimetypes.guess_type(filename)
-    
+
     # Handle some common cases that might not be detected properly
     extension = file_path.suffix.lower()
-    
+
     if content_type is None:
         # Define some common mappings for unsupported extensions
         extension_mappings = {
@@ -41,7 +41,7 @@ def detect_content_type(filename: str) -> Optional[str]:
             '.ipynb': 'application/json',
             '.md': 'text/markdown',
         }
-        
+
         content_type = extension_mappings.get(extension)
-    
+
     return content_type

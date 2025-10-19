@@ -35,7 +35,7 @@ async def validate_user_id_in_minio(user_id: str) -> bool:
         ),
         access_key=minio_config["access_key"],
         secret_key=minio_config["secret_key"],
-        secure=False,
+        secure=minio_config.get("secure", False),  # 从配置读取，默认False用于本地开发
     )
     try:
         # 检查桶内是否存在以用户id命名的目录
@@ -77,9 +77,9 @@ async def validate_storage_connection() -> bool:
             ),
             access_key=minio_config["access_key"],
             secret_key=minio_config["secret_key"],
-            secure=False,
+            secure=minio_config.get("secure", False),  # 从配置读取，默认False用于本地开发
         )
-        
+
         # 检查桶是否存在
         bucket_exists = minio_client.bucket_exists(minio_config["bucket_name"])
         return bucket_exists

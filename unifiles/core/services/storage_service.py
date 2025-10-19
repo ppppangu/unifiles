@@ -11,9 +11,9 @@ from typing import Any, Dict, List, Optional
 
 from loguru import logger
 
-from ..storage import get_storage, Storage
 from ..database.manager import DatabaseManager
 from ..database.models import ChunkModel, PhotoModel
+from ..storage import get_storage
 
 
 class VectorStorageManager:
@@ -160,7 +160,7 @@ class StorageService:
         try:
             # 获取存储后端
             backend = await self.storage.get_default_backend()
-            
+
             # 构建对象路径
             md_object_path = f"{user_id}/knowledgebase/{knowledge_base_id}/{document_id}/{document_id}.md"
             pdf_object_path = f"{user_id}/knowledgebase/{knowledge_base_id}/{document_id}/{document_id}.pdf"

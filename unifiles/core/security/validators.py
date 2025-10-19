@@ -431,7 +431,7 @@ def require_file_ownership(func):
 
 class FileUtils:
     """文件处理工具类，整合文件相关的通用功能"""
-    
+
     @staticmethod
     def detect_content_type(file_name: str, default: str = "application/octet-stream") -> str:
         """

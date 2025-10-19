@@ -232,11 +232,11 @@ class FileValidationMiddleware:
 
 
 class AuthMiddleware:
-    """认证中间件 - 处理Bearer Token认证"""
+    """增强的认证中间件 - 使用数据库的validate_access_key()函数"""
 
     def __init__(self, app):
         self.app = app
-        self.pg_config = read_pg_config()
+        self._pg_pool = None
 
         # 不需要认证的路径
         self.public_paths = {
@@ -250,6 +250,7 @@ class AuthMiddleware:
         # 不需要认证的路径前缀
         self.public_prefixes = {
             "/static/",
+            "/files/public/",  # 公共文件访问
             # 可以添加更多公开路径前缀
         }
 
@@ -272,29 +273,52 @@ class AuthMiddleware:
                     await response(scope, receive, send)
                     return
 
-                # 提取token
-                token = auth_header[7:]  # 移除 "Bearer " 前缀
+                # 提取access_key
+                access_key = auth_header[7:]  # 移除 "Bearer " 前缀
+                client_ip = getattr(request.state, "client_ip", None)
 
-                # 验证token并获取user_id
-                user_id = await self._validate_token(token)
-                if not user_id:
+                # 验证access_key并获取用户信息和权限
+                validation_result = await self._validate_access_key(access_key, client_ip)
+
+                if not validation_result.get("valid"):
+                    error = validation_result.get("error", "invalid_token")
+                    message = validation_result.get("message", "Authentication failed")
+
+                    # 根据不同的错误类型返回不同的状态码
+                    status_code = 401
+                    if error == "rate_limit_exceeded":
+                        status_code = 429
+                    elif error == "ip_not_allowed":
+                        status_code = 403
+
                     response = JSONResponse(
-                        status_code=401,
+                        status_code=status_code,
                         content={
-                            "error": "Invalid token",
-                            "message": "The provided token is invalid, expired, or has been revoked",
+                            "error": error,
+                            "message": message
                         },
                     )
                     await response(scope, receive, send)
                     return
 
-                # 将用户ID存储到request.state中
-                request.state.user_id = user_id
+                # 验证成功 - 将用户信息和权限存储到request.state
+                request.state.user_id = validation_result["user_id"]
+                request.state.scopes = validation_result.get("scopes", [])
+                request.state.permissions = {
+                    "can_create_kb": validation_result.get("can_create_kb"),
+                    "can_delete_files": validation_result.get("can_delete_files"),
+                    "can_share_files": validation_result.get("can_share_files"),
+                    "can_export_data": validation_result.get("can_export_data"),
+                    "max_file_size_mb": validation_result.get("max_file_size_mb"),
+                    "max_knowledge_bases": validation_result.get("max_knowledge_bases"),
+                }
                 request.state.authenticated = True
             else:
                 # 公开路径，设置默认用户
                 request.state.user_id = "anonymous"
                 request.state.authenticated = False
+                request.state.scopes = []
+                request.state.permissions = {}
 
         await self.app(scope, receive, send)
 
@@ -309,20 +333,127 @@ class AuthMiddleware:
         # 检查是否以公开前缀开始
         return all(not path.startswith(prefix) for prefix in self.public_prefixes)
 
-    async def _validate_token(self, token: str) -> Optional[str]:
-        """验证token并返回用户ID"""
+    async def _validate_access_key(self, access_key: str, client_ip: Optional[str]) -> Dict[str, Any]:
+        """调用数据库的validate_access_key()函数"""
+        import json
+
         try:
-            conn = await asyncpg.connect(**self.pg_config)
-            try:
-                # 使用数据库中的验证函数
-                user_id = await conn.fetchval("SELECT validate_access_key($1)", token)
-                return user_id
-            finally:
-                await conn.close()
+            # 初始化连接池（如果尚未初始化）
+            if not self._pg_pool:
+                pg_config = read_pg_config()
+                self._pg_pool = await asyncpg.create_pool(
+                    **pg_config,
+                    min_size=2,
+                    max_size=10,
+                    command_timeout=30
+                )
+
+            async with self._pg_pool.acquire() as conn:
+                result = await conn.fetchval(
+                    "SELECT validate_access_key($1, $2)",
+                    access_key,
+                    client_ip
+                )
+                return json.loads(result)  # JSONB转dict
+
         except Exception as e:
             # 记录错误但不暴露给客户端
-            print(f"Token validation error: {e!s}")  # 正式环境中应使用正式的日志系统
-            return None
+            import sys
+            print(f"Token validation error: {e!s}", file=sys.stderr)
+            return {
+                "valid": False,
+                "error": "internal_error",
+                "message": "Internal authentication error"
+            }
+
+    async def close_pool(self):
+        """关闭连接池（应用关闭时调用）"""
+        if self._pg_pool:
+            await self._pg_pool.close()
+            self._pg_pool = None
+
+
+class QuotaCheckMiddleware:
+    """配额检查中间件 - 在操作前检查用户配额"""
+
+    def __init__(self, app):
+        self.app = app
+        self._pg_pool = None
+
+    async def __call__(self, scope, receive, send):
+        if scope["type"] == "http":
+            request = Request(scope, receive)
+
+            # 只对特定端点进行配额检查
+            if self._should_check_quota(request):
+                user_id = getattr(request.state, "user_id", None)
+                if user_id and user_id != "anonymous":
+                    # 确定配额类型
+                    quota_type = self._get_quota_type(request)
+                    if quota_type:
+                        # 检查配额
+                        quota_result = await self._check_quota(user_id, quota_type, 1)
+
+                        if not quota_result.get("allowed"):
+                            response = JSONResponse(
+                                status_code=429,
+                                content={
+                                    "error": "quota_exceeded",
+                                    "message": f"{quota_type.replace('_', ' ').title()} limit exceeded",
+                                    "quota_info": quota_result
+                                },
+                            )
+                            await response(scope, receive, send)
+                            return
+
+        await self.app(scope, receive, send)
+
+    def _should_check_quota(self, request: Request) -> bool:
+        """判断是否需要进行配额检查"""
+        # 对文件上传和 API 调用进行配额检查
+        if request.method == "POST" and "/files" in request.url.path:
+            return True
+        # 可以添加更多需要配额检查的端点
+        return False
+
+    def _get_quota_type(self, request: Request) -> Optional[str]:
+        """根据请求确定配额类型"""
+        if "/files" in request.url.path and request.method == "POST":
+            return "files_upload"
+        # 默认检查 API 调用配额
+        return "api_calls"
+
+    async def _check_quota(
+        self, user_id: str, quota_type: str, amount: int = 1
+    ) -> Dict[str, Any]:
+        """调用数据库的check_user_quota()函数"""
+        import json
+
+        try:
+            # 初始化连接池（如果尚未初始化）
+            if not self._pg_pool:
+                pg_config = read_pg_config()
+                self._pg_pool = await asyncpg.create_pool(
+                    **pg_config, min_size=2, max_size=10, command_timeout=30
+                )
+
+            async with self._pg_pool.acquire() as conn:
+                result = await conn.fetchval(
+                    "SELECT check_user_quota($1, $2, $3)", user_id, quota_type, amount
+                )
+                return json.loads(result)
+
+        except Exception as e:
+            # 记录错误但不阻止请求（降级策略）
+            import sys
+            print(f"Quota check error: {e!s}", file=sys.stderr)
+            return {"allowed": True, "error": "quota_check_failed"}
+
+    async def close_pool(self):
+        """关闭连接池（应用关闭时调用）"""
+        if self._pg_pool:
+            await self._pg_pool.close()
+            self._pg_pool = None
 
 
 # 其他中间件示例：

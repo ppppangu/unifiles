@@ -7,8 +7,8 @@
 import os
 from pathlib import Path
 from typing import Any, Dict, List, Optional
-from loguru import logger
 
+from loguru import logger
 
 try:
     from dotenv import load_dotenv
@@ -213,6 +213,50 @@ class EnvironmentConfig:
             "default_fallback_strategy": self.get_env_value("UNIFILES_STORAGE_DEFAULT_FALLBACK", "fail_fast")  # or "use_first_active"
         }
 
+    def get_redis_config(self) -> Dict[str, Any]:
+        """获取Redis配置"""
+        redis_url = self.get_env_value("UNIFILES_REDIS_URL", "redis://localhost:6379")
+
+        # 如果提供了完整URL，直接使用
+        if redis_url.startswith("redis://") or redis_url.startswith("rediss://"):
+            return {
+                "url": redis_url,
+                "max_connections": self.get_env_value("UNIFILES_REDIS_MAX_CONNECTIONS", 50, int),
+                "decode_responses": True,
+                "encoding": "utf-8",
+                # 连接池配置
+                "socket_timeout": self.get_env_value("UNIFILES_REDIS_SOCKET_TIMEOUT", 5, int),
+                "socket_connect_timeout": self.get_env_value("UNIFILES_REDIS_CONNECT_TIMEOUT", 5, int),
+                "socket_keepalive": self.get_env_value("UNIFILES_REDIS_KEEPALIVE", True, bool),
+                # 重试配置
+                "retry_on_timeout": self.get_env_value("UNIFILES_REDIS_RETRY_ON_TIMEOUT", True, bool),
+                "health_check_interval": self.get_env_value("UNIFILES_REDIS_HEALTH_CHECK_INTERVAL", 30, int),
+            }
+
+        # 否则使用主机和端口构建配置
+        address = self.get_env_value("UNIFILES_REDIS_ADDRESS", "localhost:6379")
+        if ":" in address:
+            host, port = address.rsplit(":", 1)
+        else:
+            host, port = address, 6379
+
+        return {
+            "host": host,
+            "port": int(port),
+            "password": self.get_env_value("UNIFILES_REDIS_PASSWORD"),
+            "db": self.get_env_value("UNIFILES_REDIS_DB", 0, int),
+            "max_connections": self.get_env_value("UNIFILES_REDIS_MAX_CONNECTIONS", 50, int),
+            "decode_responses": True,
+            "encoding": "utf-8",
+            # 连接池配置
+            "socket_timeout": self.get_env_value("UNIFILES_REDIS_SOCKET_TIMEOUT", 5, int),
+            "socket_connect_timeout": self.get_env_value("UNIFILES_REDIS_CONNECT_TIMEOUT", 5, int),
+            "socket_keepalive": self.get_env_value("UNIFILES_REDIS_KEEPALIVE", True, bool),
+            # 重试配置
+            "retry_on_timeout": self.get_env_value("UNIFILES_REDIS_RETRY_ON_TIMEOUT", True, bool),
+            "health_check_interval": self.get_env_value("UNIFILES_REDIS_HEALTH_CHECK_INTERVAL", 30, int),
+        }
+
     def get_convert_servers(self) -> List[Dict[str, Any]]:
         """获取格式转换服务器配置"""
         servers = []
@@ -371,6 +415,12 @@ def read_minio_config() -> Dict[str, Any]:
     """读取MinIO配置（兼容性函数）"""
     env_config = get_env_config()
     return env_config.get_minio_config()
+
+
+def read_redis_config() -> Dict[str, Any]:
+    """读取Redis配置（兼容性函数）"""
+    env_config = get_env_config()
+    return env_config.get_redis_config()
 
 
 def convert_to_internal_minio_url(url: str) -> str:
