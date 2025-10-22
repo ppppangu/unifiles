@@ -18,6 +18,7 @@ from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional
 
 from loguru import logger
+
 try:
     # Bind service name so logs pass Loguru filter configured by init_logger
     logger = logger.bind(service="unifiles-v1")
@@ -124,6 +125,7 @@ class DatabaseBootstrapper:
         logger.info("[DB] ensure_database_ready: begin connectivity check via asyncpg")
         try:
             import asyncpg
+
             conn = await asyncpg.connect(
                 host=self._pg_config.get("host"),
                 port=int(self._pg_config.get("port", 5432)),
@@ -144,12 +146,9 @@ class DatabaseBootstrapper:
                     "[DB] Schema 'unifiles' exists; skipping bootstrap initialization"
                 )
                 return
-            else:
-                logger.warning(
-                    "[DB] Schema 'unifiles' not found; may need initialization"
-                )
-                # 如果需要，可以在这里调用同步初始化
-                # await asyncio.to_thread(self._ensure_database_ready_sync)
+            logger.warning("[DB] Schema 'unifiles' not found; may need initialization")
+        # 如果需要，可以在这里调用同步初始化
+        # await asyncio.to_thread(self._ensure_database_ready_sync)
 
         except Exception as exc:
             logger.warning(
@@ -632,13 +631,9 @@ class Storage:
                 )
                 backend = self._create_backend(config)
                 try:
-                    logger.info(
-                        "[Storage] -> initializing backend '%s'", config.id
-                    )
+                    logger.info("[Storage] -> initializing backend '%s'", config.id)
                     await backend.initialize()
-                    logger.info(
-                        "[Storage] -> backend '%s' initialized OK", config.id
-                    )
+                    logger.info("[Storage] -> backend '%s' initialized OK", config.id)
                 except Exception as exc:
                     logger.error(
                         "Failed to initialize storage backend %s (%s): %s",

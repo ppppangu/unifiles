@@ -379,7 +379,11 @@ class ExtractionDBManager(BaseDBManager):
             if user_id:
                 query += " AND ed.user_id = $2"
                 results = await self.fetch_many(
-                    query, file_id, user_id, user_id=user_id, operation="extraction_list"
+                    query,
+                    file_id,
+                    user_id,
+                    user_id=user_id,
+                    operation="extraction_list",
                 )
             else:
                 results = await self.fetch_many(
@@ -390,6 +394,95 @@ class ExtractionDBManager(BaseDBManager):
 
         except Exception as e:
             logger.error(f"Error getting extracted documents by file: {e}")
+            raise
+
+    async def create_extracted_asset(
+        self,
+        extracted_document_id: str,
+        asset_type: str,
+        storage_path: str,
+        asset_name: Optional[str] = None,
+        original_filename: Optional[str] = None,
+        file_size: Optional[int] = None,
+        mime_type: Optional[str] = None,
+        format: Optional[str] = None,
+        position_in_document: Optional[int] = None,
+        page_number: Optional[int] = None,
+        alt_text: Optional[str] = None,
+        asset_description: Optional[str] = None,
+        storage_config_id: Optional[str] = None,
+    ) -> str:
+        """
+        创建提取资源记录
+
+        Args:
+            extracted_document_id: 提取文档ID
+            asset_type: 资源类型 (text, image, table, code, chart, formula)
+            storage_path: 存储路径（对象路径）
+            asset_name: 资源名称
+            original_filename: 原始文件名
+            file_size: 文件大小（字节）
+            mime_type: MIME类型
+            format: 文件格式
+            position_in_document: 在文档中的位置序号
+            page_number: 所在页码
+            alt_text: 替代文本
+            asset_description: 资源描述
+            storage_config_id: 存储配置ID（可选）
+
+        Returns:
+            资源ID
+
+        Raises:
+            ValueError: 如果参数无效
+        """
+        try:
+            # 清理输入
+            extracted_document_id = self.sanitize_input(extracted_document_id)
+            asset_type = self.sanitize_input(asset_type)
+            storage_path = self.sanitize_input(storage_path)
+
+            asset_id = str(uuid.uuid4())
+
+            insert_query = f"""
+                INSERT INTO {self._schema_name}.extracted_assets (
+                    id, extracted_document_id, asset_type, asset_name,
+                    original_filename, storage_config_id, storage_path,
+                    file_size, mime_type, format,
+                    position_in_document, page_number,
+                    asset_description, alt_text,
+                    created_at
+                ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
+                RETURNING id
+            """
+
+            result = await self.fetch_one(
+                insert_query,
+                asset_id,
+                extracted_document_id,
+                asset_type,
+                asset_name,
+                original_filename,
+                storage_config_id,
+                storage_path,
+                file_size,
+                mime_type,
+                format,
+                position_in_document,
+                page_number,
+                asset_description,
+                alt_text,
+                datetime.now(),
+                operation="asset_creation",
+            )
+
+            logger.info(
+                f"Created extracted asset: {asset_id} for document: {extracted_document_id}"
+            )
+            return result["id"]
+
+        except Exception as e:
+            logger.error(f"Error creating extracted asset: {e}")
             raise
 
     async def create_process_log(

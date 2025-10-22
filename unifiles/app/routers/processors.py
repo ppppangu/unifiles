@@ -1,11 +1,7 @@
-from fastapi import (
-    APIRouter,
-    HTTPException,
-    Request,
-)
-from fastapi import (
-    Path as FastAPIPath,
-)
+from datetime import datetime
+
+from fastapi import APIRouter, HTTPException, Request
+from fastapi import Path as FastAPIPath
 from loguru import logger
 
 from unifiles.app.schemas import (
@@ -25,46 +21,61 @@ async def extract_file_content(
     request: Request,
     file_id: str = FastAPIPath(..., description="文件ID"),
     extract_request: FileExtractRequest = FileExtractRequest(),
-):
+) -> FileExtractResponse:
     """
     提取文件内容
 
     支持多种提取模式：
-    - simple: 基础文本提取
-    - ocr提供商名称: 使用指定的OCR提供商
+    - simple: 使用pdfplumber进行基础文本提取
+    - mistral/mineru/selfhosted: 使用指定的OCR提供商进行多模态提取
+
+    Args:
+        request: FastAPI请求对象（包含user_id）
+        file_id: 文件ID
+        extract_request: 提取请求参数
+
+    Returns:
+        FileExtractResponse: 提取结果
+
+    Raises:
+        HTTPException: 404 - 文件不存在
+        HTTPException: 403 - 权限不足
+        HTTPException: 500 - 提取失败
     """
     try:
         user_id = request.state.user_id
-        logger.info(f"POST /files/{file_id}/extract from user: {user_id}")
-        logger.info(f"Extract request: {extract_request.dict()}")
+        logger.info(
+            f"Extracting file {file_id} for user {user_id} with mode: {extract_request.mode}"
+        )
 
         # 调用文档处理服务
         processor = get_document_processor()
-        extracted_content_data = await processor.process_file_by_id(
+        result = await processor.process_file_by_id(
             file_id=file_id,
             user_id=user_id,
             mode=extract_request.mode,
         )
 
-        # 构建响应（使用数据库返回的真实 extraction_id）
-        from datetime import datetime
-
+        # 构建响应
+        now = datetime.now().isoformat()
         extracted_content = ExtractedContent(
             file_id=file_id,
-            extraction_id=extracted_content_data[
-                "extraction_id"
-            ],  # 使用数据库返回的真实ID
-            content_type=extracted_content_data["content_type"],
-            extracted_text=extracted_content_data.get("extracted_text"),
-            markdown_content=extracted_content_data.get("markdown_content"),
-            structured_data=extracted_content_data.get("structured_data"),
+            extraction_id=result["extraction_id"],
+            content_type=result["content_type"],
+            extracted_text=result.get("extracted_text"),
+            markdown_content=result.get("markdown_content"),
+            structured_data=result.get("structured_data"),
             extraction_metadata={
                 "mode": extract_request.mode,
-                "processed_at": datetime.now().isoformat(),
+                "processed_at": now,
             },
             extraction_strategy=f"OCR-{extract_request.mode}",
             status="completed",
-            created_at=datetime.now().isoformat(),
+            created_at=now,
+        )
+
+        logger.info(
+            f"File {file_id} extracted successfully, extraction_id: {result['extraction_id']}"
         )
 
         return FileExtractResponse(
@@ -76,11 +87,11 @@ async def extract_file_content(
     except HTTPException:
         raise
     except ValueError as e:
-        logger.error(f"Error extracting file content for {file_id}: {e}")
+        logger.error(f"File not found or invalid: {file_id} - {e}")
         raise HTTPException(status_code=404, detail=str(e))
     except PermissionError as e:
-        logger.error(f"Error extracting file content for {file_id}: {e}")
+        logger.error(f"Permission denied for file {file_id}: {e}")
         raise HTTPException(status_code=403, detail=str(e))
     except Exception as e:
-        logger.error(f"Error extracting file content for {file_id}: {e}")
+        logger.exception(f"Unexpected error extracting file {file_id}")
         raise HTTPException(status_code=500, detail=f"Content extraction failed: {e!s}")

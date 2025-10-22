@@ -24,6 +24,7 @@ from tenacity import (
 
 from unifiles.core.ocr.factory import OCRProviderFactory
 from unifiles.core.ocr.processor import OCRProcessor
+from unifiles.core.storage import get_initialized_storage
 
 from ..config.env_config import convert_to_internal_minio_url, read_config
 
@@ -531,9 +532,12 @@ class TextProcessor:
         # 找到所有图片的位置
         image_matches = []
         for match in re.finditer(pattern, text):
+            logger.info(match.group(0))
+            logger.info(f"Found image: match at {match.start()}-{match.end()}")
             image_matches.append((match.start(), match.end(), "image"))
 
         # 按开始位置排序
+        logger.info(image_matches)
         image_matches.sort(key=lambda x: x[0])
 
         # 填充文本片段
@@ -549,6 +553,8 @@ class TextProcessor:
             results.append((image_start, image_end, "image"))
             current_pos = image_end
 
+        logger.info(results)
+
         # 处理剩余文本
         if image_matches:
             if current_pos < text_length:
@@ -560,7 +566,7 @@ class TextProcessor:
         # 按开始位置排序结果
         results.sort(key=lambda x: x[0])
 
-        # 构建转换后的文本，将相对图片路径转换为绝对MinIO URLs
+        # 构建转换后的文本：将相对图片路径转换为仅包含对象路径（不包含域名/桶前缀）
         converted_text = ""
 
         for start, end, type_ in results:
@@ -573,17 +579,18 @@ class TextProcessor:
                     alt_text = match.group(1)
                     image_path = match.group(2)
 
-                    # 转换相对路径为绝对MinIO URL
-                    if image_path.startswith("/"):
-                        absolute_url = f"{self.config['server_components']['minio']['public_url_prefix']}/{self.config['server_components']['minio']['bucket_name']}/{user_id}/knowledge_base/{knowledge_base_id}/{document_id}/{image_path[1:]}"
-                    else:
-                        absolute_url = f"{self.config['server_components']['minio']['public_url_prefix']}/{self.config['server_components']['minio']['bucket_name']}/{user_id}/knowledge_base/{knowledge_base_id}/{document_id}/{image_path}"
+                    logger.info(f"alt text: {alt_text}, image_path: {image_path}")
 
-                    converted_markdown = f"![{alt_text}]({absolute_url})"
+                    # 将相对路径转换为对象路径（仅对象键，不包含协议/域名/桶）
+                    # 与上传阶段保持一致：{user_id}/knowledge_base/{kb}/{doc}/{filename}
+                    object_path = f"{user_id}/knowledge_base/{knowledge_base_id}/{document_id}/{image_path}"
+
+                    converted_markdown = f"![{alt_text}]({object_path})"
                     converted_text += converted_markdown
                 else:
                     converted_text += image_markdown
-
+        logger.info(converted_text)
+        logger.info(results)
         return converted_text, results
 
     async def split_text(
@@ -634,6 +641,9 @@ class TextProcessor:
         self, converted_text: str, results: List[Tuple[int, int, str]]
     ) -> List[Dict[str, Any]]:
         """将结果转换为字典列表"""
+
+        logger.info(f"Converted text: {converted_text}")
+
         results_dict = []
         for index, result in enumerate(results):
             results_dict.append(
@@ -647,64 +657,113 @@ class TextProcessor:
         results_dict.sort(key=lambda x: x["index"])
         return results_dict
 
+    def _segment_by_images(
+        self, text: str, user_id: str, knowledge_base_id: str, document_id: str
+    ) -> Tuple[str, List[Dict[str, Any]]]:
+        """按图片边界切分文本，并在过程中将图片相对路径转换为对象路径。
+
+        Returns:
+            tuple: (converted_text, segments)
+                - converted_text: 路径转换后的完整文本
+                - segments: 切分后的片段列表，每个元素包含：{"content": str, "type": "text"|"image"}
+
+        注意：segments中的content已经是转换后的内容，与converted_text保持一致
+        """
+        if not text:
+            return "", []
+
+        pattern = r"!\[([^\]]*)\]\(([^)]+)\)"
+        segments: List[Dict[str, Any]] = []
+        converted_parts: List[str] = []
+
+        last_pos = 0
+        for m in re.finditer(pattern, text):
+            start, end = m.start(), m.end()
+            # 追加前置文本
+            if last_pos < start:
+                pre = text[last_pos:start]
+                if pre.strip():
+                    segments.append({"content": pre, "type": "text"})
+                    converted_parts.append(pre)
+                elif pre:  # 保留空白字符
+                    converted_parts.append(pre)
+
+            # 图片片段（路径转换为对象路径）
+            alt_text = m.group(1)
+            image_path = m.group(2)
+            object_path = f"{user_id}/knowledge_base/{knowledge_base_id}/{document_id}/{image_path}"
+            converted = f"![{alt_text}]({object_path})"
+            segments.append({"content": converted, "type": "image"})
+            converted_parts.append(converted)
+
+            last_pos = end
+
+        # 末尾文本
+        if last_pos < len(text):
+            tail = text[last_pos:]
+            if tail.strip():
+                segments.append({"content": tail, "type": "text"})
+                converted_parts.append(tail)
+            elif tail:  # 保留空白字符
+                converted_parts.append(tail)
+
+        converted_text = "".join(converted_parts)
+        return converted_text, segments
+
     async def process_text_content(
         self, text: str, user_id: str, knowledge_base_id: str, document_id: str
     ) -> List[Dict[str, Any]]:
         """
-        处理文本内容：图片边界分块、文本分块
+        处理文本内容：
+        - 步骤1：按图片边界切分（并将图片链接转换为对象路径）
+        - 步骤2：仅对文本片段进行分块
 
         Returns:
             处理后的内容列表，每个元素包含content、index、type、embedding字段
+
+        注意：返回的content中，图片路径已经转换为对象路径格式
         """
         try:
-            # 第一轮：以图片为分界进行分块
-            logger.info("Processing text content - Step 1: Image boundary segmentation")
-            converted_text, results = await asyncio.to_thread(
-                self.find_all_text_and_image_index,
-                text,
-                user_id,
-                knowledge_base_id,
-                document_id,
+            # 步骤1：按图片边界切分，同时获取转换后的完整文本
+            logger.info("Processing text content - Step 1: Segment by image boundaries")
+            converted_text, base_segments = await asyncio.to_thread(
+                self._segment_by_images, text, user_id, knowledge_base_id, document_id
             )
             logger.info(
-                f"Image boundary segmentation completed, {len(results)} segments created"
+                "Image segmentation completed, {} segments (text length: {} -> {})",
+                len(base_segments),
+                len(text),
+                len(converted_text),
             )
 
-            # 转换为字典格式
-            results_dict = await asyncio.to_thread(
-                self.save_results_to_json_sync, converted_text, results
-            )
-
-            # 第二轮：对文本类型的内容进行进一步分块
+            # 步骤2：对文本类型进行分块
             logger.info("Processing text content - Step 2: Text chunking")
-            new_results_dict = []
-            for item in results_dict:
-                if item["type"] == "text":
-                    text_content = item["content"]
-                    text_chunks = await self.split_text(text_content)
-                    for chunk in text_chunks:
-                        new_results_dict.append(
+            final_segments: List[Dict[str, Any]] = []
+            for seg in base_segments:
+                if seg["type"] == "text":
+                    chunks = await self.split_text(seg["content"])
+                    for chunk in chunks:
+                        final_segments.append(
                             {
                                 "content": chunk,
-                                "index": len(new_results_dict),
+                                "index": len(final_segments),
                                 "type": "text",
                                 "embedding": None,
                             }
                         )
                 else:
-                    new_results_dict.append(
+                    # 图片片段不分块，直接添加
+                    final_segments.append(
                         {
-                            "content": item["content"],
-                            "index": len(new_results_dict),
-                            "type": item["type"],
+                            "content": seg["content"],
+                            "index": len(final_segments),
+                            "type": seg["type"],
                             "embedding": None,
                         }
                     )
 
-            logger.info(
-                f"Text chunking completed, final {len(new_results_dict)} segments"
-            )
-            return new_results_dict
+            logger.info("Text chunking completed, final {} segments", final_segments)
+            return final_segments
 
         except Exception as e:
             logger.error(f"Error processing text content: {e}")
@@ -772,20 +831,18 @@ class PDFProcessingPipeline:
 
             if not page_texts or all(not t.strip() for t in page_texts):
                 # 如果所有页都没有文本，使用占位符
-                logger.info("PDF appears to be image-based or empty, using placeholder text")
+                logger.info(
+                    "PDF appears to be image-based or empty, using placeholder text"
+                )
                 return (
                     "# PDF Content\n\n这是一个占位符，用于保证边缘情况，需要图片处理请使用OCR提供商模式",
                     images_info,
                 )
 
             # 构建Markdown：每页文本后面紧跟该页的图片引用
-            markdown_parts = ["# PDF Content\n\n"]
+            markdown_parts = []
 
             for page_num, page_text in enumerate(page_texts):
-                # 添加页面标题（可选）
-                if len(page_texts) > 1:
-                    markdown_parts.append(f"## Page {page_num + 1}\n\n")
-
                 # 添加页面文本
                 if page_text and page_text.strip():
                     markdown_parts.append(f"{page_text}\n\n")
@@ -907,9 +964,60 @@ class PDFProcessingPipeline:
             logger.info(f"Extracted text from PDF: {text}")
             logger.info(f"Extracted images info: {images_info}")
 
+            # === Stage 2.5: Upload extracted images to storage (MinIO) ===
+            # Note: In simple mode we extracted images to a temporary directory.
+            # Upload them now so subsequent Markdown links have valid targets.
+            if images_info:
+                try:
+                    storage = await get_initialized_storage()
+                    backend = await storage.get_default_backend()
+
+                    # Helper to guess MIME type from file extension
+                    def _mime_from_ext(ext: str) -> str:
+                        ext = (ext or "").lower().lstrip(".")
+                        if ext in {"jpg", "jpeg"}:
+                            return "image/jpeg"
+                        if ext in {"png"}:
+                            return "image/png"
+                        return "application/octet-stream"
+
+                    for img in images_info:
+                        # Build an object path aligned with TextProcessor's URL convention
+                        # user_id/knowledge_base/{kb}/{doc}/{filename}
+                        filename = img.get("filename")
+                        object_path = f"{user_id}/knowledge_base/{knowledge_base_id}/{document_id}/{filename}"
+
+                        local_path = img.get("path")
+                        content_type = _mime_from_ext(img.get("extension"))
+
+                        try:
+                            await backend.upload_file_from_path(
+                                object_path=object_path,
+                                local_file_path=local_path,
+                                content_type=content_type,
+                            )
+                            public_url = backend.get_access_url(
+                                object_path, access_type="public"
+                            )
+
+                            # Enrich images_info with storage references
+                            img["object_path"] = object_path
+                            img["public_url"] = public_url
+                            logger.debug(
+                                f"Uploaded image -> {object_path}, public_url={public_url}"
+                            )
+                        except Exception as upload_err:
+                            logger.warning(
+                                f"Failed to upload extracted image '{filename}': {upload_err}"
+                            )
+                except Exception as storage_err:
+                    logger.warning(
+                        f"Image upload stage skipped due to storage error: {storage_err}"
+                    )
+
             logger.info("=== Stage 3: Process content structure ===")
 
-            # 处理文本内容结构
+            # 处理文本内容结构进行分块
             structured_content = await self.text_processor.process_text_content(
                 text, user_id, knowledge_base_id, document_id
             )

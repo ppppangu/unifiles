@@ -4,6 +4,7 @@
 这是基于app/legacy/main.py中mineru_process函数的重构版本
 """
 
+import re
 import uuid
 from datetime import datetime
 from pathlib import Path
@@ -22,6 +23,39 @@ from ..pipelines.pdf_processor import (
 )
 from ..services.embedding_service import EmbeddingService
 from ..services.storage_service import StorageService
+
+
+def parse_image_assets_from_markdown(markdown: str) -> list[dict[str, Any]]:
+    """从markdown中解析图片信息
+
+    Args:
+        markdown: Markdown文本内容
+
+    Returns:
+        图片资源列表，每个元素包含：
+        - index: 图片在文档中的序号
+        - alt_text: 图片替代文本
+        - object_path: 对象存储路径
+        - filename: 文件名
+    """
+    pattern = r"!\[([^\]]*)\]\(([^)]+)\)"
+    assets = []
+
+    for idx, match in enumerate(re.finditer(pattern, markdown)):
+        alt_text = match.group(1)
+        object_path = match.group(2)
+
+        # 从对象路径中提取文件名
+        filename = object_path.split("/")[-1] if "/" in object_path else object_path
+
+        assets.append({
+            "index": idx,
+            "alt_text": alt_text,
+            "object_path": object_path,
+            "filename": filename
+        })
+
+    return assets
 
 
 class DocumentProcessingService:
@@ -458,36 +492,28 @@ class DocumentProcessingService:
             # 重新构建markdown内容
             markdown_content = ""
             for item in structured_content:
-                markdown_content += item["content"] + "\n\n"
+                markdown_content += item["content"]
 
-            # 暂时不进行数据库持久化，直接返回提取结果
-            return {
-                "extraction_id": "temp_extraction_id",  # 临时值
-                "content_type": "text/markdown",
-                "extracted_text": "\n".join(
-                    [item["content"] for item in structured_content]
-                ),
-                "markdown_content": markdown_content,
-                "structured_data": {
-                    "segments": len(structured_content),
-                    "extracted_images_count": structured_content[0].get("metadata", {}).get("extracted_images_count", 0) if structured_content else 0,
-                },
-                "document_name": file_record.get("filename", "document"),
-            }
+            self.logger.info("=== Stage: Database Persistence ===")
 
-            # === 数据库持久化逻辑 (暂时注释) ===
-            # 1. 创建或获取处理策略
+            # === 数据库持久化逻辑 ===
+            # 1. 解析图片资源
+            image_assets = parse_image_assets_from_markdown(markdown_content)
+            self.logger.info(f"Parsed {len(image_assets)} image assets from markdown")
+
+            # 2. 创建或获取处理策略
             strategy_id = await extraction_db_manager.create_or_get_processing_strategy(
                 strategy_name=f"OCR-{mode}",
                 strategy_type="ocr",
                 processing_config={
                     "method": mode,
                     "version": "1.0.0",
-                    "engine": mode if mode != "simple" else "pypdf",
+                    "engine": mode if mode != "simple" else "pdfplumber",
                 },
             )
+            self.logger.info(f"Using processing strategy: {strategy_id}")
 
-            # 2. 创建提取文档记录
+            # 3. 创建提取文档记录
             extraction_id = await extraction_db_manager.create_extracted_document(
                 file_id=file_id,
                 user_id=user_id,
@@ -495,7 +521,7 @@ class DocumentProcessingService:
                 full_markdown=markdown_content,
                 total_chars=len(markdown_content),
                 total_pages=0,  # 可以从structured_content中计算
-                total_assets=0,
+                total_assets=len(image_assets),
                 extraction_metadata={
                     "mode": mode,
                     "segments_count": len(structured_content),
@@ -503,8 +529,51 @@ class DocumentProcessingService:
                 },
                 extraction_status="completed",
             )
+            self.logger.info(f"Created extracted document: {extraction_id}")
 
-            # 3. 记录处理日志
+            # 4. 创建提取资源记录（图片）
+            asset_ids = []
+            for img_asset in image_assets:
+                try:
+                    # 从文件名推断格式
+                    filename = img_asset["filename"]
+                    file_format = filename.split(".")[-1] if "." in filename else None
+
+                    # 推断MIME类型
+                    mime_type = None
+                    if file_format:
+                        mime_map = {
+                            "png": "image/png",
+                            "jpg": "image/jpeg",
+                            "jpeg": "image/jpeg",
+                            "gif": "image/gif",
+                            "webp": "image/webp",
+                        }
+                        mime_type = mime_map.get(file_format.lower())
+
+                    asset_id = await extraction_db_manager.create_extracted_asset(
+                        extracted_document_id=extraction_id,
+                        asset_type="image",
+                        storage_path=img_asset["object_path"],
+                        asset_name=filename,
+                        original_filename=filename,
+                        format=file_format,
+                        mime_type=mime_type,
+                        position_in_document=img_asset["index"],
+                        alt_text=img_asset["alt_text"],
+                    )
+                    asset_ids.append(asset_id)
+                    self.logger.debug(
+                        f"Created asset {asset_id} for image {filename}"
+                    )
+                except Exception as asset_error:
+                    self.logger.warning(
+                        f"Failed to create asset for {img_asset.get('filename')}: {asset_error}"
+                    )
+
+            self.logger.info(f"Created {len(asset_ids)} extracted assets")
+
+            # 5. 记录处理日志
             await extraction_db_manager.create_process_log(
                 entity_id=extraction_id,
                 entity_type="document",
@@ -514,12 +583,13 @@ class DocumentProcessingService:
                 log_type="log",
                 log_level="info",
                 process_stage="content_extraction",
-                message=f"Successfully extracted content from file {file_id} using {mode} mode",
+                message=f"Successfully extracted {len(markdown_content)} characters from file {file_id} using {mode} mode",
                 input_params={"file_id": file_id, "mode": mode},
                 output_results={
                     "extraction_id": extraction_id,
                     "markdown_length": len(markdown_content),
                     "segments_count": len(structured_content),
+                    "assets_count": len(asset_ids),
                 },
                 user_id=user_id,
             )
@@ -536,7 +606,11 @@ class DocumentProcessingService:
                     [item["content"] for item in structured_content]
                 ),
                 "markdown_content": markdown_content,
-                "structured_data": {"segments": len(structured_content)},
+                "structured_data": {
+                    "segments": len(structured_content),
+                    "extracted_images_count": len(image_assets),
+                    "extracted_assets": asset_ids,
+                },
                 "document_name": file_record.get("filename", "document"),
             }
 
