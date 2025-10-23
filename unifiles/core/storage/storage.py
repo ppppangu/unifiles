@@ -18,6 +18,7 @@ from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional
 
 from loguru import logger
+from urllib.parse import quote
 
 try:
     # Bind service name so logs pass Loguru filter configured by init_logger
@@ -488,6 +489,9 @@ class MinioStorageBackend(BaseStorageBackend):
         data_stream = io.BytesIO(content)
         length = len(content)
 
+        # Normalize user metadata to satisfy S3/MinIO ASCII-only requirements
+        norm_metadata: Dict[str, str] = self._normalize_metadata(metadata or {})
+
         def put_object() -> str:
             self._client.put_object(
                 self._bucket_name,
@@ -495,7 +499,7 @@ class MinioStorageBackend(BaseStorageBackend):
                 data_stream,
                 length,
                 content_type=content_type,
-                metadata=metadata or {},
+                metadata=norm_metadata,
             )
             return object_path
 
@@ -513,18 +517,49 @@ class MinioStorageBackend(BaseStorageBackend):
         if not file_path.exists():
             raise FileNotFoundError(f"Local file not found: {local_file_path}")
 
+        # Normalize user metadata to satisfy S3/MinIO ASCII-only requirements
+        norm_metadata: Dict[str, str] = self._normalize_metadata(metadata or {})
+
         def fput_object() -> str:
             self._client.fput_object(
                 self._bucket_name,
                 object_path,
                 str(file_path),
                 content_type=content_type,
-                metadata=metadata or {},
+                metadata=norm_metadata,
             )
             return object_path
 
         await asyncio.to_thread(fput_object)
         return object_path
+
+    def _normalize_metadata(self, meta: Dict[str, Any]) -> Dict[str, str]:
+        """Normalize user metadata to ASCII-only strings acceptable by S3/MinIO.
+
+        - Converts keys to lowercase strings; non-ASCII keys are percent-encoded.
+        - Converts values to strings; percent-encodes if non-ASCII.
+        - Skips None values.
+        """
+        normalized: Dict[str, str] = {}
+        for k, v in meta.items():
+            if v is None:
+                continue
+            # Key normalization
+            key_str = str(k).lower()
+            try:
+                key_str.encode("us-ascii")
+            except Exception:
+                key_str = quote(key_str, safe="-_.()")
+
+            # Value normalization
+            val_str = str(v)
+            try:
+                val_str.encode("us-ascii")
+            except Exception:
+                val_str = quote(val_str, safe="-_.()")
+
+            normalized[key_str] = val_str
+        return normalized
 
     async def delete_file(self, object_path: str) -> bool:
         def remove() -> bool:
