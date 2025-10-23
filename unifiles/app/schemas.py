@@ -18,9 +18,13 @@ class FileInfo(BaseModel):
     is_public: bool = Field(description="是否公开访问")
     created_at: str = Field(description="上传时间")
     # PDF转换相关字段
-    original_filename: Optional[str] = Field(default=None, description="转换前的原始文件名")
+    original_filename: Optional[str] = Field(
+        default=None, description="转换前的原始文件名"
+    )
     is_converted: bool = Field(default=False, description="是否为转换后的文件")
-    conversion_status: Optional[str] = Field(default=None, description="转换状态: success|failed|skipped")
+    conversion_status: Optional[str] = Field(
+        default=None, description="转换状态: success|failed|skipped"
+    )
 
 
 class FileUploadResponse(BaseModel):
@@ -60,20 +64,27 @@ class FileListResponse(BaseModel):
 # ========== Files 资源相关模型（内容提取）==========
 class FileExtractRequest(BaseModel):
     """文件内容提取请求"""
-    mode: str = Field(default="simple", description="提取模式: simple|ocr_provider_name")
+
+    mode: str = Field(
+        default="simple", description="提取模式: simple|ocr_provider_name"
+    )
 
 
 class ExtractedContent(BaseModel):
     """提取的文件内容"""
 
     file_id: str = Field(description="文件ID")
-    extraction_id: str = Field(description="提取文档ID（数据库中的extracted_documents表主键）")
+    extraction_id: str = Field(
+        description="提取文档ID（数据库中的extracted_documents表主键）"
+    )
     content_type: str = Field(description="内容类型")
     extracted_text: Optional[str] = Field(description="提取的文本内容")
     markdown_content: Optional[str] = Field(description="Markdown格式内容")
     structured_data: Optional[Dict[str, Any]] = Field(description="结构化数据")
     extraction_metadata: Dict[str, Any] = Field(description="提取元数据")
-    extraction_strategy: Optional[str] = Field(default=None, description="使用的提取策略")
+    extraction_strategy: Optional[str] = Field(
+        default=None, description="使用的提取策略"
+    )
     status: str = Field(description="提取状态")
     created_at: str = Field(description="提取时间")
 
@@ -91,9 +102,9 @@ class ProcessDocumentRequest(BaseModel):
     """处理文档到知识库请求"""
 
     extraction_id: str = Field(description="文件提取结果ID")
-    knowledge_base_id: str = Field(description="目标知识库ID")
     chunk_strategy: str = Field(
-        default="semantic", description="分块策略: semantic|fixed|sliding"
+        default="markdown_hierarchical",
+        description="分块策略: markdown_hierarchical|fixed|semantic",
     )
 
 
@@ -178,8 +189,12 @@ class UserCreateRequest(BaseModel):
     user_id: str = Field(..., min_length=1, max_length=128, description="用户ID")
     username: Optional[str] = Field(default=None, max_length=128, description="用户名")
     email: Optional[str] = Field(default=None, max_length=256, description="邮箱")
-    display_name: Optional[str] = Field(default=None, max_length=128, description="显示名称")
-    user_settings: Optional[Dict[str, Any]] = Field(default=None, description="用户设置")
+    display_name: Optional[str] = Field(
+        default=None, max_length=128, description="显示名称"
+    )
+    user_settings: Optional[Dict[str, Any]] = Field(
+        default=None, description="用户设置"
+    )
 
 
 class UserInfo(BaseModel):

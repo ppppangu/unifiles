@@ -38,7 +38,7 @@ class EmbeddingProvider(Protocol):
 
 
 class SingletonEmbeddingProvider:
-    """单例嵌入提供者 - 基于现有的singleton_embedding.py逻辑"""
+    """单例嵌入提供者 - 从环境变量读取配置"""
 
     def __init__(self, config: Optional[Dict[str, Any]] = None):
         self.config = config or read_config()
@@ -54,42 +54,57 @@ class SingletonEmbeddingProvider:
     def _get_latest_embedding_instance(
         self, instance_type: Optional[str] = None, alias: Optional[str] = None
     ):
-        """获取最新的嵌入实例配置（模拟singleton_embedding.py的逻辑）"""
-        # 这里应该实现实际的单例逻辑，现在提供模拟实现
-        if alias:
-            # 根据alias获取特定配置
-            if alias == "bge-m3":
-                return (
-                    "bge-m3",
-                    "http://localhost:8080/v1/embeddings",
-                    "your-api-key",
-                    "bge-m3",
-                )
-            if alias == "text-embedding-ada-002":
-                return (
-                    "text-embedding-ada-002",
-                    "https://api.openai.com/v1/embeddings",
-                    "your-openai-key",
-                    "text-embedding-ada-002",
-                )
+        """
+        获取最新的嵌入实例配置
 
+        Args:
+            instance_type: 实例类型 ('language_embedding' 或 'multimodal_llm')
+            alias: 模型别名
+
+        Returns:
+            Tuple[str, str, str, str]: (name, url, key, alias)
+        """
+        # 根据instance_type获取对应的配置
         if instance_type == "language_embedding":
-            return (
-                "bge-m3",
-                "http://localhost:8080/v1/embeddings",
-                "your-api-key",
-                "bge-m3",
+            instances = self.config.get("api", {}).get("language_embedding", [])
+        elif instance_type == "multimodal_llm":
+            instances = self.config.get("api", {}).get("multimodal_llm", [])
+        elif alias:
+            instances = self.config.get("api", {}).get("language_embedding", [])
+        else:
+            # 默认使用language_embedding
+            instances = self.config.get("api", {}).get("language_embedding", [])
+
+        if not instances:
+            logger.warning(
+                f"No instances found for instance_type={instance_type}, alias={alias}. "
+                "Using fallback configuration."
             )
-        if instance_type == "multimodal_llm":
-            return (
-                "gpt-4-vision",
-                "http://localhost:8081/v1/chat/completions",
-                "your-api-key",
-                "gpt-4-vision",
+            return "bge-m3", "http://localhost:8080/v1/embeddings", "", "bge-m3"
+
+        # 如果指定了alias，查找匹配的实例
+        if alias:
+            for inst in instances:
+                if inst.get("alias") == alias or inst.get("name") == alias:
+                    return (
+                        inst.get("name", ""),
+                        inst.get("url", ""),
+                        inst.get("key", ""),
+                        inst.get("alias", inst.get("name", "")),
+                    )
+            # 如果没找到匹配的alias，使用第一个实例
+            logger.warning(
+                f"No instance found with alias={alias}, using first available instance"
             )
 
-        # 默认返回
-        return "bge-m3", "http://localhost:8080/v1/embeddings", "your-api-key", "bge-m3"
+        # 返回第一个实例
+        first_instance = instances[0]
+        return (
+            first_instance.get("name", ""),
+            first_instance.get("url", ""),
+            first_instance.get("key", ""),
+            first_instance.get("alias", first_instance.get("name", "")),
+        )
 
     @retry(
         stop=stop_after_attempt(3),

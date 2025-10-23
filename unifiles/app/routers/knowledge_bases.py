@@ -31,7 +31,9 @@ from unifiles.core.database import (
     unified_kb_db_manager,
     unified_user_db_manager,
 )
+from unifiles.core.database import extraction_db_manager
 from unifiles.core.database.models import KnowledgeBaseModel
+from unifiles.core.services.document_indexing_service import get_document_indexing_service
 
 router = APIRouter(prefix="/knowledge-bases", tags=["Knowledge Bases"])
 
@@ -194,38 +196,105 @@ async def index_extracted_content_to_knowledge_base(
     process_request: ProcessDocumentRequest,
     kb_id: str = FastAPIPath(..., description="知识库ID"),
 ):
-    """将已提取的内容索引到知识库"""
+    """将已提取的内容索引到知识库
+
+    完整流程：
+    1. 验证知识库和提取文档的存在性及权限
+    2. 调用索引服务进行分块、嵌入、存储
+    3. 返回索引结果
+
+    Args:
+        request: FastAPI请求对象（包含user_id）
+        process_request: 处理请求（包含extraction_id和chunk_strategy）
+        kb_id: 知识库ID
+
+    Returns:
+        ProcessDocumentResponse: 处理结果，包含document_id和chunk_count
+
+    Raises:
+        HTTPException: 404 - 知识库或提取文档不存在
+        HTTPException: 403 - 权限不足
+        HTTPException: 500 - 索引失败
+    """
     try:
         user_id = request.state.user_id
-        logger.info(f"POST /knowledge-bases/{kb_id}/documents from user: {user_id}")
-        logger.info(f"Process request: {process_request.dict()}")
+        logger.info(
+            f"POST /knowledge-bases/{kb_id}/documents from user: {user_id}, "
+            f"extraction_id: {process_request.extraction_id}"
+        )
 
-        # TODO: 1. Validate extraction_id exists and belongs to user.
-        # TODO: 2. Validate kb_id exists and user has access.
-        # TODO: 3. Call core knowledge_base module to perform chunking and indexing.
+        # 1. 验证知识库存在且用户有权限
+        kb = await unified_kb_db_manager.get_knowledge_base(kb_id)
+        if not kb:
+            logger.warning(f"Knowledge base not found: {kb_id}")
+            raise HTTPException(status_code=404, detail="Knowledge base not found")
 
-        # Mock response for now
-        document_id = f"doc_{str(uuid.uuid4())[:8]}"
+        if kb.user_id != user_id:
+            logger.warning(
+                f"Access denied: KB {kb_id} belongs to user {kb.user_id}, "
+                f"requested by {user_id}"
+            )
+            raise HTTPException(
+                status_code=403,
+                detail="Access denied: you do not own this knowledge base",
+            )
+
+        # 2. 验证提取文档存在且用户有权限
+        extracted_doc = await extraction_db_manager.get_extracted_document(
+            process_request.extraction_id, user_id
+        )
+        if not extracted_doc:
+            logger.warning(
+                f"Extraction not found: {process_request.extraction_id} for user {user_id}"
+            )
+            raise HTTPException(
+                status_code=404,
+                detail="Extraction not found or access denied",
+            )
+
+        # 3. 调用索引服务
+        indexing_service = get_document_indexing_service()
+        result = await indexing_service.index_extracted_document_to_kb(
+            extraction_id=process_request.extraction_id,
+            kb_id=kb_id,
+            user_id=user_id,
+            chunk_strategy=process_request.chunk_strategy,
+        )
+
+        # 4. 构建响应
         processed_doc = ProcessedDocument(
-            document_id=document_id,
+            document_id=result["document_id"],
             extraction_id=process_request.extraction_id,
             knowledge_base_id=kb_id,
-            chunk_count=0,  # Placeholder
-            indexing_status="processing",
-            created_at=datetime.now().isoformat(),
+            chunk_count=result["chunk_count"],
+            indexing_status=result["indexing_status"],
+            created_at=result["created_at"],
+        )
+
+        logger.info(
+            f"Document indexed successfully: document_id={result['document_id']}, "
+            f"chunks={result['chunk_count']}"
         )
 
         return ProcessDocumentResponse(
             success=True,
-            message="Document indexing started successfully",
+            message="Document indexed successfully to knowledge base",
             document=processed_doc,
         )
 
     except HTTPException:
         raise
+    except ValueError as e:
+        logger.error(f"Validation error indexing document to KB {kb_id}: {e}")
+        raise HTTPException(status_code=400, detail=str(e))
+    except PermissionError as e:
+        logger.error(f"Permission error indexing document to KB {kb_id}: {e}")
+        raise HTTPException(status_code=403, detail=str(e))
     except Exception as e:
-        logger.error(f"Error indexing document for KB {kb_id}: {e}")
-        raise HTTPException(status_code=500, detail=f"Document indexing failed: {e!s}")
+        logger.exception(f"Unexpected error indexing document to KB {kb_id}")
+        raise HTTPException(
+            status_code=500, detail=f"Document indexing failed: {e!s}"
+        )
 
 
 @router.get("/{kb_id}/documents", response_model=List[ProcessedDocument])

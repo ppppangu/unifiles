@@ -17,14 +17,12 @@ from .base_manager import BaseDBManager
 from .models import (
     ChunkModel,
     ComponentModel,
-    ComponentType,
     DocumentModel,
     FileModel,
     FileProcessingLogModel,
     FileStatus,
     KnowledgeBaseModel,
     PhotoModel,
-    ProcessingStage,
     ProcessingStatus,
 )
 
@@ -85,7 +83,7 @@ class KnowledgeBaseDBManager(BaseDBManager):
                         user_id=result["user_id"],
                         name=result["name"],
                         description=result["description"] or "",
-                        document_ids=json.loads(result["document_ids"] or "[]"),
+                        document_ids=result["document_ids"] or "[]",
                         created_at=result["created_at"],
                         updated_at=result["updated_at"],
                     )
@@ -175,6 +173,14 @@ class KnowledgeBaseDBManager(BaseDBManager):
         async with await self.get_connection() as conn:
             try:
                 async with conn.transaction():
+                    # Normalize JSON fields to strings for safe binding; DB will cast to jsonb
+                    _chunking = getattr(doc_model, "chunking_strategy", None)
+                    if isinstance(_chunking, (dict, list)):
+                        _chunking = json.dumps(_chunking)
+                    _custom_cfg = getattr(doc_model, "custom_config", {})
+                    if isinstance(_custom_cfg, (dict, list)):
+                        _custom_cfg = json.dumps(_custom_cfg)
+
                     await conn.execute(
                         """
                         INSERT INTO unifiles.documents (
@@ -183,7 +189,10 @@ class KnowledgeBaseDBManager(BaseDBManager):
                             chunking_strategy, custom_config, access_level,
                             hierarchy_path
                         )
-                        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10::ltree)
+                        VALUES (
+                            $1, $2, $3, $4, $5, $6,
+                            $7::jsonb, $8::jsonb, $9, $10::ltree
+                        )
                         ON CONFLICT (id) DO NOTHING
                         """,
                         doc_model.id,
@@ -192,8 +201,8 @@ class KnowledgeBaseDBManager(BaseDBManager):
                         getattr(doc_model, "title", None),
                         getattr(doc_model, "display_name", None),
                         getattr(doc_model, "description", None),
-                        getattr(doc_model, "chunking_strategy", None),
-                        getattr(doc_model, "custom_config", {}),
+                        _chunking,
+                        _custom_cfg,
                         getattr(doc_model, "access_level", "inherited"),
                         getattr(doc_model, "hierarchy_path", "root"),
                     )
@@ -224,6 +233,20 @@ class KnowledgeBaseDBManager(BaseDBManager):
                 )
 
                 if result:
+                    chunking_val = result.get("chunking_strategy")
+                    custom_cfg_val = result.get("custom_config") or {}
+                    # Be tolerant: if DB returns TEXT, try to parse JSON
+                    if isinstance(chunking_val, str):
+                        try:
+                            chunking_val = json.loads(chunking_val)
+                        except Exception:
+                            pass
+                    if isinstance(custom_cfg_val, str):
+                        try:
+                            custom_cfg_val = json.loads(custom_cfg_val)
+                        except Exception:
+                            custom_cfg_val = {}
+
                     return DocumentModel(
                         id=result["id"],
                         knowledge_base_id=result["knowledge_base_id"],
@@ -231,8 +254,8 @@ class KnowledgeBaseDBManager(BaseDBManager):
                         title=result.get("title"),
                         display_name=result.get("display_name"),
                         description=result.get("description") or "",
-                        chunking_strategy=result.get("chunking_strategy"),
-                        custom_config=result.get("custom_config") or {},
+                        chunking_strategy=chunking_val,
+                        custom_config=custom_cfg_val,
                         access_level=result.get("access_level", "inherited"),
                         hierarchy_path=str(result.get("hierarchy_path", "root")),
                         created_at=result.get("created_at"),
@@ -245,6 +268,72 @@ class KnowledgeBaseDBManager(BaseDBManager):
 
             except Exception as e:
                 logger.error(f"Error getting document {doc_id}: {e}")
+                raise
+
+    async def get_document_by_extraction(
+        self, kb_id: str, extraction_id: str
+    ) -> Optional[DocumentModel]:
+        """
+        根据知识库ID和提取文档ID查询文档
+
+        用于检测重复索引场景
+
+        Args:
+            kb_id: 知识库ID
+            extraction_id: 提取文档ID
+
+        Returns:
+            DocumentModel if found, None otherwise
+        """
+        async with await self.get_connection() as conn:
+            try:
+                result = await conn.fetchrow(
+                    """
+                    SELECT * FROM unifiles.documents
+                    WHERE knowledge_base_id = $1 AND extracted_document_id = $2
+                    """,
+                    kb_id,
+                    extraction_id,
+                )
+
+                if result:
+                    chunking_val = result.get("chunking_strategy")
+                    custom_cfg_val = result.get("custom_config") or {}
+                    # Be tolerant: if DB returns TEXT, try to parse JSON
+                    if isinstance(chunking_val, str):
+                        try:
+                            chunking_val = json.loads(chunking_val)
+                        except Exception:
+                            pass
+                    if isinstance(custom_cfg_val, str):
+                        try:
+                            custom_cfg_val = json.loads(custom_cfg_val)
+                        except Exception:
+                            custom_cfg_val = {}
+
+                    return DocumentModel(
+                        id=result["id"],
+                        knowledge_base_id=result["knowledge_base_id"],
+                        extracted_document_id=result["extracted_document_id"],
+                        title=result.get("title"),
+                        display_name=result.get("display_name"),
+                        description=result.get("description") or "",
+                        chunking_strategy=chunking_val,
+                        custom_config=custom_cfg_val,
+                        access_level=result.get("access_level", "inherited"),
+                        hierarchy_path=str(result.get("hierarchy_path", "root")),
+                        created_at=result.get("created_at"),
+                        processed_at=result.get("processed_at"),
+                        indexed_at=result.get("indexed_at"),
+                        updated_at=result.get("updated_at"),
+                        last_accessed_at=result.get("last_accessed_at"),
+                    )
+                return None
+
+            except Exception as e:
+                logger.error(
+                    f"Error getting document by extraction (kb={kb_id}, extraction={extraction_id}): {e}"
+                )
                 raise
 
     async def ensure_document_exists(
@@ -277,6 +366,77 @@ class KnowledgeBaseDBManager(BaseDBManager):
             display_name=display_name,
         )
         return await self.create_document(doc_model)
+
+    async def delete_document(self, doc_id: str) -> dict[str, int]:
+        """
+        删除文档及其所有关联组件（级联删除）
+
+        Args:
+            doc_id: 文档ID
+
+        Returns:
+            删除的统计信息字典：
+            {
+                "document_count": 1,
+                "component_count": N,
+                "chunk_count": X,
+                "photo_count": Y
+            }
+
+        Raises:
+            ValueError: 如果文档不存在
+        """
+        async with await self.get_connection() as conn:
+            try:
+                async with conn.transaction():
+                    # 1. 先统计要删除的组件数量（用于更新KB统计）
+                    component_stats = await conn.fetchrow(
+                        """
+                        SELECT
+                            COUNT(*) as total_components,
+                            COUNT(*) FILTER (WHERE component_type = 'chunk') as chunk_count,
+                            COUNT(*) FILTER (WHERE component_type = 'photo') as photo_count
+                        FROM unifiles.components
+                        WHERE document_id = $1
+                        """,
+                        doc_id,
+                    )
+
+                    total_components = component_stats["total_components"] or 0
+                    chunk_count = component_stats["chunk_count"] or 0
+                    photo_count = component_stats["photo_count"] or 0
+
+                    # 2. 删除文档（CASCADE会自动删除components、chunks、photos）
+                    result = await conn.execute(
+                        """
+                        DELETE FROM unifiles.documents
+                        WHERE id = $1
+                        """,
+                        doc_id,
+                    )
+
+                    rows_deleted = int(result.split()[-1]) if result else 0
+
+                    if rows_deleted == 0:
+                        logger.warning(f"No document found to delete: {doc_id}")
+                        raise ValueError(f"Document not found: {doc_id}")
+
+                    logger.info(
+                        f"Deleted document {doc_id}: "
+                        f"{total_components} components "
+                        f"({chunk_count} chunks, {photo_count} photos)"
+                    )
+
+                    return {
+                        "document_count": 1,
+                        "component_count": total_components,
+                        "chunk_count": chunk_count,
+                        "photo_count": photo_count,
+                    }
+
+            except Exception as e:
+                logger.error(f"Error deleting document {doc_id}: {e}")
+                raise
 
     async def update_document_urls(
         self, doc_id: str, markdown_url: str, raw_file_url: str
@@ -313,6 +473,157 @@ class KnowledgeBaseDBManager(BaseDBManager):
 
             except Exception as e:
                 logger.error(f"Error updating document URLs {doc_id}: {e}")
+                raise
+
+    async def update_document_status(
+        self,
+        doc_id: str,
+        processing_status: Optional[str] = None,
+        indexing_status: Optional[str] = None,
+        chunk_count: Optional[int] = None,
+        photo_count: Optional[int] = None,
+        component_count: Optional[int] = None,
+    ) -> bool:
+        """更新文档处理状态和统计信息
+
+        Args:
+            doc_id: 文档ID
+            processing_status: 处理状态 (pending, processing, completed, failed, cancelled)
+            indexing_status: 索引状态 (pending, indexing, completed, failed)
+            chunk_count: 文本块数量
+            photo_count: 图片数量
+            component_count: 组件总数
+
+        Returns:
+            是否成功更新
+        """
+        async with await self.get_connection() as conn:
+            try:
+                # 构建动态更新语句
+                update_fields = []
+                values = [doc_id]
+                param_count = 1
+
+                if processing_status is not None:
+                    param_count += 1
+                    update_fields.append(f"processing_status = ${param_count}")
+                    values.append(processing_status)
+
+                if indexing_status is not None:
+                    param_count += 1
+                    update_fields.append(f"indexing_status = ${param_count}")
+                    values.append(indexing_status)
+
+                    # 如果索引完成，设置 indexed_at 时间戳
+                    if indexing_status == "completed":
+                        param_count += 1
+                        update_fields.append(f"indexed_at = ${param_count}")
+                        values.append(datetime.now())
+
+                if chunk_count is not None:
+                    param_count += 1
+                    update_fields.append(f"chunk_count = ${param_count}")
+                    values.append(chunk_count)
+
+                if photo_count is not None:
+                    param_count += 1
+                    update_fields.append(f"photo_count = ${param_count}")
+                    values.append(photo_count)
+
+                if component_count is not None:
+                    param_count += 1
+                    update_fields.append(f"component_count = ${param_count}")
+                    values.append(component_count)
+
+                if not update_fields:
+                    logger.warning(f"No fields to update for document {doc_id}")
+                    return False
+
+                # 添加 updated_at 时间戳
+                param_count += 1
+                update_fields.append(f"updated_at = ${param_count}")
+                values.append(datetime.now())
+
+                query = f"""
+                    UPDATE unifiles.documents
+                    SET {", ".join(update_fields)}
+                    WHERE id = $1
+                """
+
+                async with conn.transaction():
+                    result = await conn.execute(query, *values)
+                    rows = int(result.split()[-1]) if result else 0
+
+                    if rows == 0:
+                        logger.warning(
+                            f"No document updated; document may not exist: {doc_id}"
+                        )
+                    else:
+                        logger.info(f"Document status updated: {doc_id}")
+
+                    return rows > 0
+
+            except Exception as e:
+                logger.error(f"Error updating document status {doc_id}: {e}")
+                raise
+
+    async def update_kb_statistics(
+        self,
+        kb_id: str,
+        increment_documents: int = 0,
+        increment_components: int = 0,
+        increment_chunks: int = 0,
+        increment_photos: int = 0,
+    ) -> bool:
+        """更新知识库统计信息（增量更新）
+
+        Args:
+            kb_id: 知识库ID
+            increment_documents: 文档数增量
+            increment_components: 组件数增量
+            increment_chunks: 文本块数增量
+            increment_photos: 图片数增量
+
+        Returns:
+            是否成功更新
+        """
+        async with await self.get_connection() as conn:
+            try:
+                async with conn.transaction():
+                    result = await conn.execute(
+                        """
+                        UPDATE unifiles.knowledge_bases
+                        SET
+                            document_count = document_count + $2,
+                            component_count = component_count + $3,
+                            chunk_count = chunk_count + $4,
+                            photo_count = photo_count + $5,
+                            updated_at = $6
+                        WHERE id = $1
+                        """,
+                        kb_id,
+                        increment_documents,
+                        increment_components,
+                        increment_chunks,
+                        increment_photos,
+                        datetime.now(),
+                    )
+
+                    rows = int(result.split()[-1]) if result else 0
+                    if rows == 0:
+                        logger.warning(
+                            f"No knowledge base updated; KB may not exist: {kb_id}"
+                        )
+                    else:
+                        logger.info(
+                            f"KB statistics updated: {kb_id} "
+                            f"(+{increment_documents} docs, +{increment_components} components)"
+                        )
+
+                    return rows > 0
+
+            except Exception as e:
+                logger.error(f"Error updating KB statistics {kb_id}: {e}")
                 raise
 
     # ==================== 文件操作 ====================
