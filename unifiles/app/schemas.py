@@ -164,6 +164,34 @@ class ProcessDocumentResponse(BaseModel):
     document: ProcessedDocument = Field(description="处理后的文档信息")
 
 
+# ========== Knowledge Base Search 检索相关模型 ==========
+class SearchRequest(BaseModel):
+    """知识库检索请求"""
+
+    query: str = Field(..., min_length=1, description="检索查询文本")
+    top_k: int = Field(default=10, ge=1, le=100, description="返回结果数量")
+
+
+class SearchResultItem(BaseModel):
+    """单个检索结果"""
+
+    chunk_id: str = Field(description="文本块ID")
+    component_id: str = Field(description="组件ID")
+    document_id: str = Field(description="文档ID")
+    text_content: str = Field(description="文本内容")
+    similarity_score: float = Field(description="相似度分数 (0-1)")
+
+
+class SearchResponse(BaseModel):
+    """检索结果响应"""
+
+    success: bool = Field(description="是否成功")
+    message: str = Field(description="响应消息")
+    results: List[SearchResultItem] = Field(description="检索结果列表")
+    total_results: int = Field(description="返回结果数量")
+    query: str = Field(description="原始查询")
+
+
 # ========== 通用响应模型 ==========
 class StandardResponse(BaseModel):
     """标准响应模型"""

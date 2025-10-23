@@ -24,6 +24,9 @@ from unifiles.app.schemas import (
     ProcessDocumentRequest,
     ProcessDocumentResponse,
     ProcessedDocument,
+    SearchRequest,
+    SearchResponse,
+    SearchResultItem,
     StandardResponse,
 )
 from unifiles.core.database import (
@@ -328,3 +331,97 @@ async def delete_knowledge_base_document(
         status_code=501,
         detail="Delete knowledge base document functionality not implemented yet",
     )
+
+
+@router.post("/{kb_id}/search", response_model=SearchResponse)
+async def search_knowledge_base(
+    request: Request,
+    search_request: SearchRequest,
+    kb_id: str = FastAPIPath(..., description="知识库ID"),
+):
+    """在知识库中进行向量检索
+
+    需要认证（AuthMiddleware自动处理）
+
+    工作流程:
+    1. 验证用户权限（知识库是否属于该用户）
+    2. 生成查询文本的向量表示
+    3. 执行向量相似度检索
+    4. 返回按相似度排序的结果
+
+    Args:
+        request: FastAPI请求对象（包含user_id）
+        search_request: 检索请求（包含query和top_k）
+        kb_id: 知识库ID
+
+    Returns:
+        SearchResponse: 检索结果，包含相似度分数和文本内容
+
+    Raises:
+        HTTPException: 404 - 知识库不存在或无权访问
+        HTTPException: 400 - 查询参数无效
+        HTTPException: 500 - 检索失败
+    """
+    try:
+        user_id = request.state.user_id
+        logger.info(
+            f"POST /knowledge-bases/{kb_id}/search from user: {user_id}, "
+            f"query='{search_request.query[:50]}...', top_k={search_request.top_k}"
+        )
+
+        # 1. 验证知识库存在且用户有权限
+        kb = await unified_kb_db_manager.get_knowledge_base(kb_id)
+        if not kb:
+            logger.warning(f"Knowledge base not found: {kb_id}")
+            raise HTTPException(status_code=404, detail="Knowledge base not found")
+
+        if kb.user_id != user_id:
+            logger.warning(
+                f"Access denied: KB {kb_id} belongs to user {kb.user_id}, "
+                f"requested by {user_id}"
+            )
+            raise HTTPException(
+                status_code=403,
+                detail="Access denied: you do not own this knowledge base",
+            )
+
+        # 2. 调用检索服务
+        from unifiles.core.services.search_service import get_search_service
+
+        search_service = get_search_service()
+        results = await search_service.search(
+            kb_id=kb_id, query=search_request.query, top_k=search_request.top_k
+        )
+
+        # 3. 格式化响应
+        result_items = [
+            SearchResultItem(
+                chunk_id=r["chunk_id"],
+                component_id=r["component_id"],
+                document_id=r["document_id"],
+                text_content=r["text_content"],
+                similarity_score=r["similarity_score"],
+            )
+            for r in results
+        ]
+
+        logger.info(
+            f"Search completed for KB {kb_id}: returned {len(result_items)} results"
+        )
+
+        return SearchResponse(
+            success=True,
+            message=f"Found {len(result_items)} results",
+            results=result_items,
+            total_results=len(result_items),
+            query=search_request.query,
+        )
+
+    except HTTPException:
+        raise
+    except ValueError as e:
+        logger.warning(f"Search validation error for KB {kb_id}: {e}")
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.exception(f"Unexpected error during search in KB {kb_id}")
+        raise HTTPException(status_code=500, detail=f"Search failed: {e!s}")

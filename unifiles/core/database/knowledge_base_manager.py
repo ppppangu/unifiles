@@ -856,6 +856,94 @@ class KnowledgeBaseDBManager(BaseDBManager):
                 logger.error(f"Error updating processing log {log_id}: {e}")
                 raise
 
+    # ==================== 向量检索操作 ====================
+
+    async def search_knowledge_base_vector(
+        self,
+        kb_id: str,
+        query_embedding: list[float],
+        top_k: int = 10,
+    ) -> list[dict]:
+        """在知识库中进行向量检索
+
+        Args:
+            kb_id: 知识库ID
+            query_embedding: 查询向量（与存储的embedding维度一致）
+            top_k: 返回结果数量，默认10
+
+        Returns:
+            检索结果列表，每项包含：
+            - chunk_id: 文本块ID
+            - component_id: 组件ID
+            - document_id: 文档ID
+            - text_content: 文本内容
+            - similarity_score: 相似度分数（0-1，越大越相似）
+
+        Raises:
+            ValueError: 如果查询向量为空或知识库不存在
+            Exception: 数据库查询失败
+        """
+        if not query_embedding:
+            raise ValueError("Query embedding cannot be empty")
+
+        if top_k < 1:
+            raise ValueError("top_k must be at least 1")
+
+        # 将Python列表转换为PostgreSQL向量字符串格式
+        embedding_str = f"[{','.join(map(str, query_embedding))}]"
+
+        async with await self.get_connection() as conn:
+            try:
+                # 执行向量相似度检索
+                # 使用 <=> 操作符计算余弦距离（值越小越相似）
+                # 1 - distance 转换为相似度分数（0-1，越大越相似）
+                results = await conn.fetch(
+                    """
+                    SELECT
+                        c.id as chunk_id,
+                        comp.id as component_id,
+                        d.id as document_id,
+                        c.text_content,
+                        1 - (comp.embedding <=> $1::vector) as similarity_score
+                    FROM unifiles.components comp
+                    JOIN unifiles.documents d ON comp.document_id = d.id
+                    JOIN unifiles.chunks c ON comp.id = c.component_id
+                    WHERE d.knowledge_base_id = $2
+                      AND comp.component_type = 'chunk'
+                      AND comp.embedding IS NOT NULL
+                    ORDER BY comp.embedding <=> $1::vector ASC
+                    LIMIT $3
+                    """,
+                    embedding_str,
+                    kb_id,
+                    top_k,
+                )
+
+                # 转换结果为字典列表
+                search_results = [
+                    {
+                        "chunk_id": row["chunk_id"],
+                        "component_id": row["component_id"],
+                        "document_id": row["document_id"],
+                        "text_content": row["text_content"],
+                        "similarity_score": float(row["similarity_score"]),
+                    }
+                    for row in results
+                ]
+
+                logger.info(
+                    f"Vector search completed for KB {kb_id}: "
+                    f"found {len(search_results)} results (top_k={top_k})"
+                )
+
+                return search_results
+
+            except Exception as e:
+                logger.error(
+                    f"Error performing vector search on KB {kb_id}: {e}"
+                )
+                raise
+
 
 # 全局实例
 unified_kb_db_manager = KnowledgeBaseDBManager()
