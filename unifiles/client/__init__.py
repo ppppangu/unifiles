@@ -10,6 +10,7 @@ Unifile Python Client
 - Unifile: 主客户端入口
 - Document: 文档生命周期管理
 - KnowledgeBase: 知识库管理
+- SearchResult: 向量检索结果
 """
 
 from .client import (
@@ -21,6 +22,7 @@ from .client import (
     KnowledgeBase,
     KnowledgeBaseNotFoundError,
     RateLimitError,
+    SearchResult,
     Unifile,
     UnifilesError,
 )
@@ -35,6 +37,7 @@ __all__ = [
     "KnowledgeBase",
     "KnowledgeBaseNotFoundError",
     "RateLimitError",
+    "SearchResult",
     "Unifile",
     "UnifilesError",
 ]

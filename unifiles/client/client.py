@@ -77,6 +77,36 @@ class RateLimitError(UnifilesError):
     pass
 
 
+class SearchResult:
+    """
+    向量检索结果
+
+    封装知识库检索返回的单个结果项
+    """
+
+    def __init__(self, result_data: Dict[str, Any]):
+        """
+        初始化检索结果
+
+        Args:
+            result_data: 服务端返回的结果数据字典
+        """
+        self.chunk_id: str = result_data.get("chunk_id", "")
+        self.component_id: str = result_data.get("component_id", "")
+        self.document_id: str = result_data.get("document_id", "")
+        self.text_content: str = result_data.get("text_content", "")
+        self.similarity_score: float = result_data.get("similarity_score", 0.0)
+
+    def __repr__(self) -> str:
+        """字符串表示"""
+        preview = self.text_content[:50] + "..." if len(self.text_content) > 50 else self.text_content
+        return f"SearchResult(score={self.similarity_score:.3f}, text='{preview}')"
+
+    def __str__(self) -> str:
+        """用户友好的字符串表示"""
+        return f"[{self.similarity_score:.3f}] {self.text_content}"
+
+
 class Document:
     """
     文档类 - 代表一个文档的完整生命周期
@@ -105,8 +135,18 @@ class Document:
 
     @property
     def status(self) -> DocumentStatus:
-        """文档当前处理状态"""
-        # TODO: 从服务端获取实际状态
+        """
+        文档当前处理状态
+
+        基于已缓存的数据推断文档状态：
+        - INDEXED: 已索引到知识库
+        - EXTRACTED: 已完成内容提取
+        - UPLOADED: 仅上传完成
+        """
+        if self._indexed_content:
+            return DocumentStatus.INDEXED
+        if self._extracted_content:
+            return DocumentStatus.EXTRACTED
         return DocumentStatus.UPLOADED
 
     @property
@@ -134,37 +174,26 @@ class Document:
 
         Returns:
             提取的内容，包含text和image两种类型的处理结果
+
+        Raises:
+            UnifilesError: 如果内容未提取，需要先调用 extract_content()
         """
         if self._extracted_content is None:
-            # TODO: 调用内容提取API
-            # response = self.client._get(f"/files/{self.file_id}/extract")
-            # self._extracted_content = response
+            raise UnifilesError(
+                f"Document content not extracted yet for {self.file_id}. "
+                "Call extract_content() first to extract document content."
+            )
 
-            # 模拟响应
-            self._extracted_content = {
-                "extraction_id": f"ext_{self.file_id[:8]}",
-                "content_type": "mixed",
-                "text_content": "这是从文档中提取的文字内容...",
-                "image_content": "这是OCR处理后的图片内容...",
-                "markdown_content": "# 文档标题\\n\\n这是处理后的markdown内容...",
-                "extraction_metadata": {
-                    "pages": 5,
-                    "text_pages": 3,
-                    "image_pages": 2,
-                    "processing_time": 15.2,
-                },
-                "status": "extracted",
-            }
-
+        # 根据 content_type 过滤返回内容
         if content_type:
             if content_type == ContentType.TEXT:
                 return {
-                    "content": self._extracted_content.get("text_content"),
+                    "content": self._extracted_content.get("extracted_text", ""),
                     "type": "text",
                 }
             if content_type == ContentType.IMAGE:
                 return {
-                    "content": self._extracted_content.get("image_content"),
+                    "content": self._extracted_content.get("markdown_content", ""),
                     "type": "image",
                 }
 
@@ -185,31 +214,29 @@ class Document:
 
         try:
             while time.time() - start_time < timeout:
-                # 刷新文档状态
+                # 检查当前文档状态
                 try:
-                    # TODO: 实现状态检查API
-                    # status_response = self.client._get(f"/files/{self.file_id}/status")
-                    # current_status = DocumentStatus(status_response.get('status', 'uploaded'))
-                    current_status = self.status  # 临时使用当前状态
+                    current_status = self.status
 
                     if current_status == DocumentStatus.EXTRACTED:
+                        return True
+                    if current_status == DocumentStatus.INDEXED:
+                        # 已索引意味着已提取
                         return True
                     if current_status == DocumentStatus.FAILED:
                         raise UnifilesError(
                             f"Document extraction failed for {self.file_id}"
                         )
-                    if current_status in [DocumentStatus.EXTRACTING]:
-                        # 继续等待
-                        pass
+
+                    # 继续等待
+                    time.sleep(poll_interval)
 
                 except UnifilesError as e:
                     # 如果是网络错误，继续重试
                     if "Connection failed" in str(e) or "timeout" in str(e).lower():
-                        pass
+                        time.sleep(poll_interval)
                     else:
                         raise
-
-                time.sleep(poll_interval)
 
             raise UnifilesError(
                 f"Document extraction timeout after {timeout} seconds for {self.file_id}"
@@ -355,6 +382,49 @@ class KnowledgeBase:
         except UnifilesError:
             return False
 
+    def search(self, query: str, top_k: int = 10) -> List[SearchResult]:
+        """
+        在知识库中进行向量检索
+
+        Args:
+            query: 检索查询文本
+            top_k: 返回结果数量，默认 10，范围 1-100
+
+        Returns:
+            SearchResult 对象列表，按相似度降序排列
+
+        Raises:
+            UnifilesError: 检索失败时抛出
+            ValueError: 参数验证失败时抛出
+
+        Example:
+            >>> kb = client.get_knowledge_base("kb_xxx")
+            >>> results = kb.search("电气自动化设备", top_k=5)
+            >>> for result in results:
+            ...     print(f"相似度: {result.similarity_score:.3f}")
+            ...     print(f"内容: {result.text_content}")
+        """
+        # 参数验证
+        if not query or not query.strip():
+            raise ValueError("Search query cannot be empty")
+
+        if top_k < 1 or top_k > 100:
+            raise ValueError("top_k must be between 1 and 100")
+
+        # 调用检索 API
+        data = {"query": query, "top_k": top_k}
+
+        response = self.client._post(
+            f"/knowledge-bases/{self.kb_id}/search", data=data
+        )
+
+        # 解析响应并构建 SearchResult 对象列表
+        results = []
+        for result_data in response.get("results", []):
+            results.append(SearchResult(result_data))
+
+        return results
+
 
 class Unifile:
     """
@@ -435,20 +505,27 @@ class Unifile:
         return self._request("GET", endpoint, params=params)
 
     def _post(
-        self, endpoint: str, data: Optional[Dict] = None, files: Optional[Dict] = None
+        self,
+        endpoint: str,
+        data: Optional[Dict] = None,
+        files: Optional[Dict] = None,
+        params: Optional[Dict] = None,
     ) -> Dict[str, Any]:
         """POST请求"""
         if files:
-            # 文件上传请求需要移除Content-Type让requests自动设置
-            headers = {
-                k: v
-                for k, v in self.session.headers.items()
-                if k.lower() != "content-type"
-            }
-            return self._request(
-                "POST", endpoint, data=data, files=files, headers=headers
-            )
-        return self._request("POST", endpoint, json=data)
+            # 文件上传时需要让 requests 自动设置 Content-Type
+            # 临时从 session 中移除 Content-Type，但保留 Authorization
+            original_content_type = self.session.headers.pop("Content-Type", None)
+            try:
+                result = self._request(
+                    "POST", endpoint, data=data, files=files, params=params
+                )
+                return result
+            finally:
+                # 恢复 Content-Type
+                if original_content_type:
+                    self.session.headers["Content-Type"] = original_content_type
+        return self._request("POST", endpoint, json=data, params=params)
 
     def _delete(self, endpoint: str) -> Dict[str, Any]:
         """DELETE请求"""
@@ -505,9 +582,11 @@ class Unifile:
         try:
             with open(file_path, "rb") as f:
                 files = {"file": (file_path.name, f, "application/octet-stream")}
-                data = {"is_public": str(is_public).lower()}
+                # is_public 作为查询参数，需要小写字符串 "true" 或 "false"
+                # Python 的 requests 会将 False 转换为 "False"（大写），FastAPI 无法识别
+                params = {"is_public": "true" if is_public else "false"}
 
-                response = self._post("/files", data=data, files=files)
+                response = self._post("/files", files=files, params=params)
 
                 file_info = response.get("file", {})
                 file_id = file_info.get("file_id")
@@ -579,28 +658,17 @@ class Unifile:
 
         Returns:
             KnowledgeBase对象
+
+        Raises:
+            UnifilesError: 创建失败时抛出
         """
-        try:
-            # 尝试调用创建知识库API
-            data = {"name": name, "description": description}
-            response = self._post("/knowledge-bases", data=data)
-            kb_info = response.get("knowledge_base", {})
-            kb_id = kb_info.get("kb_id")
+        data = {"name": name, "description": description}
+        response = self._post("/knowledge-bases", data=data)
+        kb_info = response.get("knowledge_base", {})
+        kb_id = kb_info.get("kb_id")
 
-            if kb_id:
-                return KnowledgeBase(self, kb_id, kb_info)
-        except UnifilesError:
-            # API可能还未实现，使用模拟响应
-            pass
-
-        # 模拟响应
-        kb_id = f"kb_{int(time.time())}"
-        kb_info = {
-            "kb_id": kb_id,
-            "name": name,
-            "description": description,
-            "document_count": 0,
-        }
+        if not kb_id:
+            raise UnifilesError("Server did not return kb_id after creation")
 
         return KnowledgeBase(self, kb_id, kb_info)
 

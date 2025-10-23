@@ -1,3 +1,4 @@
+import os
 from abc import ABC, abstractmethod
 from datetime import datetime, timezone
 from pathlib import Path
@@ -56,7 +57,9 @@ class LoguruLogger(BaseLogger):
         compression: str = "zip",
         level: str = "INFO",
     ):
-        self.log_dir = Path(log_dir) if log_dir else Path("logs")
+        # Default to project-level logs directory when not provided
+        default_logs = Path(__file__).resolve().parents[3] / "logs"
+        self.log_dir = Path(log_dir) if log_dir else default_logs
         self.rotation = rotation
         self.retention = retention
         self.compression = compression
@@ -260,12 +263,42 @@ class HybridLogger(BaseLogger):
 app_logger: Optional[BaseLogger] = None
 
 
+def _read_logging_env() -> Dict[str, Any]:
+    """Read logging configuration from environment variables with sensible defaults."""
+    # Service name
+    service_name = os.getenv("UNIFILES_SERVICE_NAME", "unifiles-v1")
+
+    # Directory for log files
+    log_dir_env = os.getenv("UNIFILES_API_LOG_DIR")
+    log_dir = (
+        Path(log_dir_env)
+        if log_dir_env
+        else Path(__file__).resolve().parents[3] / "logs"
+    )
+
+    # Other settings
+    level = os.getenv("UNIFILES_API_LOG_LEVEL", "INFO").upper()
+    rotation = os.getenv("UNIFILES_API_LOG_ROTATION", "100 MB")
+    retention = os.getenv("UNIFILES_API_LOG_RETENTION", "30 days")
+    compression = os.getenv("UNIFILES_API_LOG_COMPRESSION", "zip")
+
+    return {
+        "service_name": service_name,
+        "log_dir": log_dir,
+        "level": level,
+        "rotation": rotation,
+        "retention": retention,
+        "compression": compression,
+    }
+
+
 def get_logger() -> BaseLogger:
     """获取全局日志实例"""
     global app_logger
     if app_logger is None:
-        # 默认使用 Loguru 文件日志
-        app_logger = LoguruLogger(service_name="unifiles")
+        # 默认使用 Loguru 文件日志（读取环境变量配置）
+        cfg = _read_logging_env()
+        app_logger = LoguruLogger(**cfg)
     return app_logger
 
 
@@ -285,7 +318,12 @@ def init_logger(
     global app_logger
 
     if logger_type == "loguru":
-        app_logger = LoguruLogger(service_name=service_name, **kwargs)
+        # If no explicit kwargs provided, load from environment
+        if not kwargs and service_name == "unifiles":
+            cfg = _read_logging_env()
+            app_logger = LoguruLogger(**cfg)
+        else:
+            app_logger = LoguruLogger(service_name=service_name, **kwargs)
     elif logger_type == "postgresql":
         app_logger = PostgreSQLLogger(service_name=service_name, **kwargs)
     elif logger_type == "hybrid":

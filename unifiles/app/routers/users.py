@@ -6,7 +6,7 @@
 from typing import List, Optional
 
 from fastapi import APIRouter, HTTPException
-from loguru import logger
+from unifiles.core.logging import get_logger
 
 from unifiles.app.schemas import (
     AccessKeyCreateRequest,
@@ -21,7 +21,7 @@ from unifiles.app.schemas import (
 from unifiles.core.database import unified_db_manager
 from unifiles.core.database.models import UserModel
 
-logger = logger.bind(service="unifiles-v1")
+logger = get_logger()
 
 router = APIRouter(prefix="/users", tags=["Users"])
 

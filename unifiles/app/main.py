@@ -37,16 +37,9 @@ async def lifespan(app: FastAPI):
     """应用生命周期管理"""
     # 启动时执行
     try:
-        # 初始化日志系统
-        log_path = Path(__file__).parent / "logs"
-        init_logger(
-            logger_type="loguru",
-            service_name="unifiles-v1",
-            log_dir=log_path,
-            level="DEBUG",  # Changed to DEBUG for detailed logging
-            rotation="100 MB",
-            retention="30 days",
-        )
+        # 初始化日志系统（优先从环境变量读取配置）
+        # UNIFILES_SERVICE_NAME, UNIFILES_API_LOG_LEVEL, UNIFILES_API_LOG_DIR, etc.
+        init_logger(logger_type="loguru")
         app_logger = get_logger()
 
         # 创建必要的目录
