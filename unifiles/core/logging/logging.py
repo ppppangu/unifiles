@@ -108,13 +108,13 @@ class LoguruLogger(BaseLogger):
     def _log_with_context(
         self, level: str, message: str, extra: Optional[Dict[str, Any]] = None
     ) -> None:
-        """带上下文信息的日志记录"""
+        """带上下文信息的日志记录，定位到业务调用处"""
         context = {"service": self.service_name}
         if extra:
             context.update(extra)
 
-        logger_method = getattr(logger.bind(**context), level.lower())
-        logger_method(message)
+        # Use opt(depth=2) so the reported source is the original caller
+        logger.bind(**context).opt(depth=2).log(level.upper(), message)
 
     def info(self, message: str, extra: Optional[Dict[str, Any]] = None) -> None:
         """记录信息级别日志"""
@@ -137,11 +137,11 @@ class LoguruLogger(BaseLogger):
         self._log_with_context("CRITICAL", message, extra)
 
     def exception(self, message: str, extra: Optional[Dict[str, Any]] = None) -> None:
-        """记录异常信息（包含堆栈跟踪）"""
+        """记录异常信息（包含堆栈跟踪），定位到业务调用处"""
         context = {"service": self.service_name}
         if extra:
             context.update(extra)
-        logger.bind(**context).exception(message)
+        logger.bind(**context).opt(depth=2).exception(message)
 
     def cleanup(self) -> None:
         """清理日志系统资源"""

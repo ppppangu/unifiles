@@ -9,7 +9,8 @@ import uuid
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from loguru import logger
+from unifiles.core.logging import get_logger
+logger = get_logger()
 
 from ..database import unified_kb_db_manager, unified_user_db_manager
 from ..database.models import (
@@ -248,7 +249,7 @@ class StorageService:
     ) -> Dict[str, Any]:
         """保存完整的处理结果"""
         try:
-            logger.info("=== Stage 5: Saving processing results ===")
+            logger.debug("=== Stage 5: Saving processing results ===")
 
             # 并发执行存储任务
             store_files_task = self.store_processed_files(

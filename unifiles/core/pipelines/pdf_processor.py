@@ -14,7 +14,8 @@ import aiofiles
 import fitz  # PyMuPDF
 import httpx
 import pdfplumber
-from loguru import logger
+from unifiles.core.logging import get_logger
+logger = get_logger()
 from tenacity import (
     retry,
     retry_if_exception_type,

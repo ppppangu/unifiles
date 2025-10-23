@@ -2,7 +2,8 @@ from datetime import datetime
 
 from fastapi import APIRouter, HTTPException, Request
 from fastapi import Path as FastAPIPath
-from loguru import logger
+from unifiles.core.logging import get_logger
+logger = get_logger()
 
 from unifiles.app.schemas import (
     ExtractedContent,

@@ -2,7 +2,8 @@ from abc import ABC
 from typing import Any, Dict, List, Optional
 
 import asyncpg
-from loguru import logger
+from unifiles.core.logging import get_logger
+logger = get_logger()
 
 from unifiles.core.config.env_config import read_pg_config
 

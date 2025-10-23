@@ -7,7 +7,8 @@ import uuid
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 
-from loguru import logger
+from unifiles.core.logging import get_logger
+logger = get_logger()
 
 from ..config.env_config import read_config
 from ..database import extraction_db_manager, unified_kb_db_manager

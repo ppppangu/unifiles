@@ -6,7 +6,8 @@
 
 from typing import Any, Dict, List, Optional
 
-from loguru import logger
+from unifiles.core.logging import get_logger
+logger = get_logger()
 
 from .base import BaseDocumentProcessor, DocumentProcessor
 

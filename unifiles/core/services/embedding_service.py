@@ -6,7 +6,8 @@
 from typing import Any, Dict, List, Optional, Protocol, Tuple
 
 import httpx
-from loguru import logger
+from unifiles.core.logging import get_logger
+logger = get_logger()
 from tenacity import (
     retry,
     retry_if_exception_type,

@@ -97,13 +97,9 @@ async def create_user(user_request: UserCreateRequest):
         # 重新抛出HTTPException
         raise http_exc from None
     except Exception as e:
-        error_msg = (
+        logger.error(
             f"Error creating user {user_request.user_id}: {type(e).__name__}: {e}"
         )
-        logger.error(error_msg)
-        import traceback
-
-        logger.error(traceback.format_exc())
         raise HTTPException(
             status_code=500,
             detail=f"Failed to create user: {type(e).__name__}: {e!s}",
@@ -202,9 +198,6 @@ async def login_user(email: str):
         raise http_exc from None
     except Exception as e:
         logger.error(f"Error during login for {email}: {e}")
-        import traceback
-
-        logger.error(traceback.format_exc())
         raise HTTPException(
             status_code=500,
             detail=f"Login failed: {e!s}",

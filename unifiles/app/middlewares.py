@@ -9,7 +9,8 @@ from typing import Any, Dict, List, Optional
 import asyncpg
 from fastapi import Request, UploadFile
 from fastapi.responses import JSONResponse
-from loguru import logger
+from unifiles.core.logging import get_logger
+logger = get_logger()
 
 # 导入数据库配置
 from unifiles.core.config.env_config import read_pg_config

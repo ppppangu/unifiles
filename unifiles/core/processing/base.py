@@ -9,9 +9,11 @@ from abc import ABC, abstractmethod
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 
-from loguru import logger
+from unifiles.core.logging import get_logger
 from server.app.v1.schemas import ExtractedContent, FileExtractRequest
 
+
+logger = get_logger()
 
 class DocumentProcessor(ABC):
     """文档处理器抽象基类"""

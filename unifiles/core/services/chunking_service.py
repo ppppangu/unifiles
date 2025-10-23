@@ -7,7 +7,8 @@ import re
 from enum import Enum
 from typing import Any, Dict, List, Optional
 
-from loguru import logger
+from unifiles.core.logging import get_logger
+logger = get_logger()
 
 
 class ChunkingStrategy(Enum):

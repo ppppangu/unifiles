@@ -5,7 +5,8 @@
 
 from typing import Any, Dict, List, Optional
 
-from loguru import logger
+from unifiles.core.logging import get_logger
+logger = get_logger()
 
 from ..database import unified_kb_db_manager
 from .embedding_service import get_embedding_service

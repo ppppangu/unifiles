@@ -11,7 +11,8 @@ import json
 from datetime import datetime
 from typing import Optional
 
-from loguru import logger
+from unifiles.core.logging import get_logger
+logger = get_logger()
 
 from .base_manager import BaseDBManager
 from .models import (

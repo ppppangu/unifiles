@@ -3,7 +3,8 @@ import re
 from pathlib import Path
 from typing import Any, Dict, Optional, Tuple
 
-from loguru import logger
+from unifiles.core.logging import get_logger
+logger = get_logger()
 
 
 class FileSecurityValidator:

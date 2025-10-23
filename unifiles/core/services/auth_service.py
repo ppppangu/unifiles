@@ -3,7 +3,8 @@ from typing import Any, Dict, List, Optional, Tuple
 
 import asyncpg
 from fastapi import HTTPException, Request
-from loguru import logger
+from unifiles.core.logging import get_logger
+logger = get_logger()
 
 from unifiles.core.security.authorization import DatabaseSecurityEnforcer
 
