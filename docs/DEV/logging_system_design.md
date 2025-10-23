@@ -52,7 +52,7 @@ graph TD
 日志系统的生命周期与 FastAPI 应用的生命周期绑定。
 
 1.  **启动**: 应用在 `unifiles/app/main.py` 的 `lifespan` 管理器中启动。
-2.  **调用 `init_logger`**: `lifespan` 函数内部显式调用 `init_logger`，并传入**硬编码**的配置参数。
+2.  **调用 `init_logger`**: `lifespan` 函数内部调用 `init_logger("loguru")`，配置优先从环境变量读取（见“环境变量”）。
 3.  **创建实例**: `init_logger` 创建一个 `LoguruLogger` 实例，并将其赋值给全局变量 `app_logger`。
 4.  **配置 Sinks**: `LoguruLogger` 在其 `_setup` 方法中配置了两个输出目标 (Sink)：
     - **控制台 Sink**: 用于在开发过程中实时显示带颜色的日志。
@@ -84,37 +84,37 @@ sequenceDiagram
 
 ## 4. 详细配置
 
-日志配置目前在 `unifiles/app/main.py` 中硬编码，具体如下：
+日志配置现由环境变量驱动，`main.py` 不再硬编码参数。核心变量：
 
-- **服务名称 (`service_name`)**: `unifiles-v1` (此名称会通过 `bind` 方法自动添加到每条日志记录中)。
-- **日志级别 (`level`)**: `INFO`。只有 `INFO` 及以上级别的日志才会被记录。
-- **日志目录 (`log_dir`)**: `unifiles/app/logs/`。
-- **日志格式**:
-  - **控制台**: `[时间] | [级别] | [模块:函数:行号] | [服务名] | [消息]` (带颜色)
-  - **文件**: `{时间} | {级别} | {模块:函数:行号} | {服务名} | {消息}` (无颜色)
-- **文件滚动 (`rotation`)**: 当日志文件达到 `100 MB` 时，会自动创建新文件。
-- **文件保留 (`retention`)**: 最多保留 `30 days` 的日志文件。
-- **压缩 (`compression`)**: 旧的日志文件会被压缩成 `.zip` 格式以节省空间。
+- `UNIFILES_SERVICE_NAME`: 服务名称（默认 `unifiles-v1`）。
+- `UNIFILES_API_LOG_LEVEL`: 日志级别（默认 `INFO`）。
+- `UNIFILES_API_LOG_DIR`: 日志目录（默认项目根目录下 `logs/`）。
+- `UNIFILES_API_LOG_ROTATION`: 文件滚动策略（默认 `100 MB`）。
+- `UNIFILES_API_LOG_RETENTION`: 文件保留策略（默认 `30 days`）。
+- `UNIFILES_API_LOG_COMPRESSION`: 压缩格式（默认 `zip`）。
+
+格式：
+- 控制台：`[时间] | [级别] | [模块:函数:行号] | [消息]`（带颜色）。
+- 文件：`{时间} | {级别} | {模块:函数:行号} | {消息}`。
 
 ## 5. 使用方式
 
-在项目中的任何模块，推荐使用以下方式获取和使用日志记录器：
+在项目中的任何模块，推荐使用统一入口获取日志：
 
 ```python
-from loguru import logger
+from unifiles.core.logging import get_logger
 
-# Loguru 的全局 logger 已在 main.py 中被配置好
-# 直接使用即可
+log = get_logger()
 
 def my_function():
-    logger.info("这是一条信息日志。")
-    logger.warning("这是一条警告日志。")
+    log.info("这是一条信息日志。")
+    log.warning("这是一条警告日志。")
     try:
         result = 1 / 0
     except ZeroDivisionError:
-        logger.exception("发生了一个错误！") # exception 会自动记录堆栈信息
+        log.exception("发生了一个错误！")
 ```
-**注意**: 尽管项目中提供了 `get_logger()` 函数，但由于 `init_logger` 配置的是 Loguru 的全局实例，因此直接 `from loguru import logger` 是最简洁且推荐的方式。
+说明：直接 `from loguru import logger` 仍可工作，但为了上下文一致（例如 service 字段、未来切换实现），建议统一通过 `get_logger()`。
 
 ## 6. 总结与展望
 
@@ -124,5 +124,5 @@ def my_function():
 - **使用便捷**: 全局单例模式让开发者可以方便地在任何地方记录日志。
 
 ### 可改进之处
-- **动态配置**: 当前配置是硬编码在代码中的。未来可以将其移至 `config.yaml` 文件，允许在不修改代码的情况下，通过配置文件动态调整日志级别、格式、路径等，从而提高灵活性。例如，可以为开发、测试和生产环境设置不同的日志级别。
+- **细粒度过滤**: 如需按 `service` 过滤，可以在 `LoguruLogger` 内启用对应 filter；目前为兼容历史直接引用 loguru 的用法而关闭。
 - **数据库日志**: `PostgreSQLLogger` 目前是占位符。在需要对日志进行复杂查询和分析的场景下，可以完成该类的实现，将关键日志（如 `ERROR` 和 `CRITICAL` 级别的日志）存入数据库。
