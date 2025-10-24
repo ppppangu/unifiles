@@ -52,48 +52,43 @@ $$ LANGUAGE plpgsql;
 
 -- 根据存储配置生成URL的函数（修正版本，基于实际表结构）
 CREATE OR REPLACE FUNCTION unifiles.generate_storage_urls(
-    storage_config_id_param TEXT,
-    storage_path_param TEXT
-) 
-RETURNS TABLE (
-    public_url TEXT
-) AS $$
+  storage_config_id_param TEXT,
+  storage_path_param TEXT
+)
+RETURNS TABLE(public_url TEXT) AS $$
 DECLARE
-    config_rec RECORD;
-    generated_public_url TEXT;
+  cfg RECORD;
+  endpoint TEXT; bucket TEXT; base_path TEXT; prefix TEXT;
 BEGIN
-    -- 如果没有配置ID，使用第一个活跃的配置
-    -- 建议在应用层指定具体的storage_config_id
-    IF storage_config_id_param IS NULL THEN
-        SELECT * INTO config_rec
-        FROM unifiles.storage_configs
-        WHERE is_active = true
-        ORDER BY created_at ASC
-        LIMIT 1;
-    ELSE
-        SELECT * INTO config_rec
-        FROM unifiles.storage_configs
-        WHERE id = storage_config_id_param AND is_active = true;
-    END IF;
-    
-    -- 如果找不到配置，返回NULL
-    IF config_rec IS NULL THEN
-        public_url := NULL;
-        RETURN NEXT;
-        RETURN;
-    END IF;
-    
-    -- 根据存储配置生成公共访问URL
-    IF config_rec.public_url_prefix IS NOT NULL AND storage_path_param IS NOT NULL THEN
-        generated_public_url := config_rec.public_url_prefix || '/' || LTRIM(storage_path_param, '/');
-    ELSIF config_rec.endpoint IS NOT NULL AND config_rec.bucket_name IS NOT NULL AND storage_path_param IS NOT NULL THEN
-        generated_public_url := config_rec.endpoint || '/' || config_rec.bucket_name || '/' || LTRIM(storage_path_param, '/');
-    END IF;
-    
-    public_url := generated_public_url;
+  IF storage_config_id_param IS NULL THEN
+    SELECT * INTO cfg FROM unifiles.storage_configs WHERE is_active=true ORDER BY created_at ASC LIMIT 1;
+  ELSE
+    SELECT * INTO cfg FROM unifiles.storage_configs WHERE id=storage_config_id_param AND is_active=true;
+  END IF;
+
+  IF cfg IS NULL THEN
+    public_url := NULL;
     RETURN NEXT;
+    RETURN;
+  END IF;
+
+  prefix   := cfg.public_url_prefix;
+  endpoint := cfg.connection_config->>'endpoint';
+  bucket   := cfg.connection_config->>'bucket_name';
+  base_path:= cfg.connection_config->>'base_path';
+
+  IF prefix IS NOT NULL AND storage_path_param IS NOT NULL THEN
+    public_url := prefix || '/' || ltrim(storage_path_param, '/');
+  ELSIF endpoint IS NOT NULL AND bucket IS NOT NULL AND storage_path_param IS NOT NULL THEN
+    public_url := endpoint || '/' || bucket || '/' || ltrim(storage_path_param, '/');
+  ELSE
+    public_url := NULL;
+  END IF;
+
+  RETURN NEXT;
 END;
 $$ LANGUAGE plpgsql;
+
 
 -- ================================
 -- 文本搜索向量更新触发器 (Full-Text Search Triggers)

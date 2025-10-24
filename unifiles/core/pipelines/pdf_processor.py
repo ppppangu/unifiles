@@ -731,10 +731,12 @@ class TextProcessor:
                 self._segment_by_images, text, user_id, knowledge_base_id, document_id
             )
             logger.info(
-                "Image segmentation completed, {} segments (text length: {} -> {})",
-                len(base_segments),
-                len(text),
-                len(converted_text),
+                "Image segmentation completed",
+                {
+                    "segments": len(base_segments),
+                    "text_length_before": len(text),
+                    "text_length_after": len(converted_text),
+                },
             )
 
             # 步骤2：对文本类型进行分块
@@ -763,7 +765,10 @@ class TextProcessor:
                         }
                     )
 
-            logger.info("Text chunking completed, final {} segments", final_segments)
+            logger.info(
+                "Text chunking completed",
+                {"segments": len(final_segments)},
+            )
             return final_segments
 
         except Exception as e:

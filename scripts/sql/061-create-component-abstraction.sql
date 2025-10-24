@@ -189,60 +189,31 @@ $$ LANGUAGE plpgsql IMMUTABLE;
 CREATE OR REPLACE FUNCTION unifiles.detect_content_language(input_text TEXT)
 RETURNS TEXT AS $$
 DECLARE
-    chinese_chars INTEGER;
-    total_chars INTEGER;
-    chinese_ratio FLOAT;
+  han_chars INTEGER;
+  total_chars INTEGER;
+  ratio FLOAT;
 BEGIN
-    IF input_text IS NULL OR length(input_text) = 0 THEN
-        RETURN 'unknown';
-    END IF;
-    
-    -- 统计中文字符数量
-    chinese_chars := length(input_text) - length(regexp_replace(input_text, '[\u4e00-\u9fff]', '', 'g'));
-    total_chars := length(regexp_replace(input_text, '\s', '', 'g'));
-    
-    IF total_chars = 0 THEN
-        RETURN 'unknown';
-    END IF;
-    
-    chinese_ratio := chinese_chars::float / total_chars::float;
-    
-    IF chinese_ratio > 0.3 THEN
-        RETURN 'mixed';
-    ELSIF chinese_ratio > 0.1 THEN
-        RETURN 'mixed';
-    ELSE
-        RETURN 'en';
-    END IF;
+  IF input_text IS NULL OR length(input_text)=0 THEN
+    RETURN 'unknown';
+  END IF;
+
+  -- Approximate CJK range (U+4E00..U+9FA5). PostgreSQL ARE does not support \uXXXX class like PCRE.
+  han_chars := length(regexp_replace(input_text, '[^一-龥]', '', 'g'));
+  total_chars := length(regexp_replace(input_text, '\s', '', 'g'));
+
+  IF total_chars = 0 THEN RETURN 'unknown'; END IF;
+
+  ratio := han_chars::float / total_chars::float;
+  IF ratio > 0.3 THEN
+    RETURN 'mixed';
+  ELSIF ratio > 0.1 THEN
+    RETURN 'mixed';
+  ELSE
+    RETURN 'en';
+  END IF;
 END;
 $$ LANGUAGE plpgsql IMMUTABLE;
 
--- 自动更新组件搜索字段的触发器函数
-CREATE OR REPLACE FUNCTION unifiles.update_component_search_fields()
-RETURNS TRIGGER AS $$
-BEGIN
-    -- 清理和优化搜索文本
-    NEW.searchable_text := unifiles.clean_text_for_search(NEW.content);
-    
-    -- 检测内容语言
-    NEW.content_language := unifiles.detect_content_language(NEW.content);
-    
-    -- 提取关键词（简单实现，可以后续优化）
-    IF NEW.searchable_text IS NOT NULL AND length(NEW.searchable_text) > 0 THEN
-        NEW.search_keywords := string_to_array(
-            regexp_replace(lower(NEW.searchable_text), '[^\w\u4e00-\u9fff]+', ' ', 'g'), 
-            ' '
-        );
-        -- 过滤掉短词和空值
-        NEW.search_keywords := array_remove(
-            array(SELECT word FROM unnest(NEW.search_keywords) AS word WHERE length(word) >= 2), 
-            ''
-        );
-    END IF;
-    
-    RETURN NEW;
-END;
-$$ LANGUAGE plpgsql;
 
 -- 创建触发器
 CREATE TRIGGER trigger_update_component_search_fields
@@ -259,20 +230,17 @@ CREATE TRIGGER trigger_update_component_search_fields
 CREATE OR REPLACE FUNCTION unifiles.validate_embedding_dimensions()
 RETURNS TABLE(component_id TEXT, stored_dimensions INTEGER, actual_dimensions INTEGER) AS $$
 BEGIN
-    RETURN QUERY
-    SELECT 
-        c.id,
-        c.embedding_dimensions,
-        CASE 
-            WHEN c.embedding IS NOT NULL THEN array_length(c.embedding, 1)
-            ELSE NULL 
-        END
-    FROM unifiles.components c
-    WHERE c.embedding IS NOT NULL 
-      AND c.embedding_dimensions IS NOT NULL
-      AND c.embedding_dimensions != array_length(c.embedding, 1);
+  RETURN QUERY
+  SELECT c.id,
+         c.embedding_dimensions,
+         CASE WHEN c.embedding IS NOT NULL THEN vector_dims(c.embedding) ELSE NULL END
+  FROM unifiles.components c
+  WHERE c.embedding IS NOT NULL
+    AND c.embedding_dimensions IS NOT NULL
+    AND c.embedding_dimensions <> vector_dims(c.embedding);
 END;
 $$ LANGUAGE plpgsql;
+
 
 -- 获取向量维度统计的函数
 CREATE OR REPLACE FUNCTION unifiles.get_embedding_dimension_stats()

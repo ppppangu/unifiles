@@ -384,13 +384,8 @@ CREATE INDEX idx_process_logs_user_id ON unifiles.process_logs(user_id)
 -- ================================
 
 -- 自动更新updated_at时间戳
-CREATE OR REPLACE FUNCTION unifiles.update_updated_at_column()
-RETURNS TRIGGER AS $$
-BEGIN
-    NEW.updated_at = CURRENT_TIMESTAMP;
-    RETURN NEW;
-END;
-$$ LANGUAGE plpgsql;
+-- Removed duplicate function by patch
+
 
 -- 为processing_strategies表创建触发器
 CREATE TRIGGER update_processing_strategies_updated_at 

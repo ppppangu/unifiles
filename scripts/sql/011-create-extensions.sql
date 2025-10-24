@@ -61,3 +61,14 @@ CREATE SCHEMA IF NOT EXISTS unifiles;
 
 -- 注意: 生产环境中应该根据实际需要设置更严格的权限
 GRANT USAGE ON SCHEMA unifiles TO PUBLIC;
+
+-- Added by patch: ensure pgcrypto is available (needed for gen_random_uuid/gen_random_bytes)
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM pg_available_extensions WHERE name = 'pgcrypto') THEN
+    CREATE EXTENSION IF NOT EXISTS pgcrypto;
+    RAISE NOTICE 'pgcrypto extension created successfully';
+  ELSE
+    RAISE EXCEPTION 'pgcrypto extension is not available. Please install pgcrypto first.';
+  END IF;
+END $$;

@@ -346,6 +346,7 @@ class KnowledgeBase:
         is_public: bool = False,
         auto_extract: bool = True,
         auto_index: bool = True,
+        extract_mode: str = "simple",
     ) -> Document:
         """
         上传文档到知识库（自动完成三层处理）
@@ -364,7 +365,7 @@ class KnowledgeBase:
 
         if auto_extract:
             # 第二层：内容提取
-            document.extract_content()
+            document.extract_content(mode=extract_mode)
 
             if auto_index:
                 # 第三层：索引到知识库
@@ -712,7 +713,10 @@ class Unifile:
     # ==================== 便捷方法 ====================
 
     def quick_process(
-        self, file_path: Union[str, Path], knowledge_base_name: Optional[str] = None
+        self,
+        file_path: Union[str, Path],
+        knowledge_base_name: Optional[str] = None,
+        extract_mode: str = "simple",
     ) -> Document:
         """
         快速处理文档（一键完成三层处理）
@@ -728,7 +732,7 @@ class Unifile:
         document = self.upload_file(file_path)
 
         # 触发内容提取
-        document.extract_content()
+        document.extract_content(mode=extract_mode)
 
         # 如果指定了知识库，则索引到知识库
         if knowledge_base_name:

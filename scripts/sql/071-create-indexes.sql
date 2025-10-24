@@ -3,27 +3,28 @@
  * 作用: 创建数据库索引和性能优化
  * 分类: 索引和性能优化
  * 执行顺序: 第七步 - 在所有表创建后执行
- * 
+ *
  * 功能说明:
  * 1. 为所有表创建必要的索引以提升查询性能
  * 2. 创建复合索引支持复杂查询
  * 3. 创建向量搜索索引支持语义搜索
  * 4. 创建全文搜索索引支持关键词搜索（中英文）
  * 5. 创建唯一索引保证数据完整性
- * 
+ *
  * 设计原则:
  * - 根据查询模式优化索引策略
  * - 平衡查询性能和写入性能
  * - 支持多种搜索方式（向量、全文、精确匹配）
  * - 考虑索引维护成本
- * 
+ *
  * 依赖要求:
  * - PGroonga扩展：用于中英文全文搜索支持
  * - pgvector扩展：用于向量搜索支持
- * 
+ *
  * 注意事项:
  * - 如果PGroonga扩展未安装，可以跳过pgroonga索引，使用备用的gin索引
  * - 向量索引需要pgvector扩展支持
+ * - 表达式索引中的函数必须是 IMMUTABLE 的
  */
 
 -- ================================
@@ -34,7 +35,18 @@
 CREATE INDEX IF NOT EXISTS idx_users_created_at ON unifiles.users(created_at);
 CREATE INDEX IF NOT EXISTS idx_users_knowledge_ids ON unifiles.users USING gin(knowledge_ids);
 
--- 用户会话表和用户活动日志表已被移除，无需索引
+-- 访问密钥索引
+CREATE INDEX IF NOT EXISTS idx_access_keys_user_id ON unifiles.access_keys(user_id);
+CREATE INDEX IF NOT EXISTS idx_access_keys_is_active ON unifiles.access_keys(is_active);
+CREATE INDEX IF NOT EXISTS idx_access_keys_expires_at ON unifiles.access_keys(expires_at) WHERE expires_at IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_access_keys_created_at ON unifiles.access_keys(created_at);
+CREATE INDEX IF NOT EXISTS idx_access_keys_last_used_at ON unifiles.access_keys(last_used_at) WHERE last_used_at IS NOT NULL;
+
+-- 用户活动日志索引
+CREATE INDEX IF NOT EXISTS idx_user_activity_logs_user_id ON unifiles.user_activity_logs(user_id);
+CREATE INDEX IF NOT EXISTS idx_user_activity_logs_action_type ON unifiles.user_activity_logs(action_type);
+CREATE INDEX IF NOT EXISTS idx_user_activity_logs_created_at ON unifiles.user_activity_logs(created_at);
+CREATE INDEX IF NOT EXISTS idx_user_activity_logs_action_result ON unifiles.user_activity_logs(action_result);
 
 -- ================================
 -- 存储配置相关索引 (Storage Configuration Indexes)
@@ -43,9 +55,9 @@ CREATE INDEX IF NOT EXISTS idx_users_knowledge_ids ON unifiles.users USING gin(k
 -- 存储配置表索引
 CREATE INDEX IF NOT EXISTS idx_storage_configs_storage_name ON unifiles.storage_configs(storage_name);
 CREATE INDEX IF NOT EXISTS idx_storage_configs_is_active ON unifiles.storage_configs(is_active);
--- 基于provider类型的索引  
+-- 基于provider类型的索引
 -- 使用表达式BTREE索引替代 GIN（避免为 TEXT 指定 opclass 要求）
-CREATE INDEX IF NOT EXISTS idx_storage_configs_provider 
+CREATE INDEX IF NOT EXISTS idx_storage_configs_provider
     ON unifiles.storage_configs ((connection_config->>'provider'));
 CREATE INDEX IF NOT EXISTS idx_storage_configs_active_provider ON unifiles.storage_configs(is_active) WHERE connection_config ? 'provider';
 
@@ -80,9 +92,6 @@ CREATE INDEX IF NOT EXISTS idx_file_processing_logs_created_at ON unifiles.file_
 CREATE INDEX IF NOT EXISTS idx_file_processing_logs_file_stage ON unifiles.file_processing_logs(file_id, stage);
 CREATE INDEX IF NOT EXISTS idx_file_processing_logs_stage_status ON unifiles.file_processing_logs(stage, status);
 
--- 文件版本表已被移除
--- 文件统计表已被移除
-
 -- ================================
 -- 内容提取相关索引 (Content Extraction Indexes)
 -- ================================
@@ -90,8 +99,7 @@ CREATE INDEX IF NOT EXISTS idx_file_processing_logs_stage_status ON unifiles.fil
 -- 提取文档表索引（基于简化后的结构）
 CREATE INDEX IF NOT EXISTS idx_extracted_documents_file_id ON unifiles.extracted_documents(file_id);
 CREATE INDEX IF NOT EXISTS idx_extracted_documents_user_id ON unifiles.extracted_documents(user_id);
--- 兼容当前表结构：使用 extraction_strategy_id 替代已移除的 extraction_method 字段
-CREATE INDEX IF NOT EXISTS idx_extracted_documents_strategy 
+CREATE INDEX IF NOT EXISTS idx_extracted_documents_strategy
     ON unifiles.extracted_documents(extraction_strategy_id);
 CREATE INDEX IF NOT EXISTS idx_extracted_documents_status ON unifiles.extracted_documents(extraction_status);
 CREATE INDEX IF NOT EXISTS idx_extracted_documents_created_at ON unifiles.extracted_documents(created_at);
@@ -102,8 +110,8 @@ BEGIN
     -- 检查PGroonga扩展是否可用
     IF EXISTS (SELECT 1 FROM pg_available_extensions WHERE name = 'pgroonga') THEN
         -- 创建PGroonga全文搜索索引
-        CREATE INDEX IF NOT EXISTS idx_extracted_documents_fts_pgroonga 
-        ON unifiles.extracted_documents USING pgroonga (full_markdown) 
+        CREATE INDEX IF NOT EXISTS idx_extracted_documents_fts_pgroonga
+        ON unifiles.extracted_documents USING pgroonga (full_markdown)
         WHERE full_markdown IS NOT NULL;
         RAISE NOTICE 'PGroonga index created for extracted_documents.full_markdown';
     ELSE
@@ -115,9 +123,9 @@ END $$;
 DO $$
 BEGIN
     BEGIN
-        CREATE INDEX IF NOT EXISTS idx_extracted_documents_fts 
-            ON unifiles.extracted_documents 
-            USING gin(to_tsvector('english', full_markdown)) 
+        CREATE INDEX IF NOT EXISTS idx_extracted_documents_fts
+            ON unifiles.extracted_documents
+            USING gin(to_tsvector('english', full_markdown))
             WHERE full_markdown IS NOT NULL;
     EXCEPTION WHEN others THEN
         RAISE NOTICE 'Skipping idx_extracted_documents_fts: %', SQLERRM;
@@ -138,7 +146,12 @@ CREATE INDEX IF NOT EXISTS idx_extracted_assets_storage_path ON unifiles.extract
 CREATE INDEX IF NOT EXISTS idx_extracted_assets_document_type ON unifiles.extracted_assets(extracted_document_id, asset_type);
 CREATE INDEX IF NOT EXISTS idx_extracted_assets_storage_config_type ON unifiles.extracted_assets(storage_config_id, asset_type) WHERE storage_config_id IS NOT NULL;
 
--- 文档页面信息表和提取日志表已被移除
+-- ================================
+-- 异步任务相关索引 (Async Tasks Indexes)
+-- ================================
+
+-- 异步任务表索引（已在 042-create-async-tasks.sql 中定义，这里不重复）
+-- 如果需要额外的索引，可以在此添加
 
 -- ================================
 -- 知识库相关索引 (Knowledge Base Indexes)
@@ -169,7 +182,14 @@ CREATE INDEX IF NOT EXISTS idx_documents_keywords ON unifiles.documents USING gi
 CREATE INDEX IF NOT EXISTS idx_documents_kb_category ON unifiles.documents(knowledge_base_id, document_category) WHERE document_category IS NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_documents_kb_created ON unifiles.documents(knowledge_base_id, created_at);
 
--- 知识库权限表和统计表已被移除
+-- 文档处理状态索引
+CREATE INDEX IF NOT EXISTS idx_documents_processing_status ON unifiles.documents(processing_status) WHERE processing_status IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_documents_indexing_status ON unifiles.documents(indexing_status) WHERE indexing_status IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_documents_validation_status ON unifiles.documents(validation_status) WHERE validation_status IS NOT NULL;
+
+-- KB统计表索引
+CREATE INDEX IF NOT EXISTS idx_kb_statistics_knowledge_base_id ON unifiles.kb_statistics(knowledge_base_id);
+CREATE INDEX IF NOT EXISTS idx_kb_statistics_last_updated ON unifiles.kb_statistics(last_updated_at) WHERE last_updated_at IS NOT NULL;
 
 -- ================================
 -- 组件抽象相关索引 (Component Abstraction Indexes)
@@ -197,19 +217,19 @@ BEGIN
     -- 检查PGroonga扩展是否可用
     IF EXISTS (SELECT 1 FROM pg_available_extensions WHERE name = 'pgroonga') THEN
         -- 创建PGroonga全文搜索索引
-        CREATE INDEX IF NOT EXISTS idx_components_searchable_text_pgroonga 
-        ON unifiles.components USING pgroonga (searchable_text) 
+        CREATE INDEX IF NOT EXISTS idx_components_searchable_text_pgroonga
+        ON unifiles.components USING pgroonga (searchable_text)
         WHERE searchable_text IS NOT NULL;
-        
-        CREATE INDEX IF NOT EXISTS idx_components_content_pgroonga 
-        ON unifiles.components USING pgroonga (content) 
+
+        CREATE INDEX IF NOT EXISTS idx_components_content_pgroonga
+        ON unifiles.components USING pgroonga (content)
         WHERE content IS NOT NULL;
-        
+
         -- 关键词搜索索引 (PGroonga支持TEXT[]类型的倒排检索)
-        CREATE INDEX IF NOT EXISTS idx_components_search_keywords_pgroonga 
-        ON unifiles.components USING pgroonga (search_keywords) 
+        CREATE INDEX IF NOT EXISTS idx_components_search_keywords_pgroonga
+        ON unifiles.components USING pgroonga (search_keywords)
         WHERE search_keywords IS NOT NULL;
-        
+
         RAISE NOTICE 'PGroonga indexes created for components table';
     ELSE
         RAISE NOTICE 'PGroonga extension not available, skipping pgroonga indexes for components';
@@ -223,9 +243,9 @@ CREATE INDEX IF NOT EXISTS idx_components_search_keywords ON unifiles.components
 DO $$
 BEGIN
     BEGIN
-        CREATE INDEX IF NOT EXISTS idx_components_content_fts 
-            ON unifiles.components 
-            USING gin(to_tsvector('english', COALESCE(searchable_text, content))) 
+        CREATE INDEX IF NOT EXISTS idx_components_content_fts
+            ON unifiles.components
+            USING gin(to_tsvector('english', COALESCE(searchable_text, content)))
             WHERE COALESCE(searchable_text, content) IS NOT NULL;
     EXCEPTION WHEN others THEN
         RAISE NOTICE 'Skipping idx_components_content_fts: %', SQLERRM;
@@ -239,7 +259,6 @@ CREATE INDEX IF NOT EXISTS idx_components_document_index ON unifiles.components(
 -- 文本块表索引（基于简化后的结构）
 CREATE INDEX IF NOT EXISTS idx_chunks_component_id ON unifiles.chunks(component_id);
 CREATE INDEX IF NOT EXISTS idx_chunks_char_count ON unifiles.chunks(char_count) WHERE char_count IS NOT NULL;
--- 移除不存在的 word_count 列索引（当前表结构无此列）
 CREATE INDEX IF NOT EXISTS idx_chunks_token_count ON unifiles.chunks(token_count) WHERE token_count IS NOT NULL;
 
 -- 全文搜索索引 (使用PGroonga支持中英文搜索)
@@ -248,8 +267,8 @@ BEGIN
     -- 检查PGroonga扩展是否可用
     IF EXISTS (SELECT 1 FROM pg_available_extensions WHERE name = 'pgroonga') THEN
         -- 创建PGroonga全文搜索索引
-        CREATE INDEX IF NOT EXISTS idx_chunks_text_fts_pgroonga 
-        ON unifiles.chunks USING pgroonga (text_content) 
+        CREATE INDEX IF NOT EXISTS idx_chunks_text_fts_pgroonga
+        ON unifiles.chunks USING pgroonga (text_content)
         WHERE text_content IS NOT NULL;
         RAISE NOTICE 'PGroonga index created for chunks.text_content';
     ELSE
@@ -261,9 +280,9 @@ END $$;
 DO $$
 BEGIN
     BEGIN
-        CREATE INDEX IF NOT EXISTS idx_chunks_text_fts 
-            ON unifiles.chunks 
-            USING gin(to_tsvector('english', text_content)) 
+        CREATE INDEX IF NOT EXISTS idx_chunks_text_fts
+            ON unifiles.chunks
+            USING gin(to_tsvector('english', text_content))
             WHERE text_content IS NOT NULL;
     EXCEPTION WHEN others THEN
         RAISE NOTICE 'Skipping idx_chunks_text_fts: %', SQLERRM;
@@ -277,63 +296,33 @@ CREATE INDEX IF NOT EXISTS idx_photos_subtype ON unifiles.photos(photo_subtype);
 CREATE INDEX IF NOT EXISTS idx_photos_width_height ON unifiles.photos(width, height) WHERE width IS NOT NULL AND height IS NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_photos_format ON unifiles.photos(format) WHERE format IS NOT NULL;
 
--- 组件关系表已被移除
-
 -- ================================
 -- 性能优化专用索引 (Performance Optimization Indexes)
 -- ================================
 
 -- 基于时间范围的查询优化
 CREATE INDEX IF NOT EXISTS idx_files_created_at_desc ON unifiles.files(created_at DESC);
--- 当前 extracted_documents 无 completed_at 列，改为 created_at 降序索引
-CREATE INDEX IF NOT EXISTS idx_extracted_documents_created_at_desc ON unifiles.extracted_documents(created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_components_created_at_desc ON unifiles.components(created_at DESC);
-
--- 文档处理状态索引
-CREATE INDEX IF NOT EXISTS idx_documents_processing_status ON unifiles.documents(processing_status) WHERE processing_status IS NOT NULL;
-CREATE INDEX IF NOT EXISTS idx_documents_indexing_status ON unifiles.documents(indexing_status) WHERE indexing_status IS NOT NULL;
-CREATE INDEX IF NOT EXISTS idx_documents_validation_status ON unifiles.documents(validation_status) WHERE validation_status IS NOT NULL;
 
 -- 统计查询优化索引
 CREATE INDEX IF NOT EXISTS idx_files_user_status_created ON unifiles.files(user_id, status, created_at);
 CREATE INDEX IF NOT EXISTS idx_components_document_type_created ON unifiles.components(document_id, component_type, created_at);
-
--- 搜索性能优化索引（移除不存在的列）
--- 向量搜索相关的索引已在前面定义
 
 -- ================================
 -- 分析和报表专用索引 (Analytics Indexes)
 -- ================================
 
 -- 文件上传分析
-CREATE INDEX IF NOT EXISTS idx_files_upload_monthly ON unifiles.files(user_id, date_trunc('month', created_at));
+-- 注意: date_trunc() 不是 IMMUTABLE 函数，无法直接用于索引表达式
+-- 改为索引 (user_id, created_at)，查询时仍可使用 date_trunc() 进行分组
+-- PostgreSQL 优化器会利用此索引加速月度统计查询
+CREATE INDEX IF NOT EXISTS idx_files_upload_monthly ON unifiles.files(user_id, created_at);
 
 -- 内容提取方法分析
-CREATE INDEX IF NOT EXISTS idx_extracted_documents_strategy_created 
+CREATE INDEX IF NOT EXISTS idx_extracted_documents_strategy_created
     ON unifiles.extracted_documents(extraction_strategy_id, created_at);
-CREATE INDEX IF NOT EXISTS idx_extracted_documents_strategy_status 
+CREATE INDEX IF NOT EXISTS idx_extracted_documents_strategy_status
     ON unifiles.extracted_documents(extraction_strategy_id, extraction_status);
-
--- 用户活动日志索引
-CREATE INDEX IF NOT EXISTS idx_user_activity_logs_user_id ON unifiles.user_activity_logs(user_id);
-CREATE INDEX IF NOT EXISTS idx_user_activity_logs_action_type ON unifiles.user_activity_logs(action_type);
-CREATE INDEX IF NOT EXISTS idx_user_activity_logs_created_at ON unifiles.user_activity_logs(created_at);
-
--- 访问密钥索引（补充）
-CREATE INDEX IF NOT EXISTS idx_access_keys_expires_at ON unifiles.access_keys(expires_at) WHERE expires_at IS NOT NULL;
-CREATE INDEX IF NOT EXISTS idx_access_keys_usage_stats ON unifiles.access_keys(requests_today, requests_this_hour);
-CREATE INDEX IF NOT EXISTS idx_access_keys_permissions ON unifiles.access_keys(can_create_kb, can_delete_files, can_share_files) WHERE is_active = TRUE;
-
--- KB统计表索引
-CREATE INDEX IF NOT EXISTS idx_kb_statistics_knowledge_base_id ON unifiles.kb_statistics(knowledge_base_id);
-CREATE INDEX IF NOT EXISTS idx_kb_statistics_last_updated ON unifiles.kb_statistics(last_updated_at) WHERE last_updated_at IS NOT NULL;
-
--- 提取日志索引
-CREATE INDEX IF NOT EXISTS idx_extraction_logs_document_id ON unifiles.extraction_logs(extracted_document_id) WHERE extracted_document_id IS NOT NULL;
-CREATE INDEX IF NOT EXISTS idx_extraction_logs_file_id ON unifiles.extraction_logs(file_id) WHERE file_id IS NOT NULL;
-CREATE INDEX IF NOT EXISTS idx_extraction_logs_level ON unifiles.extraction_logs(log_level);
-CREATE INDEX IF NOT EXISTS idx_extraction_logs_category ON unifiles.extraction_logs(log_category);
-CREATE INDEX IF NOT EXISTS idx_extraction_logs_created_at ON unifiles.extraction_logs(created_at);
 
 -- ================================
 -- 索引维护和监控 (Index Maintenance)
@@ -341,31 +330,31 @@ CREATE INDEX IF NOT EXISTS idx_extraction_logs_created_at ON unifiles.extraction
 
 -- 为向量索引创建监控视图
 CREATE OR REPLACE VIEW unifiles.vector_index_stats AS
-SELECT 
+SELECT
     schemaname,
-    tablename,
-    indexname,
+    relname as tablename,
+    indexrelname as indexname,
     idx_scan as index_scans,
     idx_tup_read as tuples_read,
     idx_tup_fetch as tuples_fetched
-FROM pg_stat_user_indexes 
-WHERE indexname LIKE '%' || 'embedding' || '%';
+FROM pg_stat_user_indexes
+WHERE indexrelname LIKE '%' || 'embedding' || '%';
 
 -- 创建索引使用统计视图
 CREATE OR REPLACE VIEW unifiles.index_usage_stats AS
-SELECT 
+SELECT
     schemaname,
-    tablename,
-    indexname,
+    relname as tablename,
+    indexrelname as indexname,
     idx_scan,
     idx_tup_read,
     idx_tup_fetch,
-    CASE 
+    CASE
         WHEN idx_scan = 0 THEN 'UNUSED'
         WHEN idx_scan < 100 THEN 'LOW_USAGE'
         WHEN idx_scan < 1000 THEN 'MEDIUM_USAGE'
         ELSE 'HIGH_USAGE'
     END as usage_level
-FROM pg_stat_user_indexes 
+FROM pg_stat_user_indexes
 WHERE schemaname = 'unifiles'
 ORDER BY idx_scan DESC;

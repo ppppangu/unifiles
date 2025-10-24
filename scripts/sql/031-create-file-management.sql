@@ -63,7 +63,7 @@ CREATE TABLE IF NOT EXISTS unifiles.files (
     filename TEXT NOT NULL,                                -- 原始文件名
     mime_type TEXT,                                        -- MIME类型
     file_extension TEXT,                                   -- 文件扩展名
-    purpose TEXT[] DEFAULT '{}',                           -- 上传目的：'fine-tuning' 或 'extract'
+    purpose TEXT[] DEFAULT ARRAY['extract']::TEXT[],                           -- 上传目的：'fine-tuning' 或 'extract'
     
     -- 文件大小和存储
     bytes BIGINT NOT NULL,                                 -- 文件大小（字节，使用BIGINT支持大文件）
