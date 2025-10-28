@@ -201,7 +201,7 @@ class SelfHostedOCRProvider(BaseOCRProvider):
 
             with pdfplumber.open(str(pdf_path)) as pdf:
                 page_count = len(pdf.pages)
-                for i, page in enumerate(pdf.pages[:20]):
+                for i, page in enumerate(pdf.pages):
                     try:
                         # Render page to image
                         to_img = getattr(page, "to_image", None)

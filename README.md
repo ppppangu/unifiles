@@ -98,8 +98,8 @@ for file in files:
 ```python
 from unifiles_client import ContentType
 
-# Trigger content extraction
-extraction_result = document.extract_content(mode="normal")
+# Trigger content extraction (choose a mode: simple | mistral | selfhosted)
+extraction_result = document.extract_content(mode="mistral")
 
 # Get different types of extracted content
 text_content = document.get_content(ContentType.TEXT)

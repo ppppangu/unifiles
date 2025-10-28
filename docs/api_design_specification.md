@@ -152,7 +152,7 @@ Content-Type: application/json
 {
   "file_id": "file_123456789",
   "processing_config": {
-    "ocr_provider": "mineru",
+    "ocr_provider": "mistral",
     "extract_images": true,
     "extract_tables": true,
     "language": "zh-cn",

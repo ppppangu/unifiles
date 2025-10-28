@@ -41,7 +41,7 @@ client = Unifile(api_key=api_key, base_url=base_url)
 doc = client.upload_file("/path/to/file.pdf", is_public=False)
 
 # 2) 触发内容提取（第二层：OCR/文本解析）
-extract_resp = doc.extract_content(mode="simple")  # simple/mistral/mineru/selfhosted
+extract_resp = doc.extract_content(mode="simple")  # simple/mistral/selfhosted
 
 # 3) 创建知识库并将文档索引进去（第三层：分块+向量化）
 kb = client.create_knowledge_base("My Knowledge Base")
@@ -111,8 +111,8 @@ ok = client.delete_file(doc.file_id)
 
 提取模式（与服务端一致）：
 - `simple`: 基础文本提取
-- `mistral`: 多模态 OCR（例如 Mistral）
-- `mineru`: 多模态提取（Mineru）
+- `mistral`: 多模态 OCR（Mistral）
+- `selfhosted`: 多模态提取（OpenAI 兼容接口，如 vLLM + Qwen）
 - `selfhosted`: 自托管多模态模型
 
 示例：

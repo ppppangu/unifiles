@@ -64,7 +64,7 @@ User=www-data
 Group=www-data
 WorkingDirectory=/var/www/unifiles
 Environment=PATH=/var/www/unifiles/.venv/bin
-ExecStart=/var/www/unifiles/.venv/bin/uvicorn unifiles.app.v1.main:app --host 0.0.0.0 --port 8000
+ExecStart=/var/www/unifiles/.venv/bin/uvicorn unifiles.app.main:app --host 0.0.0.0 --port 8000
 ExecReload=/bin/kill -HUP $MAINPID
 Restart=always
 RestartSec=5
@@ -114,7 +114,7 @@ uv sync --dev
 uv run pytest
 
 # Run application
-uv run uvicorn unifiles.app.v1.main:app --reload
+uv run uvicorn unifiles.app.main:app --reload
 ```
 
 ## Monitoring

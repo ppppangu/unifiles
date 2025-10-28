@@ -136,7 +136,7 @@ Group=ubuntu
 WorkingDirectory=/var/www/unifiles
 Environment=PATH=/var/www/unifiles/.venv/bin
 Environment=PYTHONPATH=/var/www/unifiles
-ExecStart=/var/www/unifiles/.venv/bin/uvicorn unifiles.app.v1.main:app --host 0.0.0.0 --port 8000
+ExecStart=/var/www/unifiles/.venv/bin/uvicorn unifiles.app.main:app --host 0.0.0.0 --port 8000
 ExecReload=/bin/kill -HUP $MAINPID
 Restart=always
 RestartSec=3

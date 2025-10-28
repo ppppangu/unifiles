@@ -620,8 +620,7 @@ curl -X GET "http://localhost:8088/files/admin/metrics" \
 **mode 可选值**:
 - `simple`: 使用 pdfplumber 进行基础文本提取
 - `mistral`: 使用 Mistral OCR 进行多模态提取
-- `mineru`: 使用 Mineru 进行多模态提取
-- `selfhosted`: 使用自托管的多模态模型进行提取
+- `selfhosted`: 使用自托管（OpenAI 兼容接口）的多模态模型进行提取
 
 **请求示例**:
 ```bash

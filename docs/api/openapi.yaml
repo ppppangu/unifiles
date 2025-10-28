@@ -242,9 +242,10 @@ paths:
       summary: Extract file content
       description: |
         Extract content from uploaded file using OCR and document processing.
-        Supports two extraction modes:
-        - **simple**: Basic text extraction using built-in PDF reader
-        - **normal**: Advanced OCR processing with MinerU for better accuracy
+        Supports extraction modes:
+        - **simple**: Basic text extraction using built-in PDF reader (pdfplumber)
+        - **mistral**: OCR via Mistral OCR provider
+        - **selfhosted**: OCR via self-hosted OpenAI-compatible provider (e.g., vLLM + Qwen)
       parameters:
         - $ref: '#/components/parameters/FileIdPath'
       requestBody:
@@ -704,7 +705,7 @@ components:
           description: |
             Content extraction mode:
             - **simple**: Basic text extraction using built-in PDF reader
-            - **normal**: Advanced OCR processing with MinerU for better accuracy
+            - **mistral**: OCR via Mistral provider
       example:
         mode: "normal"
 
@@ -759,7 +760,7 @@ components:
           example:
             pages: 5
             processing_time: 15.2
-            extraction_method: "mineru"
+            extraction_method: "mistral"
         status:
           type: string
           enum: ["pending", "processing", "completed", "failed"]

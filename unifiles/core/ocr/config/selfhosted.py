@@ -36,6 +36,11 @@ class SelfHostedConfig(BaseConfig):
         self.temperature = float(self._get_env_var(f"{prefix}TEMPERATURE", "0.7"))
         self.max_tokens = int(self._get_env_var(f"{prefix}MAX_TOKENS", "2048"))
 
+        # Async processing configuration
+        self.max_concurrency = int(self._get_env_var(f"{prefix}MAX_CONCURRENCY", "5"))
+        self.max_retries = int(self._get_env_var(f"{prefix}MAX_RETRIES", "2"))
+        self.request_timeout = float(self._get_env_var(f"{prefix}REQUEST_TIMEOUT", "120.0"))
+
     def validate(self) -> bool:
         if not self.url:
             logger.error(
@@ -72,3 +77,12 @@ class SelfHostedConfig(BaseConfig):
 
     def get_max_tokens(self) -> int:
         return self.max_tokens
+
+    def get_max_concurrency(self) -> int:
+        return self.max_concurrency
+
+    def get_max_retries(self) -> int:
+        return self.max_retries
+
+    def get_request_timeout(self) -> float:
+        return self.request_timeout

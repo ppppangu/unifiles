@@ -228,17 +228,17 @@ curl -X DELETE "http://localhost:8088/files/file-a1b2c3d4-e5f6-7890-abcd-ef12345
 **请求体参数:**
 ```json
 {
-  "mode": "simple"
+  "mode": "mistral"
 }
 ```
-- `mode` (string): 提取模式，支持 `simple` (基础文本提取), `normal` (标准文档解析)。默认为 `simple`。
+- `mode` (string): 提取模式，支持 `simple` (基础文本提取), `mistral` (Mistral OCR), `selfhosted`（自托管多模态OCR）。默认为 `simple`。
 
 **请求示例:**
 ```bash
 curl -X POST "http://localhost:8088/files/file-a1b2c3d4/extract" \
   -H "Authorization: Bearer [REDACTED]" \
   -H "Content-Type: application/json" \
-  -d '{"mode": "normal"}'
+  -d '{"mode": "mistral"}'
 ```
 
 **响应示例:**
