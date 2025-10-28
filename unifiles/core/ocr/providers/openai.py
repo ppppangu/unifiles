@@ -16,6 +16,10 @@ class OpenAIOCRProvider(BaseOCRProvider):
     def __init__(self, config: Optional[OpenAIConfig] = None):
         super().__init__(config or OpenAIConfig())
 
+    def get_provider_name(self) -> str:
+        """获取提供者名称"""
+        return "openai"
+
     def _encode_image_to_base64(self, image_path: Path) -> Optional[str]:
         """Encode image file to base64 string."""
         try:
@@ -137,15 +141,17 @@ class OpenAIOCRProvider(BaseOCRProvider):
         )
         return ""
 
-    async def aprocess_file_native(
+    async def aprocess_file(
         self,
         file_path: Union[str, Path],
         progress_callback: Optional[Callable[[int, int, str, str], None]] = None,
     ) -> str:
-        """Process local file with OCR using native async implementation.
+        """Async: Process a local file with OCR and return markdown formatted text.
+
+        Uses native async implementation with concurrency for PDF page processing.
 
         For PDFs: renders pages to images and processes each page in parallel
-        For images: processes directly (synchronous, wrapped in async)
+        For images: processes directly
 
         Args:
             file_path: Path to the file

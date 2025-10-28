@@ -16,6 +16,10 @@ class SelfHostedOCRProvider(BaseOCRProvider):
     def __init__(self, config: Optional[SelfHostedConfig] = None):
         super().__init__(config or SelfHostedConfig())
 
+    def get_provider_name(self) -> str:
+        """获取提供者名称"""
+        return "selfhosted"
+
     def _encode_image_to_base64(self, image_path: Path) -> Optional[str]:
         """Encode image file to base64 string."""
         try:
@@ -126,12 +130,23 @@ class SelfHostedOCRProvider(BaseOCRProvider):
         )
         return ""
 
-    async def aprocess_file_native(
+    async def aprocess_file(
         self,
         file_path: Union[str, Path],
         progress_callback: Optional[Callable[[int, int, str, str], None]] = None,
     ) -> str:
-        """Async OCR for local file (parallel PDF page processing)."""
+        """Async: Process a local file with OCR and return markdown formatted text.
+
+        Uses native async implementation with concurrency for PDF page processing.
+
+        Args:
+            file_path: Path to the file to process
+            progress_callback: Optional callback for progress updates (PDF only)
+                Called with (current_page, total_pages, status, message)
+
+        Returns:
+            str: Extracted text in markdown format
+        """
         if not self.config.validate():
             return ""
 
