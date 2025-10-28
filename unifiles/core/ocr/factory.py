@@ -2,8 +2,10 @@ from typing import ClassVar, Dict, Optional, Type
 
 from .base import BaseOCRProvider
 from .config.mistral import MistralConfig
+from .config.openai import OpenAIConfig
 from .config.selfhosted import SelfHostedConfig
 from .providers.mistral import MistralOCRProvider
+from .providers.openai import OpenAIOCRProvider
 from .providers.selfhosted import SelfHostedOCRProvider
 
 
@@ -13,11 +15,13 @@ class OCRProviderFactory:
     _providers: ClassVar[Dict[str, Type[BaseOCRProvider]]] = {
         "mistral": MistralOCRProvider,
         "selfhosted": SelfHostedOCRProvider,
+        "openai": OpenAIOCRProvider,
     }
 
     _configs: ClassVar[Dict[str, Type]] = {
         "mistral": MistralConfig,
         "selfhosted": SelfHostedConfig,
+        "openai": OpenAIConfig,
     }
 
     @classmethod

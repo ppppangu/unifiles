@@ -1,6 +1,9 @@
 # OCR 模块（面向开发者）
 
-模块提供统一、可扩展的 OCR 抽象，当前内置 Mistral 实现。对外统一入口为 `OCRProcessor`，内部通过“抽象基类 + 工厂”解耦供应商；支持本地文件处理、目录并发处理、结果落盘（Markdown 与图片），并保留旧接口兼容。
+模块提供统一、可扩展的 OCR 抽象，对外统一入口为 `OCRProcessor`，内部通过“抽象基类 + 工厂”解耦供应商；支持本地文件处理、目录并发处理、结果落盘（Markdown 与图片）。当前内置供应商：
+- `mistral`（Mistral OCR）
+- `selfhosted`（OpenAI 兼容，自部署，单实例）
+- `openai`（OpenAI/GPT-4o 等，单实例）
 
 ## 架构总览
 
@@ -19,10 +22,13 @@ ocr/
 ├── processor.py           # OCRProcessor：统一入口 + 目录并发
 ├── config/
 │   ├── base.py            # BaseConfig：加载 .env，定义 validate/getters
-│   └── mistral.py         # MistralConfig：MISTRAL_API_KEY/MISTRAL_OCR_MODEL
+│   ├── mistral.py         # MistralConfig：MISTRAL_API_KEY/MISTRAL_OCR_MODEL
+│   ├── selfhosted.py      # SelfHostedConfig：单实例，OpenAI 兼容
+│   └── openai.py          # OpenAIConfig：单实例，OpenAI 官方/兼容
 └── providers/
-    ├── mistral.py         # MistralOCRProvider：具体实现（含原生异步）
-    └── selfhosted.py      # SelfHostedOCRProvider：自部署HTTP服务对接
+    ├── mistral.py         # MistralOCRProvider：原生异步，对接 mistralai SDK
+    ├── selfhosted.py      # SelfHostedOCRProvider：OpenAI 兼容（使用 OpenAI SDK）
+    └── openai.py          # OpenAIOCRProvider：OpenAI 官方/兼容（使用 OpenAI SDK）
 ```
 
 ## API 与契约
@@ -36,7 +42,7 @@ ocr/
   - 异步默认实现：`aprocess_file/url`、`asave_to_*` 为线程封装，具体提供者可覆盖为“原生异步”。
 
 - 统一入口（使用方）
-  - `OCRProcessor(provider_name='mistral', config=None)`：创建并持有提供者实例。
+  - `OCRProcessor(provider_name, config=None)`：创建并持有提供者实例。
   - `process_file(file)` / `aprocess_file(file)`：处理单文件。
   - `process_directory(dir, exts=None)` / `aprocess_directory(dir, exts=None, concurrency=5)`：处理目录（并发）。
   - `switch_provider(name, config=None)`：运行时切换供应商。
@@ -89,19 +95,19 @@ async def main():
 asyncio.run(main())
 ```
 
-### 自部署 OCR 服务（SelfHosted）
+### 自部署 OCR 服务（SelfHosted，单实例）
 
 #### 环境变量配置
 
-配置示例（.env）：
+配置示例（.env，单实例）：
 
 ```bash
 # Qwen3-VL 示例（通过 vLLM 部署）
-UNIFILES_SERVICE_OCR_SELFHOSTED_0_URL=http://localhost:8012/v1/chat/completions
-UNIFILES_SERVICE_OCR_SELFHOSTED_0_MODEL=qwen3vl-2b
-UNIFILES_SERVICE_OCR_SELFHOSTED_0_PROMPT=请识别图片中的所有文字内容，包括表格、列表等结构化内容。请使用 Markdown 格式输出，保持原有的段落结构和格式。
-UNIFILES_SERVICE_OCR_SELFHOSTED_0_TEMPERATURE=0.7       # 可选，默认 0.7
-UNIFILES_SERVICE_OCR_SELFHOSTED_0_MAX_TOKENS=2048       # 可选，默认 2048
+UNIFILES_SERVICE_OCR_SELFHOSTED_URL=http://localhost:8012/v1/chat/completions
+UNIFILES_SERVICE_OCR_SELFHOSTED_MODEL=qwen3vl-2b
+UNIFILES_SERVICE_OCR_SELFHOSTED_PROMPT=请识别图片中的所有文字内容，包括表格、列表等结构化内容。请使用 Markdown 格式输出，保持原有的段落结构和格式。
+UNIFILES_SERVICE_OCR_SELFHOSTED_TEMPERATURE=0.7       # 可选，默认 0.7
+UNIFILES_SERVICE_OCR_SELFHOSTED_MAX_TOKENS=2048       # 可选，默认 2048
 ```
 
 **必需参数**：
@@ -113,21 +119,7 @@ UNIFILES_SERVICE_OCR_SELFHOSTED_0_MAX_TOKENS=2048       # 可选，默认 2048
 - `TEMPERATURE`: 生成温度（默认 0.7）
 - `MAX_TOKENS`: 最大生成 tokens（默认 2048）
 
-#### 多实例配置
-
-支持配置多个实例（实例编号：0, 1, 2, ...）：
-
-```bash
-# 实例 0: Qwen3-VL 2B
-UNIFILES_SERVICE_OCR_SELFHOSTED_0_URL=http://localhost:8012/v1/chat/completions
-UNIFILES_SERVICE_OCR_SELFHOSTED_0_MODEL=qwen3vl-2b
-UNIFILES_SERVICE_OCR_SELFHOSTED_0_PROMPT=请识别文字并输出 Markdown
-
-# 实例 1: Qwen2-VL 7B
-UNIFILES_SERVICE_OCR_SELFHOSTED_1_URL=http://192.168.1.100:8013/v1/chat/completions
-UNIFILES_SERVICE_OCR_SELFHOSTED_1_MODEL=qwen2-vl-7b
-UNIFILES_SERVICE_OCR_SELFHOSTED_1_PROMPT=Extract all text with structure
-```
+（多实例已移除，统一采用单实例配置。并发/重试/超时可通过对应环境变量调整。）
 
 #### 使用示例
 
@@ -135,13 +127,13 @@ UNIFILES_SERVICE_OCR_SELFHOSTED_1_PROMPT=Extract all text with structure
 from unifiles.core.ocr import OCRProcessor
 from unifiles.core.ocr.config.selfhosted import SelfHostedConfig
 
-# 方式 1: 使用默认实例（实例 0）
+# 方式 1: 使用默认配置（单实例）
 processor = OCRProcessor('selfhosted')
 text = processor.process_file('document.png')
 print(text)
 
-# 方式 2: 指定实例编号
-config = SelfHostedConfig(instance_id=1)
+# 方式 2: 传入配置（单实例）
+config = SelfHostedConfig()
 processor = OCRProcessor('selfhosted', config=config)
 text = processor.process_file('image.jpg')
 print(text)
@@ -197,64 +189,154 @@ python example_new_architecture.py
 - Markdown：`samples/gpt-paper.md`
 - 图片：`samples/gpt-paper_images/img-{i}.jpeg`
 
-## 扩展新的供应商（示例）
+### OpenAI 兼容 OCR 服务（OpenAI，单实例）
 
-1) 定义配置：`ocr/config/openai.py`
+#### 概述
 
-```python
-from .base import BaseConfig
+通用的 OpenAI 兼容 Vision API provider，支持任何符合 OpenAI Chat Completion 格式的服务，包括：
+- **OpenAI 官方**: GPT-4V, GPT-4o, GPT-4-turbo
+- **硅基流动 (SiliconFlow)**: Qwen2-VL, GLM-4V 等
+- **通义千问 (Tongyi Qianwen)**: qwen-vl-plus, qwen-vl-max
+- **其他 OpenAI 兼容服务**: 支持所有符合 OpenAI Chat Completion 格式的多模态 Vision API
 
-class OpenAIConfig(BaseConfig):
-    def __init__(self):
-        super().__init__()
-        self.api_key = self._get_env_var('OPENAI_API_KEY')
-        self.model = self._get_env_var('OPENAI_OCR_MODEL', 'gpt-ocr-latest')
+#### 与 SelfHosted 的区别
 
-    def validate(self) -> bool: return bool(self.api_key)
-    def get_api_key(self) -> str: return self.api_key
-    def get_model(self) -> str: return self.model
+| 特性 | OpenAI Provider | SelfHosted Provider |
+|-----|----------------|---------------------|
+| **认证方式** | ✅ 需要 API Key (Authorization: Bearer) | ❌ 无需认证 |
+| **使用场景** | 云服务商 API (OpenAI, 硅基流动等) | 本地自部署模型 (vLLM 等) |
+| **配置前缀** | `OPENAI_` (单实例) | `SELFHOSTED_` (单实例) |
+| **并发支持** | ✅ 支持异步并行处理 | ✅ 支持异步并行处理 |
+| **重试机制** | ✅ 支持自动重试 | ✅ 支持自动重试 |
+
+#### 环境变量配置（单实例）
+
+配置示例（.env）：
+
+```bash
+UNIFILES_SERVICE_OCR_OPENAI_URL=https://api.openai.com/v1/chat/completions
+UNIFILES_SERVICE_OCR_OPENAI_API_KEY=sk-...      # Required
+UNIFILES_SERVICE_OCR_OPENAI_MODEL=gpt-4o        # Required
+UNIFILES_SERVICE_OCR_OPENAI_PROMPT=Extract all text content from the image and output in Markdown format
 ```
 
-2) 实现提供者：`ocr/providers/openai.py`
+**必需参数**：
+- `URL`: OpenAI 兼容 API 端点（通常是 `/v1/chat/completions`）
+- `API_KEY`: API 密钥（用于 Authorization: Bearer 认证）
+- `MODEL`: 模型名称
+- `PROMPT`: OCR 提示词
+
+为降低复杂度，OpenAI 供应商仅保留以上 4 个环境变量。并发/重试/超时等参数使用内部默认值。（多实例已移除，统一采用单实例配置）
+
+#### 使用示例
+
+##### 方式 1: 使用 OCRProcessor（推荐）
 
 ```python
-from ..base import BaseOCRProvider
-from ..config.openai import OpenAIConfig
+from unifiles.core.ocr import OCRProcessor
 
-class OpenAIOCRProvider(BaseOCRProvider):
-    def __init__(self, config: OpenAIConfig | None = None):
-        super().__init__(config or OpenAIConfig())
+processor = OCRProcessor('openai')
+text = processor.process_file('document.pdf')
+print(text)
 
-    def process_file(self, file_path):
-        raise NotImplementedError
-
-    def process_url(self, url: str) -> str:
-        raise NotImplementedError
-
-    def _extract_data_from_response(self, response):
-        raise NotImplementedError
-
-    def save_to_images(self, images, output_dir=None):
-        raise NotImplementedError
+# 单实例无需指定实例编号
 ```
 
-3) 在工厂注册：`ocr/factory.py`
+##### 方式 2: 直接使用 Provider（异步）
 
 ```python
-from .providers.openai import OpenAIOCRProvider
-from .config.openai import OpenAIConfig
+import asyncio
+from unifiles.core.ocr.providers.openai import OpenAIOCRProvider
+from unifiles.core.ocr.config.openai import OpenAIConfig
 
-_providers['openai'] = OpenAIOCRProvider
-_configs['openai'] = OpenAIConfig
+async def process_pdf():
+    config = OpenAIConfig()
+    provider = OpenAIOCRProvider(config)
+
+    # 定义进度回调（可选）
+    def progress_callback(page, total, status, msg):
+        print(f"Page {page}/{total}: {status}")
+
+    # 异步并行处理 PDF
+    result = await provider.aprocess_file_native(
+        'document.pdf',
+        progress_callback=progress_callback
+    )
+    return result
+
+text = asyncio.run(process_pdf())
+print(text)
 ```
+
+##### 方式 3: 在 FastAPI 中使用
+
+```python
+from fastapi import FastAPI
+from unifiles.core.ocr.providers.openai import OpenAIOCRProvider
+from unifiles.core.ocr.config.openai import OpenAIConfig
+
+app = FastAPI()
+
+@app.post("/ocr/process")
+async def process_document(file_path: str):
+    config = OpenAIConfig()
+    provider = OpenAIOCRProvider(config)
+
+    # 直接使用 await，充分利用异步特性
+    result = await provider.aprocess_file_native(file_path)
+
+    return {"content": result, "length": len(result)}
+```
+
+#### 测试脚本
+
+```bash
+# 基础测试
+python test/test_openai_ocr.py sample.pdf
+
+# 性能对比（同步 vs 异步）
+python test/test_openai_ocr.py sample.pdf --compare
+```
+
+#### 性能优化
+
+**异步并行处理** - 对于 PDF 文件，provider 会自动使用异步并行处理：
+- **同步处理**: 20 页 PDF 约需 200 秒（串行处理）
+- **异步并行**: 20 页 PDF 约需 50 秒（并发数=5 时）
+- **加速比**: 约 4x（取决于网络延迟和服务器响应速度）
+
+调优建议：
+- 根据 API 服务商的速率限制调整 `MAX_CONCURRENCY`
+- OpenAI 官方建议并发数 ≤ 10
+- 国内服务商（如硅基流动）建议并发数 5-10
+
+（消息体格式与 SelfHosted 相同，均为标准 OpenAI Chat Completions，差异在于是否需要 API Key）
+
+（常见兼容服务：OpenAI、硅基流动、通义千问等，使用各自的兼容端点与模型名称）
+
+#### 注意事项
+
+- 图片会自动编码为 base64 格式
+- 支持图片格式：JPEG, PNG, GIF, WebP
+- PDF 文件会自动转换为图片后异步并行处理
+- **需要 API Key 认证**（与 SelfHosted 的主要区别）
+- URL 处理不支持（因为需要 base64 编码）
+- 注意 API 调用成本和速率限制
+
+## 扩展新的供应商（指引）
+
+新增 Provider 时：
+- 在 `config/` 下添加对应配置类（继承 `BaseConfig`）
+- 在 `providers/` 下实现 `BaseOCRProvider` 协议
+- 在 `factory.py` 中注册 `provider` 与 `config`
 
 ## 设计约束与默认行为
 
 - 文件校验：默认限制大小 ≤ 10MB（`ocr/base.py:26`）。
 - 支持扩展名（目录处理）：`.pdf .png .jpg .jpeg .avif .pptx .docx`（`ocr/processor.py:61`、`ocr/processor.py:118`）。
 - 落盘规则：
-  - Markdown：`<源目录>/<文件名>.md`（`ocr/providers/mistral.py:65`）。
-  - 图片：`<源目录>/<文件名>_images/img-{i}.jpeg`（`ocr/providers/mistral.py:164` 及以下）。
+  - Markdown：`<源目录>/<文件名>.md`
+  - 图片：`<源目录>/<文件名>_images/img-{i}.jpeg`（Mistral 会返回图片，OpenAI/自部署只返回文本）
 - 异步策略：
   - Base 层提供线程封装的 `aprocess_*`；
   - Mistral 覆盖为 SDK 原生 `process_async`，I/O 采用 `asyncio.to_thread` 读取。
@@ -262,9 +344,9 @@ _configs['openai'] = OpenAIConfig
 
 ## 故障与排查
 
-- 未设置密钥：`MISTRAL_API_KEY` 缺失会在 `MistralConfig.validate()` 处报错并终止（`ocr/config/mistral.py:14`）。
-- 文件过大：超过 10MB 将在 `validate_file` 直接跳过。
-- 响应为空：当未返回任何 `pages.markdown` 时将返回空字符串并记录日志（`ocr/providers/mistral.py:156` 及附近）。
+- 环境变量缺失：各 Provider 的必填项（API Key/URL/Model/Prompt）未设置会导致 `validate()` 失败
+- 文件过大：超过 10MB 将在 `validate_file` 直接跳过
+- 响应为空：Provider 返回空内容时将记录日志并回退为空字符串
 
 ## 相关文件索引
 
@@ -272,5 +354,9 @@ _configs['openai'] = OpenAIConfig
 - `ocr/processor.py:9`
 - `ocr/factory.py:7`
 - `ocr/config/base.py:8`
-- `ocr/config/mistral.py:6`
-- `ocr/providers/mistral.py:13`
+- `ocr/config/mistral.py`
+- `ocr/config/selfhosted.py`
+- `ocr/config/openai.py`
+- `ocr/providers/mistral.py`
+- `ocr/providers/selfhosted.py`
+- `ocr/providers/openai.py`

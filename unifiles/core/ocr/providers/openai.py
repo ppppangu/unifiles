@@ -7,14 +7,14 @@ from loguru import logger
 from openai import AsyncOpenAI, OpenAI
 
 from ..base import BaseOCRProvider
-from ..config.selfhosted import SelfHostedConfig
+from ..config.openai import OpenAIConfig
 
 
-class SelfHostedOCRProvider(BaseOCRProvider):
-    """Self-hosted OCR provider (OpenAI-compatible)."""
+class OpenAIOCRProvider(BaseOCRProvider):
+    """OCR provider using OpenAI async SDK (Chat Completions)."""
 
-    def __init__(self, config: Optional[SelfHostedConfig] = None):
-        super().__init__(config or SelfHostedConfig())
+    def __init__(self, config: Optional[OpenAIConfig] = None):
+        super().__init__(config or OpenAIConfig())
 
     def _encode_image_to_base64(self, image_path: Path) -> Optional[str]:
         """Encode image file to base64 string."""
@@ -27,12 +27,10 @@ class SelfHostedOCRProvider(BaseOCRProvider):
 
     def _build_request_payload(self, image_path: Path) -> Optional[list]:
         """Build Chat Completions messages with base64 image and prompt."""
-        # Encode image to base64
         base64_image = self._encode_image_to_base64(image_path)
         if not base64_image:
             return None
 
-        # Determine image MIME type from extension
         ext = image_path.suffix.lower()
         mime_types = {
             ".jpg": "image/jpeg",
@@ -43,7 +41,6 @@ class SelfHostedOCRProvider(BaseOCRProvider):
         }
         mime_type = mime_types.get(ext, "image/jpeg")
 
-        # Build messages array
         return [
             {
                 "role": "user",
@@ -67,33 +64,42 @@ class SelfHostedOCRProvider(BaseOCRProvider):
 
     def _get_sync_client(self) -> OpenAI:
         base_url = self._normalize_base_url(self.config.get_url())
-        # Self-hosted may not require API key; pass a placeholder
-        return OpenAI(api_key="no-key", base_url=base_url)
+        return OpenAI(api_key=self.config.get_api_key(), base_url=base_url)
 
     def _get_async_client(self) -> AsyncOpenAI:
         base_url = self._normalize_base_url(self.config.get_url())
-        return AsyncOpenAI(api_key="no-key", base_url=base_url)
+        return AsyncOpenAI(api_key=self.config.get_api_key(), base_url=base_url)
 
-    def _send_request(self, messages: list) -> str:
+    def _send_request(self, payload: list) -> str:
         """Sync request via OpenAI SDK; returns text content."""
         try:
             client = self._get_sync_client()
             resp = client.chat.completions.create(
-                model=self.config.get_model(),
-                messages=messages,
-                temperature=self.config.get_temperature(),
-                max_tokens=self.config.get_max_tokens(),
+                model=self.config.get_model(), messages=payload
             )
             if resp.choices and resp.choices[0].message and resp.choices[0].message.content:
                 return resp.choices[0].message.content
-            logger.warning("Response has no choices")
+            logger.warning("OpenAI response has no content")
             return ""
         except Exception as e:
-            logger.error(f"Self-hosted sync request failed: {e!s}")
+            logger.error(f"OpenAI sync request failed: {e!s}")
             return ""
 
+    # --------------------
+    # Public API
+    # --------------------
     def process_file(self, file_path: Union[str, Path]) -> str:
-        """Process local file with OCR (PDF per-page; images direct)."""
+        """Process local file with OCR.
+
+        For PDFs: renders pages to images and processes each page
+        For images: processes directly
+
+        Args:
+            file_path: Path to the file
+
+        Returns:
+            Extracted text in Markdown format
+        """
         if not self.config.validate():
             return ""
 
@@ -119,7 +125,12 @@ class SelfHostedOCRProvider(BaseOCRProvider):
         return self._send_request(payload)
 
     def process_url(self, url: str) -> str:
-        """Not supported (service expects base64 images)."""
+        """Process file from URL with OCR.
+
+        Note: OpenAI-compatible API expects base64 encoded images,
+        so URL processing is not supported. Download the file first
+        and use process_file() instead.
+        """
         logger.warning(
             "URL processing not supported for OpenAI-compatible format. "
             "Please download the file and use process_file() instead."
@@ -131,7 +142,19 @@ class SelfHostedOCRProvider(BaseOCRProvider):
         file_path: Union[str, Path],
         progress_callback: Optional[Callable[[int, int, str, str], None]] = None,
     ) -> str:
-        """Async OCR for local file (parallel PDF page processing)."""
+        """Process local file with OCR using native async implementation.
+
+        For PDFs: renders pages to images and processes each page in parallel
+        For images: processes directly (synchronous, wrapped in async)
+
+        Args:
+            file_path: Path to the file
+            progress_callback: Optional callback for progress updates (PDF only)
+                Called with (current_page, total_pages, status, message)
+
+        Returns:
+            Extracted text in Markdown format
+        """
         if not self.config.validate():
             return ""
 
@@ -156,24 +179,31 @@ class SelfHostedOCRProvider(BaseOCRProvider):
         try:
             client = self._get_async_client()
             resp = await client.chat.completions.create(
-                model=self.config.get_model(),
-                messages=messages,
-                temperature=self.config.get_temperature(),
-                max_tokens=self.config.get_max_tokens(),
+                model=self.config.get_model(), messages=messages
             )
             if resp.choices and resp.choices[0].message and resp.choices[0].message.content:
                 return resp.choices[0].message.content
             return ""
         except Exception as e:
-            logger.error(f"Self-hosted async request failed: {e!s}")
+            logger.error(f"OpenAI async request failed: {e!s}")
             return ""
 
-    
+    # --------------------
+    # PDF processing
+    # --------------------
     def _process_pdf(self, pdf_path: Path) -> str:
-        """Render PDF pages to images and OCR each page."""
+        """Render PDF pages to images and OCR each page.
+
+        Args:
+            pdf_path: Path to PDF file
+
+        Returns:
+            Combined text from all pages
+        """
         texts: List[str] = []
         try:
             import warnings
+
             import pdfplumber
 
             warnings.filterwarnings("ignore", category=UserWarning, module="pdfminer")
@@ -224,30 +254,33 @@ class SelfHostedOCRProvider(BaseOCRProvider):
 
         return "\n\n---\n\n".join(texts)
 
-    
+    # --------------------
+    # Async PDF processing with concurrency control
+    # --------------------
     async def _send_request_async(self, payload: list) -> str:
         """Async request via OpenAI SDK; returns text content."""
-        try:
-            client = self._get_async_client()
-            resp = await client.chat.completions.create(
-                model=self.config.get_model(),
-                messages=payload,
-                temperature=self.config.get_temperature(),
-                max_tokens=self.config.get_max_tokens(),
-            )
-            if resp.choices and resp.choices[0].message and resp.choices[0].message.content:
-                return resp.choices[0].message.content
-            logger.warning("Response has no choices")
-            return ""
-        except Exception as e:
-            logger.error(f"Self-hosted async request failed: {e!s}")
-            raise
+        client = self._get_async_client()
+        resp = await client.chat.completions.create(
+            model=self.config.get_model(), messages=payload
+        )
+        if resp.choices and resp.choices[0].message and resp.choices[0].message.content:
+            return resp.choices[0].message.content
+        logger.warning("OpenAI response has no content")
+        return ""
 
     async def _send_request_with_retry(
-        self, payload: list, page_num: int
+        self, payload: dict, page_num: int
     ) -> Tuple[int, str]:
-        """Send request with retry mechanism."""
-        max_retries = self.config.get_max_retries()
+        """Send request with retry mechanism.
+
+        Args:
+            payload: Request payload dict
+            page_num: Page number (for logging and result ordering)
+
+        Returns:
+            Tuple of (page_num, extracted_text)
+        """
+        max_retries = 2  # internal default
 
         for attempt in range(max_retries + 1):
             try:
@@ -281,7 +314,18 @@ class SelfHostedOCRProvider(BaseOCRProvider):
         progress_callback: Optional[Callable[[int, int, str, str], None]] = None,
         total_pages: int = 0,
     ) -> Tuple[int, str]:
-        """Process a single page with concurrency control."""
+        """Process a single page with concurrency control.
+
+        Args:
+            page_num: Page number (1-indexed)
+            img_path: Path to the page image
+            semaphore: Semaphore for concurrency control
+            progress_callback: Optional callback for progress updates
+            total_pages: Total number of pages (for progress reporting)
+
+        Returns:
+            Tuple of (page_num, extracted_text)
+        """
         async with semaphore:
             try:
                 if progress_callback:
@@ -335,7 +379,16 @@ class SelfHostedOCRProvider(BaseOCRProvider):
         pdf_path: Path,
         progress_callback: Optional[Callable[[int, int, str, str], None]] = None,
     ) -> str:
-        """Render PDF pages to images and OCR each page in parallel."""
+        """Render PDF pages to images and OCR each page in parallel.
+
+        Args:
+            pdf_path: Path to PDF file
+            progress_callback: Optional callback function called with
+                (current_page, total_pages, status, message)
+
+        Returns:
+            Combined text from all pages in original order
+        """
         try:
             import warnings
             import pdfplumber
@@ -382,7 +435,7 @@ class SelfHostedOCRProvider(BaseOCRProvider):
                 return ""
 
             # Step 2: Process all pages in parallel with concurrency control
-            max_concurrency = self.config.get_max_concurrency()
+            max_concurrency = 5  # internal default
             semaphore = asyncio.Semaphore(max_concurrency)
 
             logger.info(
@@ -426,13 +479,15 @@ class SelfHostedOCRProvider(BaseOCRProvider):
             logger.error(f"Async PDF processing failed: {e!s}")
             return ""
 
-    
+    # --------------------
+    # Abstract requirements (no-op)
+    # --------------------
     def _extract_data_from_response(self, response: Any) -> Tuple[str, List[Any]]:
-        """Not used; parsing handled in _send_request()."""
+        """Not used - response parsing is handled in _send_request()"""
         return "", []
 
     def save_to_images(
         self, images: List[Any], output_dir: Optional[Union[str, Path]] = None
     ) -> None:
-        """Not used; no images extracted from text-only responses."""
+        """Not used - no images extracted from text-only responses"""
         return
