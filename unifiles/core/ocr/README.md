@@ -89,45 +89,103 @@ async def main():
 asyncio.run(main())
 ```
 
-### 自部署 HTTP 服务（SelfHosted）
+### 自部署 OCR 服务（SelfHosted）
 
-环境变量（.env）：
+#### 环境变量配置
 
+配置示例（.env）：
+
+```bash
+# Qwen3-VL 示例（通过 vLLM 部署）
+UNIFILES_SERVICE_OCR_SELFHOSTED_0_URL=http://localhost:8012/v1/chat/completions
+UNIFILES_SERVICE_OCR_SELFHOSTED_0_MODEL=qwen3vl-2b
+UNIFILES_SERVICE_OCR_SELFHOSTED_0_PROMPT=请识别图片中的所有文字内容，包括表格、列表等结构化内容。请使用 Markdown 格式输出，保持原有的段落结构和格式。
+UNIFILES_SERVICE_OCR_SELFHOSTED_0_TEMPERATURE=0.7       # 可选，默认 0.7
+UNIFILES_SERVICE_OCR_SELFHOSTED_0_MAX_TOKENS=2048       # 可选，默认 2048
 ```
-UNIFILES_SERVICE_OCR_SELFHOSTED_0_URL=http://192.168.132.149:1288/infer
-UNIFILES_SERVICE_OCR_SELFHOSTED_0_PROMPT=请输出版面元素的JSON（含bbox/category/text）
+
+**必需参数**：
+- `URL`: OpenAI 兼容 API 端点（通常是 `/v1/chat/completions`）
+- `MODEL`: 模型名称（需与 vLLM `--served-model-name` 参数一致）
+- `PROMPT`: OCR 提示词
+
+**可选参数**：
+- `TEMPERATURE`: 生成温度（默认 0.7）
+- `MAX_TOKENS`: 最大生成 tokens（默认 2048）
+
+#### 多实例配置
+
+支持配置多个实例（实例编号：0, 1, 2, ...）：
+
+```bash
+# 实例 0: Qwen3-VL 2B
+UNIFILES_SERVICE_OCR_SELFHOSTED_0_URL=http://localhost:8012/v1/chat/completions
+UNIFILES_SERVICE_OCR_SELFHOSTED_0_MODEL=qwen3vl-2b
+UNIFILES_SERVICE_OCR_SELFHOSTED_0_PROMPT=请识别文字并输出 Markdown
+
+# 实例 1: Qwen2-VL 7B
+UNIFILES_SERVICE_OCR_SELFHOSTED_1_URL=http://192.168.1.100:8013/v1/chat/completions
+UNIFILES_SERVICE_OCR_SELFHOSTED_1_MODEL=qwen2-vl-7b
+UNIFILES_SERVICE_OCR_SELFHOSTED_1_PROMPT=Extract all text with structure
 ```
 
-注意：自部署 OCR 需要设置完整的 URL 与 PROMPT 两个环境变量，其他行为如下：
-- 请求体总是携带 `prompt`
-- `image_path` 可传本地路径或可访问的 URL
-- 无需认证
-- 返回内容按字符串直返（不做 JSON 字段抽取/不下载外链）
-
-调用：
+#### 使用示例
 
 ```python
 from unifiles.core.ocr import OCRProcessor
+from unifiles.core.ocr.config.selfhosted import SelfHostedConfig
 
-# 使用工厂创建自部署 Provider
+# 方式 1: 使用默认实例（实例 0）
 processor = OCRProcessor('selfhosted')
+text = processor.process_file('document.png')
+print(text)
 
-# 处理本地图片（path 模式会直接传递本地路径，需服务端可访问该路径）
-md = processor.process_file('demo/222.png')
+# 方式 2: 指定实例编号
+config = SelfHostedConfig(instance_id=1)
+processor = OCRProcessor('selfhosted', config=config)
+text = processor.process_file('image.jpg')
+print(text)
 
-# 或以 URL 方式（服务端可访问该 URL）
-md2 = processor.process_url('http://host/path/to/222.png')
-
-print(md[:500])
+# 支持 PDF（自动分页处理）
+text = processor.process_file('report.pdf')
 ```
 
-服务端接口默认假设：`POST <URL>`，JSON 请求体：
+#### 技术细节
 
-```
-{"image_path": "<path-or-url>", "prompt": "..."}
+**请求格式**：OpenAI Chat Completion 格式
+```json
+{
+  "model": "qwen3vl-2b",
+  "messages": [{
+    "role": "user",
+    "content": [
+      {"type": "image_url", "image_url": {"url": "data:image/jpeg;base64,..."}},
+      {"type": "text", "text": "请识别图片中的文字..."}
+    ]
+  }],
+  "temperature": 0.7,
+  "max_tokens": 2048,
+  "stream": false
+}
 ```
 
-响应处理：模块直接返回响应文本（`resp.text`）。如服务端返回 JSON，需要由调用方自行解析。
+**响应格式**：标准 OpenAI 响应
+```json
+{
+  "choices": [{
+    "message": {
+      "content": "识别的文字内容..."
+    }
+  }]
+}
+```
+
+**注意事项**：
+- 图片会自动编码为 base64 格式
+- 支持图片格式：JPEG, PNG, GIF, WebP
+- PDF 文件会自动转换为图片后逐页处理
+- 无需认证（如需认证，请在服务端实现）
+- URL 处理不支持（因为需要 base64 编码）
 
 运行示例脚本：
 
