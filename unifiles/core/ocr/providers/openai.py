@@ -51,9 +51,7 @@ class OpenAIOCRProvider(BaseOCRProvider):
                 "content": [
                     {
                         "type": "image_url",
-                        "image_url": {
-                            "url": f"data:{mime_type};base64,{base64_image}"
-                        },
+                        "image_url": {"url": f"data:{mime_type};base64,{base64_image}"},
                     },
                     {"type": "text", "text": self.config.get_prompt()},
                 ],
@@ -81,7 +79,11 @@ class OpenAIOCRProvider(BaseOCRProvider):
             resp = client.chat.completions.create(
                 model=self.config.get_model(), messages=payload
             )
-            if resp.choices and resp.choices[0].message and resp.choices[0].message.content:
+            if (
+                resp.choices
+                and resp.choices[0].message
+                and resp.choices[0].message.content
+            ):
                 return resp.choices[0].message.content
             logger.warning("OpenAI response has no content")
             return ""
@@ -187,7 +189,11 @@ class OpenAIOCRProvider(BaseOCRProvider):
             resp = await client.chat.completions.create(
                 model=self.config.get_model(), messages=messages
             )
-            if resp.choices and resp.choices[0].message and resp.choices[0].message.content:
+            if (
+                resp.choices
+                and resp.choices[0].message
+                and resp.choices[0].message.content
+            ):
                 return resp.choices[0].message.content
             return ""
         except Exception as e:
@@ -247,8 +253,7 @@ class OpenAIOCRProvider(BaseOCRProvider):
 
                         text = self._send_request(payload)
                         if text and text.strip():
-                            header = f"## Page {i + 1}\n\n" if page_count > 1 else ""
-                            texts.append(header + text.strip())
+                            texts.append(text.strip())
 
                     except Exception as e:
                         logger.warning(f"Failed to OCR page {i + 1}: {e!s}")
@@ -303,7 +308,7 @@ class OpenAIOCRProvider(BaseOCRProvider):
                     return (page_num, "")
 
                 # Exponential backoff
-                wait_time = 2 ** attempt
+                wait_time = 2**attempt
                 logger.warning(
                     f"Page {page_num} attempt {attempt + 1} failed, "
                     f"retrying in {wait_time}s: {e!s}"
@@ -336,8 +341,10 @@ class OpenAIOCRProvider(BaseOCRProvider):
             try:
                 if progress_callback:
                     progress_callback(
-                        page_num, total_pages, "processing",
-                        f"Processing page {page_num}/{total_pages}"
+                        page_num,
+                        total_pages,
+                        "processing",
+                        f"Processing page {page_num}/{total_pages}",
                     )
 
                 # Build request payload
@@ -346,8 +353,10 @@ class OpenAIOCRProvider(BaseOCRProvider):
                     logger.warning(f"Failed to build request for page {page_num}")
                     if progress_callback:
                         progress_callback(
-                            page_num, total_pages, "failed",
-                            f"Failed to build request for page {page_num}"
+                            page_num,
+                            total_pages,
+                            "failed",
+                            f"Failed to build request for page {page_num}",
                         )
                     return (page_num, "")
 
@@ -359,24 +368,29 @@ class OpenAIOCRProvider(BaseOCRProvider):
                 if text and text.strip():
                     if progress_callback:
                         progress_callback(
-                            page_num, total_pages, "completed",
-                            f"Completed page {page_num}/{total_pages}"
+                            page_num,
+                            total_pages,
+                            "completed",
+                            f"Completed page {page_num}/{total_pages}",
                         )
                     return (page_num_result, text.strip())
-                else:
-                    if progress_callback:
-                        progress_callback(
-                            page_num, total_pages, "failed",
-                            f"No text extracted from page {page_num}"
-                        )
-                    return (page_num_result, "")
+                if progress_callback:
+                    progress_callback(
+                        page_num,
+                        total_pages,
+                        "failed",
+                        f"No text extracted from page {page_num}",
+                    )
+                return (page_num_result, "")
 
             except Exception as e:
                 logger.error(f"Failed to process page {page_num}: {e!s}")
                 if progress_callback:
                     progress_callback(
-                        page_num, total_pages, "failed",
-                        f"Error processing page {page_num}: {e!s}"
+                        page_num,
+                        total_pages,
+                        "failed",
+                        f"Error processing page {page_num}: {e!s}",
                     )
                 return (page_num, "")
 
@@ -397,6 +411,7 @@ class OpenAIOCRProvider(BaseOCRProvider):
         """
         try:
             import warnings
+
             import pdfplumber
 
             warnings.filterwarnings("ignore", category=UserWarning, module="pdfminer")
@@ -473,8 +488,7 @@ class OpenAIOCRProvider(BaseOCRProvider):
             texts: List[str] = []
             for page_num, text in page_texts:
                 if text:
-                    header = f"## Page {page_num}\n\n" if page_count > 1 else ""
-                    texts.append(header + text)
+                    texts.append(text)
 
             logger.info(
                 f"Async PDF processing completed: {len(texts)}/{page_count} pages extracted"
