@@ -14,6 +14,7 @@ from .knowledge_base_manager import unified_kb_db_manager
 from .user_manager import UserDBManager as UnifiedUserDBManager
 from .user_manager import unified_user_db_manager
 from .unified_manager import UnifiedDatabaseManager, unified_db_manager
+from .async_task_manager import AsyncTaskManager, async_task_manager
 
 # Legacy managers (deprecated, for backward compatibility)
 from .deprecated.base import DatabaseManager as LegacyDatabaseManager
@@ -67,6 +68,8 @@ __all__ = [
     "unified_user_db_manager",
     "UnifiedExtractionDBManager",
     "extraction_db_manager",
+    "AsyncTaskManager",
+    "async_task_manager",
     # Connection pool
     "DatabaseConnectionPool",
     "get_connection_pool",

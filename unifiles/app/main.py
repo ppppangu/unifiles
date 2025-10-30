@@ -23,7 +23,7 @@ from unifiles.app.middlewares import (
 )
 
 # 导入API路由
-from unifiles.app.routers import knowledge_bases, manager, processors, unifiles, users
+from unifiles.app.routers import knowledge_bases, manager, processors, tasks, unifiles, users
 from unifiles.app.schemas import StandardResponse
 
 # 导入核心工具
@@ -95,6 +95,7 @@ def create_app() -> FastAPI:
     # 包含API路由
     app.include_router(unifiles.router)
     app.include_router(processors.router)
+    app.include_router(tasks.router)
     app.include_router(knowledge_bases.router)
     app.include_router(manager.router)
     app.include_router(users.router)

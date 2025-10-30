@@ -9,26 +9,32 @@ from unifiles.app.schemas import (
     ExtractedContent,
     FileExtractRequest,
     FileExtractResponse,
+    TaskSubmitResponse,
 )
 from unifiles.core.services.document_processor import get_document_processor
+from unifiles.core.database import async_task_manager, unified_file_db_manager
+from unifiles.core.celery.tasks import process_file_extraction_task
 
 # Note: The prefix is /files, but these are processing actions.
 # A different prefix like /processors/{file_id} could be a future refactor.
 router = APIRouter(prefix="/files", tags=["Processors"])
 
 
-@router.post("/{file_id}/extract", response_model=FileExtractResponse)
+@router.post("/{file_id}/extract", response_model=TaskSubmitResponse)
 async def extract_file_content(
     request: Request,
     file_id: str = FastAPIPath(..., description="文件ID"),
     extract_request: FileExtractRequest = FileExtractRequest(),
-) -> FileExtractResponse:
+) -> TaskSubmitResponse:
     """
-    提取文件内容
+    提取文件内容（异步）
+
+    该端点会立即返回任务ID，实际提取工作在后台 Celery Worker 中执行。
+    使用 GET /tasks/{task_id} 查询任务状态和进度。
 
     支持多种提取模式：
     - simple: 使用pdfplumber进行基础文本提取
-    - mistral/mineru/selfhosted: 使用指定的OCR提供商进行多模态提取
+    - mistral/mineru/selfhosted/openai: 使用指定的OCR提供商进行多模态提取
 
     Args:
         request: FastAPI请求对象（包含user_id）
@@ -36,63 +42,76 @@ async def extract_file_content(
         extract_request: 提取请求参数
 
     Returns:
-        FileExtractResponse: 提取结果
+        TaskSubmitResponse: 包含任务ID的响应
 
     Raises:
         HTTPException: 404 - 文件不存在
         HTTPException: 403 - 权限不足
-        HTTPException: 500 - 提取失败
+        HTTPException: 500 - 任务创建失败
     """
     try:
         user_id = request.state.user_id
         logger.info(
-            f"Extracting file {file_id} for user {user_id} with mode: {extract_request.mode}"
+            f"Submitting extraction task for file {file_id}, user {user_id}, mode: {extract_request.mode}"
         )
 
-        # 调用文档处理服务
-        processor = get_document_processor()
-        result = await processor.process_file_by_id(
-            file_id=file_id,
+        # 验证文件存在且用户有权限访问
+        file_record = await unified_file_db_manager.get_file_record(file_id)
+        if not file_record:
+            raise HTTPException(status_code=404, detail=f"File not found: {file_id}")
+
+        if file_record["user_id"] != user_id:
+            raise HTTPException(
+                status_code=403,
+                detail="Access denied: file belongs to another user",
+            )
+
+        # 创建异步任务记录
+        task_id = await async_task_manager.create_task(
+            task_type="extraction",
             user_id=user_id,
-            mode=extract_request.mode,
+            entity_type="file",
+            entity_id=file_id,
+            input_params={
+                "file_id": file_id,
+                "mode": extract_request.mode,
+                "filename": file_record.get("filename", "unknown"),
+            },
+            priority=5,
         )
 
-        # 构建响应
-        now = datetime.now().isoformat()
-        extracted_content = ExtractedContent(
-            file_id=file_id,
-            extraction_id=result["extraction_id"],
-            content_type=result["content_type"],
-            extracted_text=result.get("extracted_text"),
-            markdown_content=result.get("markdown_content"),
-            structured_data=result.get("structured_data"),
-            extraction_metadata={
-                "mode": extract_request.mode,
-                "processed_at": now,
-            },
-            extraction_strategy=f"OCR-{extract_request.mode}",
-            status="completed",
-            created_at=now,
+        logger.info(f"Created async task: {task_id} for file {file_id}")
+
+        # 提交 Celery 任务
+        celery_task = process_file_extraction_task.apply_async(
+            args=[file_id, user_id, task_id, extract_request.mode],
+            task_id=task_id,  # 使用数据库任务ID作为Celery任务ID
         )
 
         logger.info(
-            f"File {file_id} extracted successfully, extraction_id: {result['extraction_id']}"
+            f"Submitted Celery task: {celery_task.id} for file {file_id}"
         )
 
-        return FileExtractResponse(
-            success=True,
-            message="File content extracted successfully",
-            extracted_content=extracted_content,
+        # 更新任务状态为 queued
+        await async_task_manager.update_task_status(
+            task_id=task_id,
+            status="queued",
+            progress_message="Task queued in RabbitMQ",
+        )
+
+        return TaskSubmitResponse(
+            task_id=task_id,
+            status="queued",
+            message="Extraction task submitted successfully. Use GET /tasks/{task_id} to check status.",
+            file_id=file_id,
+            entity_id=file_id,
         )
 
     except HTTPException:
         raise
-    except ValueError as e:
-        logger.error(f"File not found or invalid: {file_id} - {e}")
-        raise HTTPException(status_code=404, detail=str(e))
-    except PermissionError as e:
-        logger.error(f"Permission denied for file {file_id}: {e}")
-        raise HTTPException(status_code=403, detail=str(e))
     except Exception as e:
-        logger.exception(f"Unexpected error extracting file {file_id}")
-        raise HTTPException(status_code=500, detail=f"Content extraction failed: {e!s}")
+        logger.exception(f"Failed to submit extraction task for file {file_id}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to submit extraction task: {e!s}",
+        )

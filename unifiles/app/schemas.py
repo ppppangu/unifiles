@@ -291,3 +291,76 @@ class AccessKeyListResponse(BaseModel):
     success: bool = Field(description="是否成功")
     message: str = Field(description="响应消息")
     access_keys: List[AccessKeyInfo] = Field(description="访问密钥列表")
+
+
+# ========== Async Tasks 异步任务相关模型 ==========
+class TaskSubmitResponse(BaseModel):
+    """异步任务提交响应"""
+
+    task_id: str = Field(description="任务ID")
+    status: str = Field(description="任务状态（queued）")
+    message: str = Field(description="响应消息")
+    file_id: Optional[str] = Field(default=None, description="关联的文件ID")
+    entity_id: Optional[str] = Field(default=None, description="关联的实体ID")
+
+
+class TaskStatusResponse(BaseModel):
+    """任务状态响应"""
+
+    task_id: str = Field(description="任务ID")
+    task_type: str = Field(description="任务类型")
+    status: str = Field(
+        description="任务状态: pending|queued|processing|completed|failed|cancelled|timeout"
+    )
+    progress_percent: int = Field(description="进度百分比（0-100）")
+    progress_message: Optional[str] = Field(
+        default=None, description="当前阶段描述"
+    )
+    entity_type: Optional[str] = Field(default=None, description="实体类型")
+    entity_id: Optional[str] = Field(default=None, description="实体ID")
+    created_at: str = Field(description="任务创建时间")
+    started_at: Optional[str] = Field(default=None, description="任务开始时间")
+    completed_at: Optional[str] = Field(default=None, description="任务完成时间")
+    error_message: Optional[str] = Field(default=None, description="错误消息（如果失败）")
+    retry_count: Optional[int] = Field(default=0, description="已重试次数")
+    max_retries: Optional[int] = Field(default=3, description="最大重试次数")
+
+
+class TaskResultResponse(BaseModel):
+    """任务结果响应"""
+
+    task_id: str = Field(description="任务ID")
+    status: str = Field(description="任务状态")
+    result_data: Optional[Dict[str, Any]] = Field(
+        default=None, description="任务结果数据"
+    )
+    extracted_content: Optional[ExtractedContent] = Field(
+        default=None, description="提取的内容（如果是提取任务）"
+    )
+
+
+class TaskInfo(BaseModel):
+    """任务信息（列表用）"""
+
+    task_id: str = Field(description="任务ID")
+    task_type: str = Field(description="任务类型")
+    status: str = Field(description="任务状态")
+    progress_percent: int = Field(description="进度百分比")
+    progress_message: Optional[str] = Field(default=None, description="进度消息")
+    entity_type: Optional[str] = Field(default=None, description="实体类型")
+    entity_id: Optional[str] = Field(default=None, description="实体ID")
+    created_at: str = Field(description="创建时间")
+    started_at: Optional[str] = Field(default=None, description="开始时间")
+    completed_at: Optional[str] = Field(default=None, description="完成时间")
+    error_message: Optional[str] = Field(default=None, description="错误消息")
+    priority: Optional[int] = Field(default=5, description="优先级（1-10）")
+
+
+class TaskListResponse(BaseModel):
+    """任务列表响应"""
+
+    success: bool = Field(description="是否成功")
+    message: str = Field(description="响应消息")
+    tasks: List[TaskInfo] = Field(description="任务列表")
+    total_count: int = Field(description="总任务数")
+    has_more: bool = Field(description="是否有更多数据")

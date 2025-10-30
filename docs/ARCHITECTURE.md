@@ -53,36 +53,53 @@ graph TB
 ### 2.2 数据处理流程
 
 从文件上传到知识库查询的完整数据流如下：
-
 ```mermaid
 graph TD
-    %% 输入层
-    A[用户上传文件] --> B[Files 表]
-    
-    %% 文件管理层
-    B --> C[文件处理队列]
-    C --> D[File Processing Logs]
-    
-    %% 内容提取层
-    C --> E[内容提取引擎<br/>(格式转换, OCR)]
-    E --> F[Extracted Contents 表<br/>存储完整Markdown]
-    E --> G[Extraction Assets 表<br/>存储图片等资源]
-    
-    %% 知识库层
-    H[用户创建知识库] --> I[Knowledge Bases 表]
-    F --> J[文档索引到知识库]
-    I --> J
-    J --> K[Documents 表<br/>引用Extracted Contents]
-    K --> L[分块策略应用]
-    L --> M[Chunks 表<br/>生成文档块及向量]
-    G --> N[Document Assets<br/>资源引用]
-    K --> N
-    
-    %% 查询层
-    O[用户查询] --> P[向量搜索]
-    P --> M
-    M --> Q[返回相关Chunks]
-    Q --> R[组装完整响应]
+    subgraph "第一步: 文件上传"
+        direction LR
+        A["用户上传文件<br/>(POST /files)"] --> S1{FileService};
+        S1 --> |步骤1: 如需转换| CONV[格式转换为PDF];
+        S1 --> |步骤2: 上传至对象存储| MINIO[(MinIO)];
+        CONV --> MINIO;
+        MINIO --> S1;
+        S1 --> |步骤3: 写入数据库| F_TBL[files 表];
+        S1 --> |步骤4: 记录日志| LOG_TBL[file_processing_logs 表];
+    end
+
+    subgraph "第二步: 内容提取"
+        direction LR
+        B["用户触发提取<br/>(POST /files/{file_id}/extract)"] --> S2{DocumentProcessingService};
+        S2 --> |步骤1: 从files表获取路径| F_TBL;
+        F_TBL --> S2;
+        S2 --> |步骤2: 读取文件| MINIO;
+        S2 --> |步骤3: OCR与内容处理| OCR[内容提取引擎];
+        OCR --> |步骤4: 保存提取结果| ED_TBL["extracted_documents 表<br/>存储完整Markdown"];
+        OCR --> |步骤5: 保存图片资源| EA_TBL[extracted_assets 表];
+    end
+
+    subgraph "第三步: 文档索引"
+        direction LR
+        C["用户创建知识库<br/>(POST /knowledge-bases)"] --> KB_TBL[knowledge_bases 表];
+        D["用户索引文档<br/>(POST /kbs/{kb_id}/documents)"] --> S3{DocumentIndexingService};
+        S3 --> |步骤1: 读取Markdown| ED_TBL;
+        S3 --> |步骤2: 创建文档记录| DOC_TBL[documents 表];
+        KB_TBL --> DOC_TBL;
+        ED_TBL --> DOC_TBL;
+        S3 --> |步骤3: 应用分块策略| CHUNK_SVC[分块服务];
+        CHUNK_SVC --> |步骤4: 嵌入与存储| EMBED_SVC[嵌入服务];
+        EMBED_SVC --> COMP_TBL["components 表<br/>(含向量)"];
+        DOC_TBL --> COMP_TBL;
+        COMP_TBL --> |子表| CHUNKS_TBL[chunks 表];
+        COMP_TBL --> |子表| PHOTOS_TBL[photos 表];
+    end
+
+    subgraph "第四步: 知识库查询"
+        direction LR
+        E["用户查询<br/>(POST /kbs/{kb_id}/search)"] --> S4{SearchService};
+        S4 --> |向量搜索| COMP_TBL;
+        COMP_TBL --> S4;
+        S4 --> F_OUT[返回相关Chunks];
+    end
 ```
 
 ## 3. 文档处理流水线 (Pipeline)
@@ -128,70 +145,25 @@ graph TD
 
 系统的核心数据模型围绕文档处理流程设计，确保数据结构的清晰和一致。
 
-```mermaid
-erDiagram
-    users {
-        uuid id PK
-        string username
-    }
-    
-    files {
-        uuid id PK
-        uuid user_id FK
-        string filename
-        string file_path
-        string status
-    }
-    
-    extracted_contents {
-        uuid id PK
-        uuid file_id FK
-        text markdown_content
-    }
-    
-    knowledge_bases {
-        uuid id PK
-        uuid user_id FK
-        string name
-    }
-    
-    documents {
-        uuid id PK
-        uuid knowledge_base_id FK
-        uuid extracted_content_id FK
-        string title
-    }
-    
-    chunks {
-        uuid id PK
-        uuid document_id FK
-        text content
-        vector embedding
-    }
-    
-    users ||--o{ files : owns
-    users ||--o{ knowledge_bases : owns
-    files ||--|| extracted_contents : "extracts to"
-    extracted_contents ||--o{ documents : "referenced by"
-    knowledge_bases ||--o{ documents : contains
-    documents ||--o{ chunks : "split into"
-```
-
 ### 关键实体说明
-- **User**: 系统用户。
-- **File**: 用户上传的原始文件记录。
-- **ExtractedContent**: 从原始文件中提取的、标准化的Markdown内容。这是实现“一次提取，多次使用”的关键。
-- **KnowledgeBase**: 用户创建的知识库，作为文档的组织单元。
-- **Document**: 知识库中的一个文档条目，它引用一个`ExtractedContent`，并定义了该内容的特定处理方式（如分块策略）。
-- **Chunk**: `Document`被分割后的最小单元，包含内容和对应的向量，是检索的基本单位。
+- **UserModel**: 系统用户。
+- **AccessKeyModel**: 用户访问密钥。
+- **FileModel**: 用户上传的原始文件记录。
+- **ExtractedDocumentModel**: 从原始文件中提取的、标准化的Markdown内容。这是实现“一次提取，多次使用”的关键。
+- **ExtractedAssetModel**: 从文档中提取的资源（如图片）。
+- **KnowledgeBaseModel**: 用户创建的知识库，作为文档的组织单元。
+- **DocumentModel**: 知识库中的一个文档条目，它引用一个`ExtractedContent`，并定义了该内容的特定处理方式（如分块策略）。
+- **ComponentModel**: `Document`被分割后的最小单元的抽象，是检索的基本单位。
+- **ChunkModel**: 文本类型的组件。
+- **PhotoModel**: 图片类型的组件。
 
 ## 5. 数据库设计
 
 数据库采用PostgreSQL，并利用 `pgvector` 扩展进行高效的向量存储和检索。
 
 ### 设计原则
-- **零冗余**: `extracted_contents` 表作为内容的唯一真实来源，避免了在不同知识库中重复存储相同内容。
-- **高灵活性**: 同一个 `extracted_contents` 可以被多个 `documents` 引用，每个 `document` 可以采用不同的分块策略生成不同的 `chunks` 集合，以适应不同场景。
+- **零冗余**: `ExtractedDocumentModel` 表作为内容的唯一真实来源，避免了在不同知识库中重复存储相同内容。
+- **高灵活性**: 同一个 `ExtractedDocumentModel` 可以被多个 `DocumentModel` 引用，每个 `DocumentModel` 可以采用不同的分块策略生成不同的 `ComponentModel` 集合，以适应不同场景。
 - **关系清晰**: 表结构严格按照“文件 -> 提取内容 -> 知识库文档 -> 分块”的逻辑层次设计，关系清晰，易于维护。
 
 通过这种设计，系统在保证数据一致性的同时，实现了极高的灵活性和存储效率。
@@ -293,16 +265,22 @@ graph TB
 ├── 文档索引和向量化
 ├── 知识检索和查询
 └── 分块策略管理
+
+第四层: 用户和系统管理服务 (User and System Management Layer)
+├── 用户管理
+├── 访问密钥管理
+└── 系统状态监控
 ```
 
-## 8.
+## 8. API Endpoints
+
 ### 架构原则
 - **分层解耦**：每层职责明确，接口清晰
 - **异步处理**：所有IO操作异步化
 - **快速响应**：接口秒返回，后台异步处理
 - **可扩展性**：支持水平扩展和微服务化
 
-### 第一层：文件上传和管理服务 (File Management Layer)
+### 文件管理服务 (`unifiles.py`)
 
 **职责**：
 - 文件上传、下载、删除
@@ -312,17 +290,12 @@ graph TB
 
 **核心端点**：
 - `POST /files` - 文件上传（秒返回）
+- `GET /files` - 获取用户文件列表
 - `GET /files/{file_id}` - 获取文件信息
-- `GET /files/{file_id}/download` - 文件下载
 - `DELETE /files/{file_id}` - 删除文件
 - `GET /files/types` - 支持的文件类型
 
-**技术实现**：
-- 基于现有的 `unifiles/app/v1/routers/unifiles.py`
-- 使用 `unifiles/core/storage.py` 的MinIO存储管理
-- 异步文件上传，立即返回文件ID和状态
-
-### 第二层：文件处理服务 (File Processing Layer)
+### 文件处理服务 (`processors.py`)
 
 **职责**：
 - 文件格式验证和转换
@@ -331,14 +304,9 @@ graph TB
 - 处理状态管理
 
 **核心端点**：
-- `POST /processors/extract` - 启动文件内容提取
+- `POST /files/{file_id}/extract` - 启动文件内容提取
 
-**技术实现**：
-- 基于现有的 `unifiles/core/services/document_processor.py`
-- 使用 `unifiles/core/pipelines/` 中的处理流水线
-- 异步任务队列，支持批量处理
-
-### 第三层：知识库管理服务 (Knowledge Base Layer)
+### 知识库管理服务 (`knowledge_bases.py`)
 
 **职责**：
 - 知识库创建和管理
@@ -351,7 +319,26 @@ graph TB
 - `GET /knowledge-bases/{kb_id}/documents` - 获取知识库文档
 - `POST /knowledge-bases/{kb_id}/search` - 知识库搜索
 
-**技术实现**：
-- 基于现有的 `unifiles/app/v1/routers/knowledge_bases.py`
-- 使用 `unifiles/core/services/embedding_service.py` 进行向量化
-- 集成现有的数据库模型和向量存储
+### 用户管理服务 (`users.py`)
+
+**职责**：
+- 用户创建和管理
+- 用户访问密钥管理
+
+**核心端点**：
+- `POST /users/create` - 创建新用户
+- `GET /users/{user_id}` - 获取用户信息
+- `POST /users/{user_id}/access-keys` - 创建用户访问密钥
+- `GET /users/{user_id}/access-keys` - 获取用户访问密钥列表
+
+### 系统管理服务 (`manager.py`)
+
+**职责**：
+- 系统状态监控
+
+**核心端点**：
+- `GET /manager/system/status` - 获取系统状态
+
+## 9. Python 客户端
+
+项目提供一个 Python 客户端 (`unifiles/client/client.py`)，用于与 Unifiles API 进行交互。该客户端封装了 API 请求的细节，提供了更便捷的编程接口。
