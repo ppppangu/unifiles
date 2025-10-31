@@ -1,62 +1,65 @@
-import asyncio
 import base64
 from pathlib import Path
-from typing import Any, Callable, List, Optional, Tuple, Union
+from typing import List, Optional, Union
 
+import json
+import re
 from loguru import logger
-from openai import AsyncOpenAI, OpenAI
+from openai import OpenAI
 
 from ..base import BaseOCRProvider
 from ..config.selfhosted import SelfHostedConfig
+from ..utils.parser import load_images_from_pdf, to_rgb
 
 
 class SelfHostedOCRProvider(BaseOCRProvider):
-    """Self-hosted OCR provider (OpenAI-compatible)."""
+    """Self-hosted OCR provider (OpenAI-compatible).
+
+    This trimmed version keeps only process_file and its required helpers.
+    """
 
     def __init__(self, config: Optional[SelfHostedConfig] = None):
         super().__init__(config or SelfHostedConfig())
 
     def get_provider_name(self) -> str:
-        """获取提供者名称"""
         return "selfhosted"
 
-    def _encode_image_to_base64(self, image_path: Path) -> Optional[str]:
-        """Encode image file to base64 string."""
+    def _process_image_for_model(self, image, factor: int = 8) -> Optional[str]:
+        """Convert PIL Image or path to base64-encoded PNG suitable for model."""
         try:
-            with open(image_path, "rb") as f:
-                return base64.b64encode(f.read()).decode("utf-8")
+            import io
+            from PIL import Image as PILImage
+
+            # Load image if it's a path
+            if isinstance(image, (str, Path)):
+                pil_image = PILImage.open(image)
+            else:
+                pil_image = image
+
+            # Convert to RGB (handle RGBA with white background)
+            pil_image = to_rgb(pil_image)
+
+            # Convert to base64 PNG
+            img_byte_arr = io.BytesIO()
+            pil_image.save(img_byte_arr, format="PNG", optimize=False)
+            base64_image = base64.b64encode(img_byte_arr.getvalue()).decode("utf-8")
+            return base64_image
         except Exception as e:
-            logger.error(f"Failed to encode image to base64: {e!s}")
+            logger.error(f"Failed to process image for model: {e!s}")
             return None
 
     def _build_request_payload(self, image_path: Path) -> Optional[list]:
         """Build Chat Completions messages with base64 image and prompt."""
-        # Encode image to base64
-        base64_image = self._encode_image_to_base64(image_path)
+        base64_image = self._process_image_for_model(image_path)
         if not base64_image:
             return None
-
-        # Determine image MIME type from extension
-        ext = image_path.suffix.lower()
-        mime_types = {
-            ".jpg": "image/jpeg",
-            ".jpeg": "image/jpeg",
-            ".png": "image/png",
-            ".gif": "image/gif",
-            ".webp": "image/webp",
-        }
-        mime_type = mime_types.get(ext, "image/jpeg")
-
-        # Build messages array
         return [
             {
                 "role": "user",
                 "content": [
                     {
                         "type": "image_url",
-                        "image_url": {
-                            "url": f"data:{mime_type};base64,{base64_image}"
-                        },
+                        "image_url": {"url": f"data:image/png;base64,{base64_image}"},
                     },
                     {"type": "text", "text": self.config.get_prompt()},
                 ],
@@ -71,12 +74,8 @@ class SelfHostedOCRProvider(BaseOCRProvider):
 
     def _get_sync_client(self) -> OpenAI:
         base_url = self._normalize_base_url(self.config.get_url())
-        # Self-hosted may not require API key; pass a placeholder
-        return OpenAI(api_key="no-key", base_url=base_url)
-
-    def _get_async_client(self) -> AsyncOpenAI:
-        base_url = self._normalize_base_url(self.config.get_url())
-        return AsyncOpenAI(api_key="no-key", base_url=base_url)
+        api_key = self.config.get_api_key() or "no-key"
+        return OpenAI(api_key=api_key, base_url=base_url)
 
     def _send_request(self, messages: list) -> str:
         """Sync request via OpenAI SDK; returns text content."""
@@ -88,366 +87,102 @@ class SelfHostedOCRProvider(BaseOCRProvider):
                 temperature=self.config.get_temperature(),
                 max_tokens=self.config.get_max_tokens(),
             )
-            if resp.choices and resp.choices[0].message and resp.choices[0].message.content:
-                return resp.choices[0].message.content
-            logger.warning("Response has no choices")
-            return ""
+            return resp.choices[0].message.content
         except Exception as e:
             logger.error(f"Self-hosted sync request failed: {e!s}")
             return ""
 
-    def process_file(self, file_path: Union[str, Path]) -> str:
-        """Process local file with OCR (PDF per-page; images direct)."""
-        if not self.config.validate():
+    def _process_pdf(self, pdf_path: Path) -> str:
+        """Render PDF pages to images using parser and OCR each page."""
+        full_texts: List[str] = []
+        try:
+            images = load_images_from_pdf(str(pdf_path))
+            for i, img in enumerate(images):
+                try:
+                    base64_image = self._process_image_for_model(img)
+                    if not base64_image:
+                        logger.warning(f"Failed to process image for page {i + 1}")
+                        continue
+                    messages = [
+                        {
+                            "role": "user",
+                            "content": [
+                                {
+                                    "type": "image_url",
+                                    "image_url": {"url": f"data:image/png;base64,{base64_image}"},
+                                },
+                                {"type": "text", "text": self.config.get_prompt()},
+                            ],
+                        }
+                    ]
+                    json_markdown = self._send_request(messages)
+                    json_dict = self._extract_json_from_markdown(json_markdown.strip())
+                    for el in json_dict.get("layout_elements", []):
+                        bbox = el["bbox"]
+                        abs_y1 = int(bbox[1] / 999 * img.height)
+                        abs_x1 = int(bbox[0] / 999 * img.width)
+                        abs_y2 = int(bbox[3] / 999 * img.height)
+                        abs_x2 = int(bbox[2] / 999 * img.width)
+
+                        category = el["category"]
+                    
+                        # 切分图片
+                        if category == "Picture":
+                            # 切分图片
+                            img_crop = img.crop((abs_x1, abs_y1, abs_x2, abs_y2))
+                            img_crop.save(f"picture_{i}_{category}_{abs_y1}_{abs_x1}_{abs_y2}_{abs_x2}.png")
+                            full_texts.append(f"[{category}](picture_{i}.png)")
+                        
+                        else:
+                            text = el.get("text", "")
+                            full_texts.append(text)
+
+                    full_texts.append("\n\n---\n\n")
+
+                    # TODO: 将文件上传到文件存储服务并更新postgres
+
+
+
+                except Exception as e:
+                    logger.warning(f"Failed to OCR page {i + 1}: {e!s}")
+                    continue
+        except Exception as e:
+            logger.error(f"PDF processing failed: {e!s}")
             return ""
+        return "".join(full_texts)
 
-        p = Path(file_path)
-        if not p.exists():
-            logger.error(f"File not found: {p}")
-            return ""
-
-        # PDF handling
-        if p.suffix.lower() == ".pdf":
-            return self._process_pdf(p)
-
-        # Image handling
-        if not self.validate_file(p):
-            logger.error(f"File validation failed: {p}")
-            return ""
-
-        payload = self._build_request_payload(p)
-        if not payload:
-            logger.error(f"Failed to build request for {p}")
-            return ""
-
-        return self._send_request(payload)
+    def _extract_json_from_markdown(self, markdown: str) -> str:
+        """Extract JSON string from markdown using regex."""
+        json_match = re.search(r'```json\s*(\{.*?\})\s*```', markdown, re.S)
+        if not json_match:
+            json_match = re.search(r'(\{.*\})', markdown, re.S)
+        if json_match:
+            json_dict = json.loads(json_match.group(1))
+            return json_dict
+        return ""
 
     def process_url(self, url: str) -> str:
-        """Not supported (service expects base64 images)."""
         logger.warning(
             "URL processing not supported for OpenAI-compatible format. "
             "Please download the file and use process_file() instead."
         )
         return ""
 
-    async def aprocess_file(
-        self,
-        file_path: Union[str, Path],
-        progress_callback: Optional[Callable[[int, int, str, str], None]] = None,
-    ) -> str:
-        """Async: Process a local file with OCR and return markdown formatted text.
-
-        Uses native async implementation with concurrency for PDF page processing.
-
-        Args:
-            file_path: Path to the file to process
-            progress_callback: Optional callback for progress updates (PDF only)
-                Called with (current_page, total_pages, status, message)
-
-        Returns:
-            str: Extracted text in markdown format
-        """
+    def process_file(self, file_path: Union[str, Path]) -> str:
+        """Process local file with OCR (PDF per-page; images direct)."""
         if not self.config.validate():
             return ""
-
         p = Path(file_path)
         if not p.exists():
             logger.error(f"File not found: {p}")
             return ""
-
-        # PDF handling with async parallel processing
         if p.suffix.lower() == ".pdf":
-            return await self._process_pdf_async(p, progress_callback)
-
-        # Image handling (fallback to sync method)
+            return self._process_pdf(p)
         if not self.validate_file(p):
             logger.error(f"File validation failed: {p}")
             return ""
-
-        # Use async SDK for single image as well
-        messages = self._build_request_payload(p)
-        if not messages:
+        payload = self._build_request_payload(p)
+        if not payload:
+            logger.error(f"Failed to build request for {p}")
             return ""
-        try:
-            client = self._get_async_client()
-            resp = await client.chat.completions.create(
-                model=self.config.get_model(),
-                messages=messages,
-                temperature=self.config.get_temperature(),
-                max_tokens=self.config.get_max_tokens(),
-            )
-            if resp.choices and resp.choices[0].message and resp.choices[0].message.content:
-                return resp.choices[0].message.content
-            return ""
-        except Exception as e:
-            logger.error(f"Self-hosted async request failed: {e!s}")
-            return ""
-
-    
-    def _process_pdf(self, pdf_path: Path) -> str:
-        """Render PDF pages to images and OCR each page."""
-        texts: List[str] = []
-        try:
-            import warnings
-            import pdfplumber
-
-            warnings.filterwarnings("ignore", category=UserWarning, module="pdfminer")
-
-            images_dir = pdf_path.parent / f"{pdf_path.stem}_pages"
-            images_dir.mkdir(parents=True, exist_ok=True)
-
-            with pdfplumber.open(str(pdf_path)) as pdf:
-                page_count = len(pdf.pages)
-                for i, page in enumerate(pdf.pages):
-                    try:
-                        # Render page to image
-                        to_img = getattr(page, "to_image", None)
-                        if not callable(to_img):
-                            logger.error(
-                                "pdfplumber page.to_image() unavailable; abort PDF OCR"
-                            )
-                            return ""
-
-                        img_path = images_dir / f"page_{i + 1}.png"
-                        img_obj = to_img(resolution=150)
-                        save = getattr(img_obj, "save", None)
-                        if not callable(save):
-                            logger.error(
-                                "pdfplumber image object missing save(); abort PDF OCR"
-                            )
-                            return ""
-                        save(str(img_path))
-
-                        # Build request and send
-                        payload = self._build_request_payload(img_path)
-                        if not payload:
-                            logger.warning(f"Failed to build request for page {i + 1}")
-                            continue
-
-                        text = self._send_request(payload)
-                        if text and text.strip():
-                            header = f"## Page {i + 1}\n\n" if page_count > 1 else ""
-                            texts.append(header + text.strip())
-
-                    except Exception as e:
-                        logger.warning(f"Failed to OCR page {i + 1}: {e!s}")
-                        continue
-
-        except Exception as e:
-            logger.error(f"PDF processing failed: {e!s}")
-            return ""
-
-        return "\n\n---\n\n".join(texts)
-
-    
-    async def _send_request_async(self, payload: list) -> str:
-        """Async request via OpenAI SDK; returns text content."""
-        try:
-            client = self._get_async_client()
-            resp = await client.chat.completions.create(
-                model=self.config.get_model(),
-                messages=payload,
-                temperature=self.config.get_temperature(),
-                max_tokens=self.config.get_max_tokens(),
-            )
-            if resp.choices and resp.choices[0].message and resp.choices[0].message.content:
-                return resp.choices[0].message.content
-            logger.warning("Response has no choices")
-            return ""
-        except Exception as e:
-            logger.error(f"Self-hosted async request failed: {e!s}")
-            raise
-
-    async def _send_request_with_retry(
-        self, payload: list, page_num: int
-    ) -> Tuple[int, str]:
-        """Send request with retry mechanism."""
-        max_retries = self.config.get_max_retries()
-
-        for attempt in range(max_retries + 1):
-            try:
-                text = await self._send_request_async(payload)
-                if attempt > 0:
-                    logger.info(f"Page {page_num} succeeded after {attempt} retries")
-                return (page_num, text)
-
-            except Exception as e:
-                if attempt == max_retries:
-                    logger.error(
-                        f"Page {page_num} failed after {max_retries} retries: {e!s}"
-                    )
-                    return (page_num, "")
-
-                # Exponential backoff
-                wait_time = 2 ** attempt
-                logger.warning(
-                    f"Page {page_num} attempt {attempt + 1} failed, "
-                    f"retrying in {wait_time}s: {e!s}"
-                )
-                await asyncio.sleep(wait_time)
-
-        return (page_num, "")
-
-    async def _process_single_page_async(
-        self,
-        page_num: int,
-        img_path: Path,
-        semaphore: asyncio.Semaphore,
-        progress_callback: Optional[Callable[[int, int, str, str], None]] = None,
-        total_pages: int = 0,
-    ) -> Tuple[int, str]:
-        """Process a single page with concurrency control."""
-        async with semaphore:
-            try:
-                if progress_callback:
-                    progress_callback(
-                        page_num, total_pages, "processing",
-                        f"Processing page {page_num}/{total_pages}"
-                    )
-
-                # Build request payload
-                payload = self._build_request_payload(img_path)
-                if not payload:
-                    logger.warning(f"Failed to build request for page {page_num}")
-                    if progress_callback:
-                        progress_callback(
-                            page_num, total_pages, "failed",
-                            f"Failed to build request for page {page_num}"
-                        )
-                    return (page_num, "")
-
-                # Send request with retry
-                page_num_result, text = await self._send_request_with_retry(
-                    payload, page_num
-                )
-
-                if text and text.strip():
-                    if progress_callback:
-                        progress_callback(
-                            page_num, total_pages, "completed",
-                            f"Completed page {page_num}/{total_pages}"
-                        )
-                    return (page_num_result, text.strip())
-                else:
-                    if progress_callback:
-                        progress_callback(
-                            page_num, total_pages, "failed",
-                            f"No text extracted from page {page_num}"
-                        )
-                    return (page_num_result, "")
-
-            except Exception as e:
-                logger.error(f"Failed to process page {page_num}: {e!s}")
-                if progress_callback:
-                    progress_callback(
-                        page_num, total_pages, "failed",
-                        f"Error processing page {page_num}: {e!s}"
-                    )
-                return (page_num, "")
-
-    async def _process_pdf_async(
-        self,
-        pdf_path: Path,
-        progress_callback: Optional[Callable[[int, int, str, str], None]] = None,
-    ) -> str:
-        """Render PDF pages to images and OCR each page in parallel."""
-        try:
-            import warnings
-            import pdfplumber
-
-            warnings.filterwarnings("ignore", category=UserWarning, module="pdfminer")
-
-            images_dir = pdf_path.parent / f"{pdf_path.stem}_pages"
-            images_dir.mkdir(parents=True, exist_ok=True)
-
-            # Step 1: Render all pages to images (synchronous)
-            logger.info(f"Rendering PDF pages to images: {pdf_path}")
-            image_paths: List[Tuple[int, Path]] = []
-
-            with pdfplumber.open(str(pdf_path)) as pdf:
-                page_count = len(pdf.pages)
-                logger.info(f"Total pages to process: {page_count}")
-
-                for i, page in enumerate(pdf.pages):
-                    try:
-                        to_img = getattr(page, "to_image", None)
-                        if not callable(to_img):
-                            logger.error(
-                                "pdfplumber page.to_image() unavailable; abort PDF OCR"
-                            )
-                            return ""
-
-                        img_path = images_dir / f"page_{i + 1}.png"
-                        img_obj = to_img(resolution=150)
-                        save = getattr(img_obj, "save", None)
-                        if not callable(save):
-                            logger.error(
-                                "pdfplumber image object missing save(); abort PDF OCR"
-                            )
-                            return ""
-                        save(str(img_path))
-                        image_paths.append((i + 1, img_path))
-
-                    except Exception as e:
-                        logger.warning(f"Failed to render page {i + 1}: {e!s}")
-                        continue
-
-            if not image_paths:
-                logger.error("No pages were successfully rendered")
-                return ""
-
-            # Step 2: Process all pages in parallel with concurrency control
-            max_concurrency = self.config.get_max_concurrency()
-            semaphore = asyncio.Semaphore(max_concurrency)
-
-            logger.info(
-                f"Processing {len(image_paths)} pages with max concurrency: {max_concurrency}"
-            )
-
-            tasks = [
-                self._process_single_page_async(
-                    page_num, img_path, semaphore, progress_callback, page_count
-                )
-                for page_num, img_path in image_paths
-            ]
-
-            results = await asyncio.gather(*tasks, return_exceptions=True)
-
-            # Step 3: Sort results by page number and combine
-            page_texts: List[Tuple[int, str]] = []
-            for result in results:
-                if isinstance(result, Exception):
-                    logger.error(f"Task failed with exception: {result!s}")
-                    continue
-                if isinstance(result, tuple) and len(result) == 2:
-                    page_texts.append(result)
-
-            # Sort by page number
-            page_texts.sort(key=lambda x: x[0])
-
-            # Combine texts
-            texts: List[str] = []
-            for page_num, text in page_texts:
-                if text:
-                    header = f"## Page {page_num}\n\n" if page_count > 1 else ""
-                    texts.append(header + text)
-
-            logger.info(
-                f"Async PDF processing completed: {len(texts)}/{page_count} pages extracted"
-            )
-            return "\n\n---\n\n".join(texts)
-
-        except Exception as e:
-            logger.error(f"Async PDF processing failed: {e!s}")
-            return ""
-
-    
-    def _extract_data_from_response(self, response: Any) -> Tuple[str, List[Any]]:
-        """Not used; parsing handled in _send_request()."""
-        return "", []
-
-    def save_to_images(
-        self, images: List[Any], output_dir: Optional[Union[str, Path]] = None
-    ) -> None:
-        """Not used; no images extracted from text-only responses."""
-        return
+        return self._send_request(payload)

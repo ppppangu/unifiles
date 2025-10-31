@@ -22,9 +22,14 @@ class SelfHostedConfig(BaseConfig):
         self.url = self._get_env_var("UNIFILES_SERVICE_OCR_SELFHOSTED_URL", "")
         self.model = self._get_env_var("UNIFILES_SERVICE_OCR_SELFHOSTED_MODEL", "")
         self.prompt = self._get_env_var("UNIFILES_SERVICE_OCR_SELFHOSTED_PROMPT", "")
+        if self.prompt:
+            with open(self.prompt, "r", encoding="utf-8") as f:
+                self.prompt = f.read()
+
         self.temperature = float(self._get_env_var("UNIFILES_SERVICE_OCR_SELFHOSTED_TEMPERATURE", "0.7"))
         self.max_tokens = int(self._get_env_var("UNIFILES_SERVICE_OCR_SELFHOSTED_MAX_TOKENS", "2048"))
 
+        self.api_key = self._get_env_var("UNIFILES_SERVICE_OCR_SELFHOSTED_API_KEY", "")
         # Async processing configuration
         self.max_concurrency = int(self._get_env_var("UNIFILES_SERVICE_OCR_SELFHOSTED_MAX_CONCURRENCY", "5"))
         self.max_retries = int(self._get_env_var("UNIFILES_SERVICE_OCR_SELFHOSTED_MAX_RETRIES", "2"))
@@ -43,8 +48,8 @@ class SelfHostedConfig(BaseConfig):
         return True
 
     def get_api_key(self) -> str:
-        """No API key required for self-hosted service"""
-        return ""
+        """Return API key if provided (optional)."""
+        return self.api_key
 
     def get_model(self) -> str:
         return self.model
