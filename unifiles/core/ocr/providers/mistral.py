@@ -178,38 +178,34 @@ class MistralOCRProvider(BaseOCRProvider):
             logger.success(f"[Mistral OCR] ✓ Extracted {len(text)} characters")
             logger.success(f"[Mistral OCR] ✓ Extracted {len(images)} images")
 
-            # Save images and collect metadata
-            logger.info(f"[Mistral OCR] Saving images to: {output_dir}")
+            # Collect images metadata (no disk I/O)
+            logger.info(f"[Mistral OCR] Processing {len(images)} images")
             images_info: List[Dict[str, Any]] = []
 
-            def _save_images() -> List[Dict[str, Any]]:
-                """Save images to files and collect metadata"""
+            def _process_images() -> List[Dict[str, Any]]:
+                """Process images and collect metadata (memory only, no file saving)"""
                 info_list = []
                 for i, image in enumerate(images):
                     try:
                         image_base64data = image.image_base64.split(",")[1]
                         img_data = base64.b64decode(image_base64data)
                         filename = f"img-{i}.jpeg"
-                        img_path = output_dir / filename
 
-                        with open(img_path, "wb") as img_file:
-                            img_file.write(img_data)
-
-                        # Collect image metadata
+                        # === 优化：只收集字节数据，不保存文件 ===
                         info_list.append({
                             "page": 0,  # Mistral doesn't provide page info in this structure
                             "index": i,
                             "filename": filename,
-                            "path": str(img_path),
+                            "bytes": img_data,  # Store bytes instead of path
                             "extension": "jpeg",
                             "size_bytes": len(img_data),
                         })
-                        logger.debug(f"[Mistral OCR] Saved image: {img_path}")
+                        logger.debug(f"[Mistral OCR] Processed image {i}: {len(img_data)} bytes")
                     except Exception as e:
-                        logger.error(f"[Mistral OCR] Error saving image {i}: {e!s}")
+                        logger.error(f"[Mistral OCR] Error processing image {i}: {e!s}")
                 return info_list
 
-            images_info = await asyncio.to_thread(_save_images)
+            images_info = await asyncio.to_thread(_process_images)
 
             # Optionally save markdown
             await self.asave_to_markdown(text, file_path.parent / f"{file_path.stem}.md")

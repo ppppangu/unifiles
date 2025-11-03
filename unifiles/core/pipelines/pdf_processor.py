@@ -206,17 +206,16 @@ class SimplePDFReader:
         return ""
 
     def _extract_images_from_page(
-        self, file_path: str, page_num: int, output_dir: Path
+        self, file_path: str, page_num: int
     ) -> List[Dict[str, Any]]:
-        """从PDF指定页提取图片
+        """从PDF指定页提取图片（优化：不保存到磁盘，直接使用字节数据）
 
         Args:
             file_path: PDF文件路径
             page_num: 页码（从0开始）
-            output_dir: 图片输出目录
 
         Returns:
-            图片信息列表，包含文件路径、页码、索引等元数据
+            图片信息列表，包含字节数据、文件名、页码、索引等元数据
         """
         images_info = []
 
@@ -233,26 +232,21 @@ class SimplePDFReader:
                 try:
                     xref = img[0]
                     base_image = doc.extract_image(xref)
-                    image_bytes = base_image["image"]
+                    image_bytes = base_image["image"]  # ← 已经是字节数据！
                     image_ext = base_image["ext"]  # png, jpeg, etc
 
                     # 构建图片文件名
                     image_filename = (
                         f"page_{page_num:03d}_img_{img_index:03d}.{image_ext}"
                     )
-                    image_path = output_dir / image_filename
 
-                    # 保存图片
-                    with open(image_path, "wb") as img_file:
-                        img_file.write(image_bytes)
-
-                    # 记录图片元数据
+                    # === 优化：直接收集字节数据，不保存文件 ===
                     images_info.append(
                         {
                             "page": page_num,
                             "index": img_index,
                             "filename": image_filename,
-                            "path": str(image_path),
+                            "bytes": image_bytes,  # ← 直接使用字节数据
                             "extension": image_ext,
                             "size_bytes": len(image_bytes),
                         }
@@ -276,30 +270,26 @@ class SimplePDFReader:
         return images_info
 
     async def extract_images_from_pdf(
-        self, pdf_path: str, output_dir: Path
+        self, pdf_path: str
     ) -> List[Dict[str, Any]]:
-        """从PDF提取所有图片
+        """从PDF提取所有图片（优化：不保存到磁盘，直接返回字节数据）
 
         Args:
             pdf_path: PDF文件路径
-            output_dir: 图片输出目录
 
         Returns:
-            所有图片的信息列表
+            所有图片的信息列表，包含字节数据
         """
         try:
-            # 确保输出目录存在
-            output_dir.mkdir(parents=True, exist_ok=True)
-
             # 获取页数
             page_count = await asyncio.to_thread(self._get_pdf_page_count, pdf_path)
             if page_count == 0:
                 return []
 
-            # 并行提取所有页面的图片
+            # 并行提取所有页面的图片（无需创建目录）
             tasks = [
                 asyncio.to_thread(
-                    self._extract_images_from_page, pdf_path, page_num, output_dir
+                    self._extract_images_from_page, pdf_path, page_num
                 )
                 for page_num in range(page_count)
             ]
@@ -311,7 +301,7 @@ class SimplePDFReader:
                 all_images.extend(page_images)
 
             logger.info(
-                f"Extracted {len(all_images)} images from {page_count} pages to {output_dir}"
+                f"Extracted {len(all_images)} images from {page_count} pages (memory only, no disk I/O)"
             )
 
             return all_images
@@ -813,17 +803,13 @@ class PDFProcessingPipeline:
         try:
             simple_reader = SimplePDFReader()
 
-            # 提取图片
+            # 提取图片（优化：不创建目录，直接获取字节数据）
             images_info = []
             images_by_page: Dict[int, List[Dict[str, Any]]] = {}
 
             if extract_images:
-                # 创建图片输出目录
-                pdf_path_obj = Path(pdf_path)
-                images_dir = self.tmp_dir / f"{pdf_path_obj.stem}_images"
-                images_info = await simple_reader.extract_images_from_pdf(
-                    pdf_path, images_dir
-                )
+                # === 优化：不再创建目录，直接提取 ===
+                images_info = await simple_reader.extract_images_from_pdf(pdf_path)
 
                 # 按页码分组图片
                 for img_info in images_info:
@@ -894,17 +880,12 @@ class PDFProcessingPipeline:
                 )
                 provider_name = "mistral"
 
-            # 创建图片输出目录（与 simple mode 一致）
-            pdf_path_obj = Path(pdf_path)
-            images_dir = self.tmp_dir / f"{pdf_path_obj.stem}_images"
-
             # 创建OCR处理器
             ocr_processor = OCRProcessor(provider_name)
 
-            # 使用OCR提取文本，传递 output_dir 参数
+            # 使用OCR提取文本（优化后不再需要 output_dir，图片数据直接在内存中）
             logger.info(f"Processing PDF with {provider_name} OCR provider")
-            logger.info(f"Images will be saved to: {images_dir}")
-            text, images_info = await ocr_processor.aprocess_file(pdf_path, output_dir=images_dir)
+            text, images_info = await ocr_processor.aprocess_file(pdf_path)
 
             if not text or text.strip() == "":
                 text = "这是一个占位符，用于保证边缘情况，文档已经过OCR处理"
@@ -972,12 +953,23 @@ class PDFProcessingPipeline:
                 f"Text extraction completed, {len(text)} characters, {len(images_info)} images"
             )
 
-            logger.info(f"Extracted text from PDF: {text}")
-            logger.info(f"Extracted images info: {images_info}")
+            # 避免将包含 bytes 的大对象写入日志，只输出精简统计信息
+            try:
+                total_img_bytes = sum(int(img.get("size_bytes", 0)) for img in images_info)
+                sample_names = [img.get("filename") for img in images_info[:3]]
+                logger.info(
+                    "Extracted images summary: count=%d, total_bytes=%d, samples=%s",
+                    len(images_info),
+                    total_img_bytes,
+                    sample_names,
+                )
+            except Exception:
+                # 兜底：即便统计失败，也不要打印原始 images_info 以免日志过大
+                logger.info("Extracted images summary: count=%d", len(images_info))
 
             # === Stage 2.5: Upload extracted images to storage (MinIO) ===
-            # Note: In simple mode we extracted images to a temporary directory.
-            # Upload them now so subsequent Markdown links have valid targets.
+            # Note: OCR providers can return images as bytes (memory) or path (file).
+            # Priority: bytes (no disk I/O) > path (fallback for simple mode).
             if images_info:
                 try:
                     storage = await get_initialized_storage()
@@ -993,20 +985,38 @@ class PDFProcessingPipeline:
                         return "application/octet-stream"
 
                     for img in images_info:
-                        # Build an object path aligned with TextProcessor's URL convention
-                        # user_id/knowledge_base/{kb}/{doc}/{filename}
                         filename = img.get("filename")
                         object_path = f"{user_id}/knowledge_base/{knowledge_base_id}/{document_id}/{filename}"
 
+                        img_bytes = img.get("bytes")
                         local_path = img.get("path")
                         content_type = _mime_from_ext(img.get("extension"))
 
                         try:
-                            await backend.upload_file_from_path(
-                                object_path=object_path,
-                                local_file_path=local_path,
-                                content_type=content_type,
-                            )
+                            if img_bytes:
+                                # === 新路径：从内存上传（OCR providers） ===
+                                await backend.upload_file(
+                                    object_path=object_path,
+                                    content=img_bytes,
+                                    content_type=content_type,
+                                )
+                                logger.debug(
+                                    f"Uploaded from memory: {filename} ({len(img_bytes)} bytes)"
+                                )
+                            elif local_path:
+                                # === 旧路径：从文件上传（simple mode 兼容） ===
+                                await backend.upload_file_from_path(
+                                    object_path=object_path,
+                                    local_file_path=local_path,
+                                    content_type=content_type,
+                                )
+                                logger.debug(f"Uploaded from file: {filename}")
+                            else:
+                                logger.warning(
+                                    f"Image {filename} has no bytes or path, skipping upload"
+                                )
+                                continue
+
                             public_url = backend.get_access_url(
                                 object_path, access_type="public"
                             )
@@ -1014,12 +1024,15 @@ class PDFProcessingPipeline:
                             # Enrich images_info with storage references
                             img["object_path"] = object_path
                             img["public_url"] = public_url
-                            logger.debug(
-                                f"Uploaded image -> {object_path}, public_url={public_url}"
-                            )
+
+                            # Release memory for bytes data
+                            if "bytes" in img:
+                                del img["bytes"]
+
+                            logger.debug(f"Image uploaded successfully: {object_path}")
                         except Exception as upload_err:
                             logger.warning(
-                                f"Failed to upload extracted image '{filename}': {upload_err}"
+                                f"Failed to upload image '{filename}': {upload_err}"
                             )
                 except Exception as storage_err:
                     logger.warning(
