@@ -876,7 +876,7 @@ class PDFProcessingPipeline:
 
     async def process_pdf_with_ocr_provider(
         self, pdf_path: str, provider_name: str
-    ) -> str:
+    ) -> Tuple[str, List[Dict]]:
         """使用指定的OCR提供商处理PDF文件
 
         Args:
@@ -884,7 +884,7 @@ class PDFProcessingPipeline:
             provider_name: OCR提供商名称
 
         Returns:
-            str: 提取的文本内容
+            Tuple[str, List[Dict]]: (markdown文本, 图片信息列表)
         """
         try:
             # 检查提供商是否受支持
@@ -894,12 +894,17 @@ class PDFProcessingPipeline:
                 )
                 provider_name = "mistral"
 
+            # 创建图片输出目录（与 simple mode 一致）
+            pdf_path_obj = Path(pdf_path)
+            images_dir = self.tmp_dir / f"{pdf_path_obj.stem}_images"
+
             # 创建OCR处理器
             ocr_processor = OCRProcessor(provider_name)
 
-            # 使用OCR提取文本
+            # 使用OCR提取文本，传递 output_dir 参数
             logger.info(f"Processing PDF with {provider_name} OCR provider")
-            text = await ocr_processor.aprocess_file(pdf_path)
+            logger.info(f"Images will be saved to: {images_dir}")
+            text, images_info = await ocr_processor.aprocess_file(pdf_path, output_dir=images_dir)
 
             if not text or text.strip() == "":
                 text = "这是一个占位符，用于保证边缘情况，文档已经过OCR处理"
@@ -910,10 +915,10 @@ class PDFProcessingPipeline:
             logger.info(
                 f"{provider_name} OCR PDF processing completed, {len(text)} characters extracted"
             )
-            return text
+            return text, images_info
         except Exception as e:
             logger.error(f"{provider_name} OCR PDF processing failed: {e}")
-            return "这是一个占位符，用于保证边缘情况，文档已经过OCR处理"
+            return "这是一个占位符，用于保证边缘情况，文档已经过OCR处理", []
 
     async def process_pdf_to_structured_content(
         self,
@@ -959,7 +964,7 @@ class PDFProcessingPipeline:
             else:
                 # 模式直接作为OCR提供商名称处理
                 logger.info(f"Using OCR provider: {mode}")
-                text = await self.process_pdf_with_ocr_provider(
+                text, images_info = await self.process_pdf_with_ocr_provider(
                     str(local_file_path), mode
                 )
 

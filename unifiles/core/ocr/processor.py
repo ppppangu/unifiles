@@ -1,6 +1,6 @@
 import asyncio
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple, Union
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 from .base import BaseOCRProvider
 from .factory import OCRProviderFactory
@@ -97,9 +97,19 @@ class OCRProcessor:
     # --------------------
     # Async counterparts
     # --------------------
-    async def aprocess_file(self, file_path: Union[str, Path]) -> str:
-        """Async: Process a local file with OCR and return markdown formatted text."""
-        return await self.provider.aprocess_file(file_path)
+    async def aprocess_file(
+        self, file_path: Union[str, Path], **kwargs
+    ) -> Tuple[str, List[Dict[str, Any]]]:
+        """Async: Process a local file with OCR.
+
+        Args:
+            file_path: Path to the file to process
+            **kwargs: Additional arguments to pass to the provider (e.g., output_dir)
+
+        Returns:
+            Tuple[str, List[Dict]]: (markdown_text, images_info)
+        """
+        return await self.provider.aprocess_file(file_path, **kwargs)
 
     async def aprocess_url(self, url: str) -> str:
         """Async: Process a file from URL with OCR and return markdown formatted text."""

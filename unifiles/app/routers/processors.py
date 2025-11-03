@@ -66,7 +66,7 @@ async def extract_file_content(
                 detail="Access denied: file belongs to another user",
             )
 
-        # 创建异步任务记录
+        # 数据库中创建异步任务记录
         task_id = await async_task_manager.create_task(
             task_type="extraction",
             user_id=user_id,

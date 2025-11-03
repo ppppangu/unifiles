@@ -1,7 +1,7 @@
 import asyncio
 from abc import ABC, abstractmethod
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, List, Optional, Tuple, Union
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple, Union
 
 if TYPE_CHECKING:
     from .config.base import BaseConfig
@@ -66,9 +66,35 @@ class BaseOCRProvider(ABC):
     # --------------------
     # Async counterparts
     # --------------------
-    async def aprocess_file(self, file_path: Union[str, Path]) -> str:
-        """Async wrapper for process_file using a thread to avoid blocking the event loop."""
-        return await asyncio.to_thread(self.process_file, file_path)
+    async def aprocess_file(
+        self, file_path: Union[str, Path], **kwargs
+    ) -> Tuple[str, List[Dict[str, Any]]]:
+        """Async wrapper for process_file.
+
+        Args:
+            file_path: Path to the file to process
+            **kwargs: Additional arguments (subclasses may accept output_dir, etc.)
+
+        Returns:
+            Tuple[str, List[Dict]]: (markdown_text, images_info)
+            - markdown_text: Extracted text in markdown format
+            - images_info: List of image metadata dictionaries containing:
+                - filename: Image filename
+                - path: Local file path
+                - page: Page number (0-indexed)
+                - index: Image index on the page
+                - extension: File extension
+                - size_bytes: File size in bytes
+
+        Note:
+            Default implementation calls process_file (which doesn't accept kwargs).
+            Subclasses should override this method if they need additional parameters.
+        """
+        result = await asyncio.to_thread(self.process_file, file_path)
+        # For backward compatibility: if subclass returns only str, wrap it
+        if isinstance(result, str):
+            return result, []
+        return result
 
     async def aprocess_url(self, url: str) -> str:
         """Async wrapper for process_url using a thread to avoid blocking the event loop."""

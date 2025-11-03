@@ -172,11 +172,10 @@ def process_file_extraction_task(
             stack_trace = traceback.format_exc()
             logger.exception(error_msg)
 
-            # 增加重试计数
-            await async_task_manager.increment_retry_count(task_db_id)
-
             # 检查是否还能重试
             if self.request.retries < self.max_retries:
+                # 只在还能重试时增加重试计数
+                await async_task_manager.increment_retry_count(task_db_id)
                 await _update_task_status(
                     "processing",
                     0,

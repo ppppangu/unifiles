@@ -1,8 +1,9 @@
 import asyncio
 import base64
+import os
 import time
 from pathlib import Path
-from typing import Any, List, Optional, Tuple, Union
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 from loguru import logger
 from mistralai import Mistral
@@ -83,8 +84,17 @@ class MistralOCRProvider(BaseOCRProvider):
     # --------------------
     # Async counterparts
     # --------------------
-    async def aprocess_file(self, file_path: Union[str, Path]) -> str:
-        """Async: Process a local file with OCR and return markdown formatted text.
+    async def aprocess_file(
+        self, file_path: Union[str, Path], output_dir: Optional[Path] = None
+    ) -> Tuple[str, List[Dict[str, Any]]]:
+        """Async: Process a local file with OCR.
+
+        Args:
+            file_path: Path to the file to process
+            output_dir: Directory to save extracted images (default: same as input file)
+
+        Returns:
+            Tuple[str, List[Dict]]: (markdown_text, images_info)
 
         Uses asyncio.to_thread to offload blocking file I/O and SDK calls.
         """
@@ -94,7 +104,7 @@ class MistralOCRProvider(BaseOCRProvider):
 
         if not self.config.validate():
             logger.error("[Mistral OCR] Configuration validation failed")
-            return ""
+            return "", []
 
         file_path = Path(file_path)
         logger.info(f"[Mistral OCR] Input file: {file_path}")
@@ -104,7 +114,12 @@ class MistralOCRProvider(BaseOCRProvider):
 
         if not self.validate_file(file_path):
             logger.error(f"[Mistral OCR] File validation failed: {file_path}")
-            return ""
+            return "", []
+
+        # Determine output directory for images
+        if output_dir is None:
+            output_dir = file_path.parent / f"{file_path.stem}_images"
+        output_dir.mkdir(parents=True, exist_ok=True)
 
         logger.info(f"[Mistral OCR] Model: {self.config.get_model()}")
 
@@ -160,24 +175,51 @@ class MistralOCRProvider(BaseOCRProvider):
 
             text, images = self._extract_data_from_response(response)
 
-            logger.success(f"[Mistral OCR] ✓ Extracted text {text}")
-
             logger.success(f"[Mistral OCR] ✓ Extracted {len(text)} characters")
             logger.success(f"[Mistral OCR] ✓ Extracted {len(images)} images")
 
-            # Optional: Save images and markdown
-            images_dir = file_path.parent / f"{file_path.stem}_images"
-            logger.info(f"[Mistral OCR] Saving outputs to: {file_path.parent}")
-            await asyncio.gather(
-                self.asave_to_images(images, images_dir),
-                self.asave_to_markdown(text, file_path.parent / f"{file_path.stem}.md"),
-            )
+            # Save images and collect metadata
+            logger.info(f"[Mistral OCR] Saving images to: {output_dir}")
+            images_info: List[Dict[str, Any]] = []
+
+            def _save_images() -> List[Dict[str, Any]]:
+                """Save images to files and collect metadata"""
+                info_list = []
+                for i, image in enumerate(images):
+                    try:
+                        image_base64data = image.image_base64.split(",")[1]
+                        img_data = base64.b64decode(image_base64data)
+                        filename = f"img-{i}.jpeg"
+                        img_path = output_dir / filename
+
+                        with open(img_path, "wb") as img_file:
+                            img_file.write(img_data)
+
+                        # Collect image metadata
+                        info_list.append({
+                            "page": 0,  # Mistral doesn't provide page info in this structure
+                            "index": i,
+                            "filename": filename,
+                            "path": str(img_path),
+                            "extension": "jpeg",
+                            "size_bytes": len(img_data),
+                        })
+                        logger.debug(f"[Mistral OCR] Saved image: {img_path}")
+                    except Exception as e:
+                        logger.error(f"[Mistral OCR] Error saving image {i}: {e!s}")
+                return info_list
+
+            images_info = await asyncio.to_thread(_save_images)
+
+            # Optionally save markdown
+            await self.asave_to_markdown(text, file_path.parent / f"{file_path.stem}.md")
 
             logger.info("=" * 80)
             logger.success("[Mistral OCR] Processing completed successfully!")
+            logger.success(f"[Mistral OCR] Saved {len(images_info)} images")
             logger.info("=" * 80)
 
-            return text
+            return text, images_info
 
         except Exception as e:
             logger.error("=" * 80)
@@ -187,7 +229,7 @@ class MistralOCRProvider(BaseOCRProvider):
 
             logger.error(f"[Mistral OCR] Traceback:\n{traceback.format_exc()}")
             logger.error("=" * 80)
-            return ""
+            return "", []
 
     async def aprocess_url(self, url: str) -> str:
         """Async: Process a file from URL with OCR and return markdown formatted text."""
