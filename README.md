@@ -1,279 +1,44 @@
-# Unifiles Python Client
+Unifiles
+========
+
+简洁、可扩展的文件处理与知识库服务。提供上传、解析、抽取、分块、入库与检索等能力，并内建观测与统一日志。
+
+快速开始
+--
+- Python 3.11+
+- 推荐使用 `uv` 包管理器（也可用 `pip`）
+
+安装依赖：
+- 使用 uv：`uv sync`
+- 使用 pip：`pip install -e .`（可选）
+
+运行服务：
+- `uv run python -m Unifiles.app.main`
+
+开发常用命令
+--
+- 代码格式化：`uv run python scripts/dev/format.py`
+- 清理缓存与构建产物：
+  - 预览：`python scripts/dev/clean.py`
+  - 执行：`python scripts/dev/clean.py --apply`
+  - 包含 .venv 等重项：`python scripts/dev/clean.py --apply --all`
+
+目录结构
+--
+- `Unifiles/` 核心代码（app、core、services、storage、types 等）
+- `tests/` 单测与集成测试
+- `scripts/` 开发与运维脚本
+- `docs/` 文档（见下）
+
+文档索引（精简）
+--
+- 入门：`docs/QUICK_START.md`（若损坏，请先参考本 README 的“快速开始”）
+- API：`docs/API_REFERENCE.md` 或 `docs/api/openapi.yaml`
+- 架构：`docs/ARCHITECTURE.md`（若损坏，参考 `Unifiles/core` 目录结构）
+- 开发：`docs/DEVELOPMENT.md`
+
+注意事项
+--
+- 仓库中存在部分历史/生成文件（如 `*.egg-info/`、日志、`__pycache__`、`.pytest_cache` 等），可使用上方清理脚本统一清理。
+- 如发现脚本/文档乱码（编码损坏），建议逐步替换为 UTF-8 并简化内容，保持单一来源文档（以 Markdown 为主）。
 
-[![Python Version](https://img.shields.io/pypi/pyversions/unifiles-client.svg)](https://pypi.org/project/unifiles-client/)
-[![PyPI Version](https://img.shields.io/pypi/v/unifiles-client.svg)](https://pypi.org/project/unifiles-client/)
-[![License](https://img.shields.io/github/license/unifiles/unifiles-client.svg)](https://github.com/unifiles/unifiles-client/blob/main/LICENSE)
-
-A powerful Python client for the Unifiles document processing service. Unifiles provides a comprehensive three-layer document processing architecture that makes it easy to upload, extract content from, and index documents for search and retrieval.
-
-## 🌟 Features
-
-### Three-Layer Document Processing Architecture
-
-1. **📁 File Storage Layer** - Upload and manage original files
-2. **🔍 Content Extraction Layer** - OCR processing for both text and image content  
-3. **📚 Knowledge Base Layer** - Document chunking and vector indexing
-
-### Key Capabilities
-
-- **Simple & Intuitive API** - Pythonic interface following best practices
-- **Multiple Content Types** - Handle PDFs, documents, images, and more
-- **OCR Processing** - Extract text from images and scanned documents
-- **Knowledge Base Management** - Create and manage document collections
-- **Fast Content Retrieval** - Quick access to processed document content
-- **Error Handling** - Comprehensive error management and retry logic
-- **Type Safety** - Full type hints for better development experience
-
-## 🚀 Quick Start
-
-### Installation
-
-```bash
-pip install unifiles-client
-```
-
-### Basic Usage
-
-```python
-from unifiles_client import Unifile
-
-# Initialize the client
-client = Unifile(
-    api_key="your_api_key_here",
-    base_url="https://your-unifiles-server.com"
-)
-
-# Create a knowledge base
-kb = client.create_knowledge_base(
-    name="My Documents", 
-    description="Important business documents"
-)
-
-# Upload and process a document (all three layers automatically)
-document = kb.upload_document(
-    file_path="path/to/your/document.pdf",
-    auto_extract=True,    # Automatic content extraction
-    auto_index=True       # Automatic knowledge base indexing
-)
-
-# Access processed content
-content = document.get_content()
-print(f"Text content: {content.get('text_content')}")
-print(f"OCR content: {content.get('image_content')}")
-```
-
-### One-Click Processing
-
-```python
-# Process a document with a single command
-document = client.quick_process(
-    file_path="path/to/document.pdf",
-    knowledge_base_name="Research Papers"
-)
-
-print("✅ Document processed through all three layers!")
-```
-
-## 📖 Detailed Usage
-
-### Layer 1: File Storage
-
-```python
-# Upload a file
-document = client.upload_file("document.pdf", is_public=False)
-print(f"File uploaded: {document.filename}")
-
-# Get file information
-info = document.get_info()
-print(f"File size: {info['file_size']} bytes")
-
-# List all files
-files = client.list_files(limit=10)
-for file in files:
-    print(f"- {file.filename}")
-```
-
-### Layer 2: Content Extraction
-
-```python
-from unifiles_client import ContentType
-
-# Trigger content extraction
-extraction_result = document.extract_content(mode="normal")
-
-# Get different types of extracted content
-text_content = document.get_content(ContentType.TEXT)
-image_content = document.get_content(ContentType.IMAGE)
-
-# Access processed content
-all_content = document.get_content()
-print(f"Markdown: {all_content.get('markdown_content')}")
-print(f"Metadata: {all_content.get('extraction_metadata')}")
-```
-
-### Layer 3: Knowledge Base Operations
-
-```python
-# Create knowledge base
-kb = client.create_knowledge_base(
-    name="Technical Documentation",
-    description="All technical docs and manuals"
-)
-
-# Index document to knowledge base  
-index_result = document.index_to_knowledge_base(
-    kb.kb_id, 
-    chunk_strategy="semantic"
-)
-
-# List knowledge bases
-knowledge_bases = client.list_knowledge_bases()
-for kb in knowledge_bases:
-    print(f"KB: {kb.name} ({kb.document_count} documents)")
-
-# Get documents in a knowledge base
-documents = kb.list_documents()
-for doc in documents:
-    print(f"- {doc.get('filename')}")
-```
-
-## 🎯 Advanced Features
-
-### Error Handling
-
-```python
-from unifiles_client import (
-    UnifilesError, 
-    DocumentNotFoundError, 
-    AuthenticationError,
-    RateLimitError
-)
-
-try:
-    document = client.upload_file("large_file.pdf")
-except AuthenticationError:
-    print("Invalid API key")
-except RateLimitError:
-    print("Too many requests, please wait")
-except UnifilesError as e:
-    print(f"Upload failed: {e}")
-```
-
-### Waiting for Processing
-
-```python
-# Upload and wait for extraction to complete
-document = client.upload_file("document.pdf")
-document.extract_content()
-
-# Wait for processing to finish
-if document.wait_for_extraction(timeout=300):
-    content = document.get_content()
-    print("Content extraction completed!")
-```
-
-### File Type Support
-
-The client supports various file types:
-- **Documents**: PDF, DOC, DOCX, TXT, MD
-- **Images**: JPG, JPEG, PNG, TIFF
-- **Presentations**: PPT, PPTX  
-- **Spreadsheets**: XLS, XLSX
-
-## 🛠️ Configuration
-
-### Environment Variables
-
-```bash
-export UNIFILES_API_KEY="your_api_key"
-export UNIFILES_BASE_URL="https://your-server.com"
-```
-
-### Client Options
-
-```python
-client = Unifile(
-    api_key="your_key",
-    base_url="https://your-server.com",
-    timeout=30,          # Request timeout in seconds
-    max_retries=3,       # Number of retry attempts
-    retry_delay=1.0      # Delay between retries
-)
-```
-
-## 📊 Document Processing Flow
-
-```mermaid
-graph TD
-    A[Upload File] --> B[File Storage Layer]
-    B --> C[Content Extraction Layer]
-    C --> D[OCR Processing]
-    D --> E[Text + Image Content]
-    E --> F[Knowledge Base Layer]
-    F --> G[Document Chunking]
-    G --> H[Vector Indexing]
-    H --> I[Ready for Search]
-```
-
-## 🔧 Development
-
-### Running Tests
-
-```bash
-# Install development dependencies
-pip install unifiles-client[dev]
-
-# Run tests
-pytest
-
-# Run with coverage
-pytest --cov=unifiles_client
-```
-
-### Code Quality
-
-```bash
-# Format code
-black unifiles_client/
-
-# Sort imports
-isort unifiles_client/
-
-# Type checking
-mypy unifiles_client/
-```
-
-## 📝 Examples
-
-Check out the [examples](examples/) directory for more detailed usage examples:
-
-- [Basic usage](examples/fast_start.py) - Getting started with the client
-- [Batch processing](examples/batch_upload.py) - Process multiple files
-- [Knowledge base management](examples/kb_management.py) - Advanced KB operations
-
-## 🤝 Contributing
-
-We welcome contributions! Please see our [Contributing Guide](CONTRIBUTING.md) for details.
-
-## 📄 License
-
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
-
-## 🆘 Support
-
-- 📚 [Documentation](https://unifiles-client.readthedocs.io/)
-- 🐛 [Issue Tracker](https://github.com/unifiles/unifiles-client/issues)
-- 💬 [Discussions](https://github.com/unifiles/unifiles-client/discussions)
-
-## 🎉 Why Choose Unifiles?
-
-- **🚀 Fast Processing** - Optimized three-layer architecture
-- **📱 Easy Integration** - Simple Python API  
-- **🔒 Secure** - Enterprise-grade security
-- **📈 Scalable** - Handle documents from single files to large collections
-- **🎯 Accurate** - Advanced OCR and content extraction
-- **🛠️ Flexible** - Support for multiple document types and use cases
-
----
-
-Made with ❤️ by the Unifiles Team

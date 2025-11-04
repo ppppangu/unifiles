@@ -15,7 +15,6 @@ from tenacity import (
     wait_exponential,
 )
 
-from ..config.env_config import read_config
 from ..utils.file_utils import detect_content_type
 
 
@@ -23,7 +22,8 @@ class FileFormatValidator:
     """文件格式验证器"""
 
     def __init__(self, config: Optional[Dict[str, Any]] = None):
-        self.config = config or read_config()
+        # Config is optional - will be provided by parent if needed
+        self.config = config or {}
 
         # 支持的文件类型定义
         self.DOCUMENT_FILE_TYPES = [
@@ -137,7 +137,8 @@ class PDFConverter:
     """PDF转换器"""
 
     def __init__(self, config: Optional[Dict[str, Any]] = None):
-        self.config = config or read_config()
+        # Config is optional - will be provided by parent if needed
+        self.config = config or {}
         self.validator = FileFormatValidator(config)
 
     def _fix_public_url(self, original_url: str) -> str:
@@ -245,7 +246,8 @@ class FormatValidationPipeline:
     """格式验证和PDF转换流水线"""
 
     def __init__(self, config: Optional[Dict[str, Any]] = None):
-        self.config = config or read_config()
+        # Config is optional - will be provided by parent if needed
+        self.config = config or {}
         self.validator = FileFormatValidator(config)
         self.converter = PDFConverter(config)
 

@@ -9,13 +9,18 @@ import asyncpg
 from loguru import logger
 from minio import Minio
 
+from unifiles.config import settings
+
 
 async def validate_user_id(user_id: str) -> bool:
     """验证用户在数据库中是否存在"""
-    from unifiles.core.config.env_config import read_pg_config
-
-    pg_config = read_pg_config()
-    async with asyncpg.create_pool(**pg_config) as pool, pool.acquire() as conn:
+    async with asyncpg.create_pool(
+        host=settings.database.host,
+        port=settings.database.port,
+        user=settings.database.user,
+        password=settings.database.password,
+        database=settings.database.database,
+    ) as pool, pool.acquire() as conn:
         async with conn.transaction():
             query = "SELECT EXISTS(SELECT 1 FROM unifiles.users WHERE id = $1)"
             result = await conn.fetch(query, user_id)
@@ -24,23 +29,16 @@ async def validate_user_id(user_id: str) -> bool:
 
 async def validate_user_id_in_minio(user_id: str) -> bool:
     """验证用户在MinIO中是否存在（检查是否有文件）"""
-    from unifiles.core.config.env_config import read_minio_config
-
-    minio_config = read_minio_config()
     minio_client = Minio(
-        (
-            minio_config["address"]
-            if "address" in minio_config
-            else f"{minio_config['host']}:{minio_config['port']}"
-        ),
-        access_key=minio_config["access_key"],
-        secret_key=minio_config["secret_key"],
-        secure=minio_config.get("secure", False),  # 从配置读取，默认False用于本地开发
+        settings.minio.endpoint,
+        access_key=settings.minio.access_key,
+        secret_key=settings.minio.secret_key,
+        secure=settings.minio.secure,
     )
     try:
         # 检查桶内是否存在以用户id命名的目录
         objects = minio_client.list_objects(
-            minio_config["bucket_name"], prefix=f"{user_id}/", recursive=False
+            settings.minio.bucket_name, prefix=f"{user_id}/", recursive=False
         )
         return any(True for _ in objects)
     except Exception as e:
@@ -51,10 +49,15 @@ async def validate_user_id_in_minio(user_id: str) -> bool:
 async def validate_database_connection() -> bool:
     """验证数据库连接是否正常"""
     try:
-        from unifiles.core.config.env_config import read_pg_config
-
-        pg_config = read_pg_config()
-        async with asyncpg.create_pool(**pg_config, min_size=1, max_size=1) as pool:
+        async with asyncpg.create_pool(
+            host=settings.database.host,
+            port=settings.database.port,
+            user=settings.database.user,
+            password=settings.database.password,
+            database=settings.database.database,
+            min_size=1,
+            max_size=1,
+        ) as pool:
             async with pool.acquire() as conn:
                 await conn.execute("SELECT 1")
                 return True
@@ -66,22 +69,15 @@ async def validate_database_connection() -> bool:
 async def validate_storage_connection() -> bool:
     """验证存储连接是否正常"""
     try:
-        from unifiles.core.config.env_config import read_minio_config
-
-        minio_config = read_minio_config()
         minio_client = Minio(
-            (
-                minio_config["address"]
-                if "address" in minio_config
-                else f"{minio_config['host']}:{minio_config['port']}"
-            ),
-            access_key=minio_config["access_key"],
-            secret_key=minio_config["secret_key"],
-            secure=minio_config.get("secure", False),  # 从配置读取，默认False用于本地开发
+            settings.minio.endpoint,
+            access_key=settings.minio.access_key,
+            secret_key=settings.minio.secret_key,
+            secure=settings.minio.secure,
         )
 
         # 检查桶是否存在
-        bucket_exists = minio_client.bucket_exists(minio_config["bucket_name"])
+        bucket_exists = minio_client.bucket_exists(settings.minio.bucket_name)
         return bucket_exists
     except Exception as e:
         logger.error(f"Storage connection validation failed: {e}")

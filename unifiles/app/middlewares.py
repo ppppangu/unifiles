@@ -10,8 +10,8 @@ import asyncpg
 from fastapi import Request, UploadFile
 from fastapi.responses import JSONResponse
 
-# 导入数据库配置
-from unifiles.core.config.env_config import read_pg_config
+# 导入配置
+from unifiles.config import settings
 
 # 导入格式验证器
 from unifiles.core.pipelines.format_validator import FileFormatValidator
@@ -340,9 +340,12 @@ class AuthMiddleware:
         try:
             # 初始化连接池（如果尚未初始化）
             if not self._pg_pool:
-                pg_config = read_pg_config()
                 self._pg_pool = await asyncpg.create_pool(
-                    **pg_config,
+                    host=settings.database.host,
+                    port=settings.database.port,
+                    user=settings.database.user,
+                    password=settings.database.password,
+                    database=settings.database.database,
                     min_size=2,
                     max_size=10,
                     command_timeout=30

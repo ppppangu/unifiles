@@ -38,7 +38,7 @@ from unifiles.app.routers import (
 from unifiles.app.schemas import StandardResponse
 
 # 导入核心工具
-from unifiles.core.config.env_config import mk_need_path
+from unifiles.core.utils import mk_need_path
 from unifiles.core.logging import cleanup_logger, get_logger, init_logger
 from unifiles.core.storage import get_initialized_storage
 

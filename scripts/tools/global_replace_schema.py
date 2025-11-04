@@ -16,6 +16,7 @@ Usage examples:
   uv run python scripts/tools/global_replace_schema.py --root . --dry-run
   uv run python scripts/tools/global_replace_schema.py --root . --pattern unifiles --replacement unifiles
 """
+
 from __future__ import annotations
 
 import argparse
@@ -28,7 +29,12 @@ DEFAULT_PATTERN = "unifiles"
 DEFAULT_REPLACEMENT = "unifiles"
 
 SKIP_DIRS = {
-    ".git", "__pycache__", ".venv", "venv", "env", "node_modules",
+    ".git",
+    "__pycache__",
+    ".venv",
+    "venv",
+    "env",
+    "node_modules",
 }
 SKIP_DIR_PREFIXES = (
     "backup_schema_rename_",
@@ -37,11 +43,32 @@ SKIP_DIR_PREFIXES = (
 
 # Common binary file extensions to skip
 BINARY_EXTS = {
-    ".png", ".jpg", ".jpeg", ".gif", ".bmp", ".ico",
-    ".zip", ".tar", ".gz", ".7z", ".rar",
-    ".pdf", ".mp3", ".mp4", ".mov", ".avi",
-    ".woff", ".woff2", ".ttf", ".otf",
-    ".dll", ".exe", ".bin", ".so", ".dylib", ".pyd",
+    ".png",
+    ".jpg",
+    ".jpeg",
+    ".gif",
+    ".bmp",
+    ".ico",
+    ".zip",
+    ".tar",
+    ".gz",
+    ".7z",
+    ".rar",
+    ".pdf",
+    ".mp3",
+    ".mp4",
+    ".mov",
+    ".avi",
+    ".woff",
+    ".woff2",
+    ".ttf",
+    ".otf",
+    ".dll",
+    ".exe",
+    ".bin",
+    ".so",
+    ".dylib",
+    ".pyd",
 }
 
 
@@ -49,8 +76,10 @@ def iter_files(root: Path) -> Iterable[Path]:
     for dirpath, dirnames, filenames in os.walk(root):
         # prune skip dirs
         dirnames[:] = [
-            d for d in dirnames
-            if d not in SKIP_DIRS and not any(d.startswith(pfx) for pfx in SKIP_DIR_PREFIXES)
+            d
+            for d in dirnames
+            if d not in SKIP_DIRS
+            and not any(d.startswith(pfx) for pfx in SKIP_DIR_PREFIXES)
         ]
         for fn in filenames:
             p = Path(dirpath) / fn
@@ -60,7 +89,9 @@ def iter_files(root: Path) -> Iterable[Path]:
             yield p
 
 
-def process_file(path: Path, pattern: str, replacement: str, backup_root: Path, dry_run: bool) -> Tuple[bool, int]:
+def process_file(
+    path: Path, pattern: str, replacement: str, backup_root: Path, dry_run: bool
+) -> Tuple[bool, int]:
     try:
         text = path.read_text(encoding="utf-8")
     except UnicodeDecodeError:
@@ -86,11 +117,23 @@ def process_file(path: Path, pattern: str, replacement: str, backup_root: Path, 
 
 
 def main() -> int:
-    ap = argparse.ArgumentParser(description="Global find-and-replace across the project")
-    ap.add_argument("--root", default=Path.cwd(), type=Path, help="Root directory to process")
-    ap.add_argument("--pattern", default=DEFAULT_PATTERN, help="Pattern to find (default: unifiles)")
-    ap.add_argument("--replacement", default=DEFAULT_REPLACEMENT, help="Replacement string (default: unifiles)")
-    ap.add_argument("--dry-run", action="store_true", help="Preview changes without writing files")
+    ap = argparse.ArgumentParser(
+        description="Global find-and-replace across the project"
+    )
+    ap.add_argument(
+        "--root", default=Path.cwd(), type=Path, help="Root directory to process"
+    )
+    ap.add_argument(
+        "--pattern", default=DEFAULT_PATTERN, help="Pattern to find (default: unifiles)"
+    )
+    ap.add_argument(
+        "--replacement",
+        default=DEFAULT_REPLACEMENT,
+        help="Replacement string (default: unifiles)",
+    )
+    ap.add_argument(
+        "--dry-run", action="store_true", help="Preview changes without writing files"
+    )
     args = ap.parse_args()
 
     root = args.root.resolve()
@@ -101,7 +144,9 @@ def main() -> int:
 
     files = list(iter_files(root))
     for p in files:
-        did, n = process_file(p, args.pattern, args.replacement, backup_root, args.dry_run)
+        did, n = process_file(
+            p, args.pattern, args.replacement, backup_root, args.dry_run
+        )
         if did:
             changed.append((p, n))
 
@@ -119,4 +164,3 @@ def main() -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
-

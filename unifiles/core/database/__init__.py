@@ -1,18 +1,20 @@
 from .base import DatabaseManager, FileDBManager, file_db_manager
-from .models import (
+from unifiles.types import (
+    FileModel,
+    FileStatus,
+    UserModel,
+    KnowledgeBaseModel,
+    DocumentModel,
+    ProcessingStatus,
+    ProcessingStage,
+    ExtractedDocumentModel,
+)
+from unifiles.types.core import (
     ChunkModel,
     ComponentModel,
-    DocumentModel,
     ExtractedAssetModel,
-    ExtractedDocumentModel,
-    FileModel,
-    FileProcessingLogModel,
-    FileStatus,
-    KnowledgeBaseModel,
     PhotoModel,
-    ProcessingStage,
-    ProcessingStatus,
-    UserModel,
+    FileProcessingLogModel,
 )
 from .secure_manager import SecureFileDBManager, secure_file_db_manager
 from .validation import (

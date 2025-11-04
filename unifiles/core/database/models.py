@@ -1,80 +1,57 @@
 """
-数据库模型定义
-提供标准化的数据库操作模型和类型定义
-基于新的分层架构设计：文件层 -> 内容提取层 -> 知识库层 -> 组件抽象层 -> 组件子类层
+DEPRECATED: This module is kept for backward compatibility only.
+Please use unifiles.types instead.
+
+All types have been moved to the new types/ structure:
+- from unifiles.types import FileModel, FileStatus, UserModel, etc.
+- from unifiles.types.core import ChunkModel, PhotoModel, etc.
+
+Old structure (DEPRECATED):
+  core/database/models.py
+
+New structure (RECOMMENDED):
+  types/
+    __init__.py          # Top-level exports (80% use case)
+    shared.py            # Shared types
+    core/
+      users.py           # User system types
+      files.py           # File management types
+      storage.py         # Storage system types
+      extraction.py      # Content extraction types
+      knowledge.py       # Knowledge base types
+      components.py      # Component system types
 """
 
-from dataclasses import dataclass, field
-from datetime import datetime
-from enum import Enum
-from typing import Any, Dict, List, Optional
+# Re-export all types from new location for backward compatibility
+from unifiles.types import (
+    FileModel,
+    FileStatus,
+    UserModel,
+    ProcessingStatus,
+    ProcessingStage,
+    KnowledgeBaseModel,
+    DocumentModel,
+    ExtractedDocumentModel,
+    AccessKeyModel,
+    FileProcessingLogModel,
+    KnowledgeBaseStatus,
+    ExtractionStatus,
+)
+from unifiles.types.core import (
+    ChunkModel,
+    PhotoModel,
+    ComponentModel,
+    ComponentType,
+    ExtractedAssetModel,
+    KBStatisticsModel,
+)
 
-# ================================
-# 枚举定义 (Enums)
-# ================================
+# Legacy alias - StorageType is now ProviderType
+from unifiles.types.core.storage import ProviderType
+StorageType = ProviderType
 
-
-class FileStatus(Enum):
-    """文件状态枚举"""
-
-    UPLOADED = "uploaded"
-    VALIDATING = "validating"
-    PROCESSING = "processing"
-    PROCESSED = "processed"
-    ERROR = "error"
-    DELETED = "deleted"
-
-
-class ProcessingStage(Enum):
-    """处理阶段枚举"""
-
-    UPLOAD = "upload"
-    VALIDATION = "validation"
-    OCR_EXTRACTION = "ocr_extraction"
-    MARKDOWN_GENERATION = "markdown_generation"
-
-
-class ProcessingStatus(Enum):
-    """处理状态枚举"""
-
-    PENDING = "pending"
-    RUNNING = "running"
-    COMPLETED = "completed"
-    FAILED = "failed"
-    CANCELLED = "cancelled"
-
-
-class StorageType(Enum):
-    """存储类型枚举"""
-
-    LOCAL = "local"
-    OBJECT_STORAGE = "object_storage"
-
-
-class ExtractionStatus(Enum):
-    """提取状态枚举"""
-
-    PENDING = "pending"
-    PROCESSING = "processing"
-    COMPLETED = "completed"
-    FAILED = "failed"
-    PARTIAL = "partial"
-
-
-class KnowledgeBaseStatus(Enum):
-    """知识库状态枚举"""
-
-    ACTIVE = "active"
-    INACTIVE = "inactive"
-    ARCHIVED = "archived"
-    DELETED = "deleted"
-
-
-class ComponentType(Enum):
-    """组件类型枚举"""
-
-    CHUNK = "chunk"
-    PHOTO = "photo"
+# Legacy model - StorageConfigModel is now just StorageConfig
+from unifiles.types import StorageConfig as StorageConfigModel
 
 
 # ================================

@@ -1,0 +1,146 @@
+site_name: Unifiles Documentation
+site_url: https://unifiles.dev
+site_description: 简洁、可扩展的文件处理与知识库服务
+repo_url: https://github.com/ppppangu/Unifiles
+repo_name: ppppangu/Unifiles
+site_dir: site
+docs_dir: .
+
+# 主题配置
+theme:
+  name: material
+  language: zh
+  features:
+    - content.code.copy
+    - content.code.select
+    - content.tabs.link
+    - content.footnote.tooltips
+    - navigation.instant
+    - navigation.instant.prefetch
+    - navigation.tabs
+    - navigation.tabs.sticky
+    - navigation.sections
+    - navigation.expand
+    - navigation.path
+    - navigation.indexes
+    - navigation.top
+    - search.suggest
+    - search.highlight
+  palette:
+    # Light mode
+    - scheme: default
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    # Dark mode
+    - scheme: slate
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+
+# Markdown extensions
+markdown_extensions:
+  - pymdownx.highlight:
+      anchor_linenums: true
+      line_spans: __span
+      pygments_lang_class: true
+  - pymdownx.inlinehilite
+  - pymdownx.snippets
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
+  - pymdownx.tabbed:
+      alternate_style: true
+  - pymdownx.tasklist:
+      custom_checkbox: true
+  - pymdownx.emoji:
+      emoji_index: !!python/name:material.extensions.emoji.twemoji
+      emoji_generator: !!python/name:material.extensions.emoji.to_svg
+  - tables
+  - footnotes
+  - attr_list
+  - md_in_html
+  - def_list
+  - admonition
+  - pymdownx.details
+  - toc:
+      permalink: true
+
+# Navigation
+nav:
+  - Home: index.md
+
+  - Getting Started:
+    - getting-started/index.md
+    - Quick Tutorial: getting-started/quick-tutorial.md
+
+  - Features:
+    - features/index.md
+
+  - API Documentation:
+    - api/index.md
+    - API Reference: api/reference.md
+    - Design Specification: api/design-spec.md
+    - OpenAPI Spec: api/openapi.yaml
+
+  - Architecture:
+    - architecture/index.md
+    - System Overview: architecture/overview.md
+    - Three-Layer Design: architecture/three-layer-design.md
+    - API Architecture: architecture/api-architecture.md
+    - Data Flow: architecture/data-flow.md
+    - Database Schema: architecture/database-schema.md
+    - Deep Analysis: architecture/deep-analysis.md
+
+  - Development:
+    - development/index.md
+    - Contributing: development/contributing.md
+    - Scripts: development/scripts.md
+    - Progress: development/progress.md
+
+  - Deployment:
+    - deployment/index.md
+    - Deployment Guide: deployment/deployment.md
+    - CI/CD Setup: deployment/cicd.md
+
+  - Observability:
+    - observability/index.md
+    - Logging Strategy: observability/logging-strategy.md
+    - Logging Design: observability/logging-design.md
+    - OpenTelemetry: observability/otel-instrumentation.md
+    - Implementation Status: observability/implementation-status.md
+
+  - Tutorials:
+    - tutorials/index.md
+    - Beginner:
+      - Developer Guide: tutorials/beginner/developer-guide.md
+
+  - About:
+    - about/index.md
+    - Team: about/team.md
+
+  - Releases:
+    - Release Notes: releases/release-notes.md
+
+# Plugins
+plugins:
+  - search:
+      lang:
+        - zh
+        - en
+  - git-revision-date-localized:
+      enable_creation_date: true
+
+# Extra
+extra:
+  version:
+    provider: mike
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/ppppangu/Unifiles

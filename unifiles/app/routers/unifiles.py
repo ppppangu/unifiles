@@ -34,9 +34,17 @@ async def get_file_service() -> FileService:
 
 def get_auth_service() -> AuthService:
     """获取认证服务实例"""
-    from unifiles.core.config.env_config import read_pg_config
+    from unifiles.config import settings
 
-    return AuthService(read_pg_config())
+    # Create pg_config dict from settings
+    pg_config = {
+        "host": settings.database.host,
+        "port": settings.database.port,
+        "database": settings.database.database,
+        "user": settings.database.user,
+        "password": settings.database.password,
+    }
+    return AuthService(pg_config)
 
 
 # 依赖注入

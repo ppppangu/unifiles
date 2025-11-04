@@ -1,0 +1,12 @@
+{
+  "name": "unifiles-doc",
+  "build": {
+    "command": "npm run build",
+    "output": "pointer-landing-template/out"
+  },
+  "environment": {
+    "NODE_VERSION": "18",
+    "NPM_VERSION": "9",
+    "PYTHON_VERSION": "3.12"
+  }
+}

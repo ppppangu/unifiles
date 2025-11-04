@@ -37,6 +37,27 @@ keywords = [
 dependencies = [
     "requests>=2.28.0",
     "pathlib2>=2.3.0; python_version<'3.6'",
+    "pydantic-settings>=2.8.1",
+    "passlib[bcrypt]>=1.7.4",
+    "cryptography>=46.0.3",
+    "pyjwt>=2.9.0",
+    "loguru>=0.7.3",
+    "asyncpg>=0.30.0",
+    "redis>=6.1.1",
+    "fastapi>=0.119.1",
+    "uvicorn>=0.33.0",
+    "minio>=7.2.7",
+    "httpx>=0.28.1",
+    "python-multipart>=0.0.20",
+    "pillow>=10.4.0",
+    "aiofiles>=24.1.0",
+    "pdfplumber>=0.11.5",
+    "pymupdf>=1.24.11",
+    "pypdf>=5.9.0",
+    "opentelemetry-api>=1.33.1",
+    "opentelemetry-sdk>=1.33.1",
+    "opentelemetry-instrumentation-fastapi>=0.54b1",
+    "bcrypt<5.0.0",
 ]
 requires-python = ">=3.8"
 
@@ -70,10 +91,11 @@ Issues = "https://github.com/unifiles/unifiles-client/issues"
 Changelog = "https://github.com/unifiles/unifiles-client/blob/main/CHANGELOG.md"
 
 [tool.setuptools]
-packages = ["unifiles_client"]
+packages = ["unifiles_client", "unifiles"]
 
 [tool.setuptools.package-dir]
 unifiles_client = "unifiles/client"
+unifiles = "Unifiles"
 
 [tool.black]
 line-length = 88

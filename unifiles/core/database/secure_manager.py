@@ -5,7 +5,7 @@ from typing import Any, Dict, List, Optional
 import asyncpg
 from loguru import logger
 
-from unifiles.core.config.env_config import read_pg_config
+from unifiles.config import settings
 from unifiles.core.security.authorization import DatabaseSecurityEnforcer
 
 
@@ -14,7 +14,6 @@ class SecureFileDBManager:
 
     def __init__(self):
         """初始化安全数据库管理器"""
-        self.pg_config = read_pg_config()
         self.security_enforcer = DatabaseSecurityEnforcer()
         self._connection_pool = None
         self._schema_name = "unifiles"  # 从配置中读取
@@ -24,7 +23,11 @@ class SecureFileDBManager:
         if not self._connection_pool:
             try:
                 self._connection_pool = await asyncpg.create_pool(
-                    **self.pg_config,
+                    host=settings.database.host,
+                    port=settings.database.port,
+                    user=settings.database.user,
+                    password=settings.database.password,
+                    database=settings.database.database,
                     min_size=min_size,
                     max_size=max_size,
                     command_timeout=30,

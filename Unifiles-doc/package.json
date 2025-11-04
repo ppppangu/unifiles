@@ -1,0 +1,16 @@
+{
+  "name": "unifiles-doc",
+  "version": "1.0.0",
+  "description": "Unifiles Documentation Site",
+  "private": true,
+  "scripts": {
+    "build": "node build.js",
+    "build:landing": "cd pointer-landing-template && npm install && npm run build",
+    "build:docs": "uv sync && uv run mkdocs build",
+    "dev:landing": "cd pointer-landing-template && npm run dev",
+    "dev:docs": "uv run mkdocs serve"
+  },
+  "keywords": ["documentation", "unifiles"],
+  "author": "",
+  "license": "MIT"
+}

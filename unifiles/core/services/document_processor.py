@@ -11,7 +11,7 @@ from typing import Any, Dict, Optional
 import aiofiles
 from loguru import logger
 
-from ..config.env_config import read_config
+from ..config.settings import settings
 from ..pipelines.format_validator import FormatValidationPipeline
 from ..pipelines.pdf_processor import (
     MineruOCRProvider,
@@ -26,7 +26,34 @@ class DocumentProcessingService:
     """文档处理服务主类"""
 
     def __init__(self, config: Optional[Dict[str, Any]] = None):
-        self.config = config or read_config()
+        # 保留 config 参数用于向后兼容，但现在优先使用 settings
+        # config 参数主要用于将配置传递给子组件（pipelines, services）
+        if config is None:
+            # 构建一个配置字典以兼容现有组件
+            # 注意：这是过渡方案，未来应该让所有组件直接使用 settings
+            config = {
+                "database": {
+                    "host": settings.database.host,
+                    "port": settings.database.port,
+                    "database": settings.database.database,
+                    "user": settings.database.user,
+                    "password": settings.database.password,
+                },
+                "redis": {
+                    "host": settings.redis.host,
+                    "port": settings.redis.port,
+                    "db": settings.redis.db,
+                    "password": settings.redis.password,
+                },
+                "minio": {
+                    "endpoint": settings.minio.endpoint,
+                    "access_key": settings.minio.access_key,
+                    "secret_key": settings.minio.secret_key,
+                    "bucket_name": settings.minio.bucket_name,
+                    "secure": settings.minio.secure,
+                },
+            }
+        self.config = config
 
         # 初始化各个组件
         self.format_pipeline = FormatValidationPipeline(config)

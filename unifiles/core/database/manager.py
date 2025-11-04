@@ -10,17 +10,19 @@ from typing import Any, Dict, Optional
 import asyncpg
 from loguru import logger
 
-from ..config.env_config import read_pg_config
-from .models import (
-    ChunkModel,
-    DocumentModel,
+from unifiles.config import settings
+from unifiles.types import (
     FileModel,
     FileStatus,
-    KnowledgeBaseModel,
-    PhotoModel,
-    ProcessingLogModel,
-    ProcessingStatus,
     UserModel,
+    KnowledgeBaseModel,
+    DocumentModel,
+    ProcessingStatus,
+)
+from unifiles.types.core import (
+    ChunkModel,
+    PhotoModel,
+    FileProcessingLogModel,
 )
 
 
@@ -28,17 +30,31 @@ class DatabaseManager:
     """数据库管理器 - 提供统一的数据库操作接口"""
 
     def __init__(self):
-        self.pg_config = read_pg_config()
         self._pool = None
 
     async def get_connection(self) -> asyncpg.Connection:
         """获取数据库连接"""
-        return await asyncpg.connect(**self.pg_config)
+        return await asyncpg.connect(
+            host=settings.database.host,
+            port=settings.database.port,
+            user=settings.database.user,
+            password=settings.database.password,
+            database=settings.database.database,
+        )
 
     async def create_pool(self) -> asyncpg.Pool:
         """创建连接池"""
         if self._pool is None:
-            self._pool = await asyncpg.create_pool(**self.pg_config)
+            self._pool = await asyncpg.create_pool(
+                host=settings.database.host,
+                port=settings.database.port,
+                user=settings.database.user,
+                password=settings.database.password,
+                database=settings.database.database,
+                min_size=settings.database.min_pool_size,
+                max_size=settings.database.max_pool_size,
+                command_timeout=settings.database.command_timeout,
+            )
         return self._pool
 
     async def close_pool(self):
@@ -464,8 +480,8 @@ class DatabaseManager:
     # ==================== 处理日志操作 ====================
 
     async def create_processing_log(
-        self, log_model: ProcessingLogModel
-    ) -> ProcessingLogModel:
+        self, log_model: FileProcessingLogModel
+    ) -> FileProcessingLogModel:
         """创建处理日志"""
         conn = await self.get_connection()
         try:

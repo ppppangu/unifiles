@@ -4,18 +4,24 @@ from typing import Any, Dict, List, Optional
 import asyncpg
 from loguru import logger
 
-from unifiles.core.config.env_config import read_pg_config
+from unifiles.config import settings
 
 
 class DatabaseManager(ABC):
     """数据库操作的抽象基类"""
 
     def __init__(self):
-        self.pg_config = read_pg_config()
+        pass
 
     async def get_connection(self) -> asyncpg.Connection:
         """获取数据库连接"""
-        return await asyncpg.connect(**self.pg_config)
+        return await asyncpg.connect(
+            host=settings.database.host,
+            port=settings.database.port,
+            user=settings.database.user,
+            password=settings.database.password,
+            database=settings.database.database,
+        )
 
     async def execute_query(self, query: str, *args) -> Any:
         """执行查询并返回结果"""

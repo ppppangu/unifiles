@@ -21,7 +21,8 @@ from tenacity import (
     wait_exponential,
 )
 
-from ..config.env_config import convert_to_internal_minio_url, read_config
+from unifiles.config import settings
+from unifiles.core.utils import convert_to_internal_minio_url
 
 
 # OCR接口定义
@@ -125,7 +126,8 @@ class MineruOCRProvider:
     """Mineru OCR提供者"""
 
     def __init__(self, config: Optional[Dict[str, Any]] = None):
-        self.config = config or read_config()
+        # If config is provided, use it; otherwise we'll use environment variables directly
+        self.config = config
         self.provider_name = "mineru"
 
     def get_provider_name(self) -> str:
@@ -145,9 +147,15 @@ class MineruOCRProvider:
 
             # 模拟调用Mineru API
             # 实际实现应该根据Mineru的API接口来调用
-            mineru_endpoint = self.config.get("mineru", {}).get(
-                "endpoint", "http://localhost:8080"
-            )
+            # Get mineru endpoint from config dict if provided, otherwise use env var
+            if self.config and "mineru" in self.config:
+                mineru_endpoint = self.config.get("mineru", {}).get(
+                    "endpoint", "http://localhost:8080"
+                )
+            else:
+                # Fallback to environment variable
+                import os
+                mineru_endpoint = os.getenv("UNIFILES_SERVICE_OCR_MINERU_0_URL", "http://localhost:8080")
 
             async with httpx.AsyncClient(timeout=300.0) as client:  # 5分钟超时
                 response = await client.post(
@@ -193,7 +201,8 @@ class FileDownloader:
     """文件下载器"""
 
     def __init__(self, config: Optional[Dict[str, Any]] = None):
-        self.config = config or read_config()
+        # Config is optional - will be provided by parent pipeline if needed
+        self.config = config or {}
 
     @retry(
         stop=stop_after_attempt(3),
@@ -314,7 +323,8 @@ class TextProcessor:
     """文本处理器 - 负责分块和分层处理"""
 
     def __init__(self, config: Optional[Dict[str, Any]] = None):
-        self.config = config or read_config()
+        # Config is optional - will be provided by parent pipeline if needed
+        self.config = config or {}
 
     def find_all_text_and_image_index(
         self, text: str, user_id: str, knowledge_base_id: str, document_id: str
@@ -521,7 +531,10 @@ class PDFProcessingPipeline:
         ocr_provider: Optional[OCRProvider] = None,
         config: Optional[Dict[str, Any]] = None,
     ):
-        self.config = config or read_config()
+        if config is None:
+            from unifiles.core.config.legacy_compat import build_legacy_config
+            config = build_legacy_config()
+        self.config = config
         self.ocr_provider = ocr_provider or SimplePDFReader()  # 默认使用简单PDF读取器
         self.downloader = FileDownloader(config)
         self.text_processor = TextProcessor(config)

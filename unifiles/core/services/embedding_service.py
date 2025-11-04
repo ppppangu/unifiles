@@ -14,7 +14,7 @@ from tenacity import (
     wait_exponential,
 )
 
-from ..config.env_config import read_config
+from ..config.settings import settings
 
 
 class EmbeddingProvider(Protocol):
@@ -41,7 +41,25 @@ class SingletonEmbeddingProvider:
     """单例嵌入提供者 - 基于现有的singleton_embedding.py逻辑"""
 
     def __init__(self, config: Optional[Dict[str, Any]] = None):
-        self.config = config or read_config()
+        # 保留 config 参数用于向后兼容
+        if config is None:
+            # 构建一个配置字典以兼容现有代码
+            config = {
+                "database": {
+                    "host": settings.database.host,
+                    "port": settings.database.port,
+                    "database": settings.database.database,
+                    "user": settings.database.user,
+                    "password": settings.database.password,
+                },
+                "redis": {
+                    "host": settings.redis.host,
+                    "port": settings.redis.port,
+                    "db": settings.redis.db,
+                    "password": settings.redis.password,
+                },
+            }
+        self.config = config
         self.provider_name = "singleton_embedding"
         self.embedding_dimension = 1024  # 默认维度，应该从配置或实际模型获取
 
@@ -235,7 +253,25 @@ class EmbeddingService:
         provider: Optional[EmbeddingProvider] = None,
         config: Optional[Dict[str, Any]] = None,
     ):
-        self.config = config or read_config()
+        # 保留 config 参数用于向后兼容
+        if config is None:
+            # 构建一个配置字典以兼容现有代码
+            config = {
+                "database": {
+                    "host": settings.database.host,
+                    "port": settings.database.port,
+                    "database": settings.database.database,
+                    "user": settings.database.user,
+                    "password": settings.database.password,
+                },
+                "redis": {
+                    "host": settings.redis.host,
+                    "port": settings.redis.port,
+                    "db": settings.redis.db,
+                    "password": settings.redis.password,
+                },
+            }
+        self.config = config
         self.provider = provider or SingletonEmbeddingProvider(config)
 
     def set_provider(self, provider: EmbeddingProvider):
