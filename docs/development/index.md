@@ -36,7 +36,7 @@ uvicorn server.app.v1.main:app --host 0.0.0.0 --port 8088 --reload
 
 ## 🏗️ 项目架构
 
-关于系统架构、数据处理流水线、数据模型和数据库设计的详细信息，请参阅 **[架构设计文档 (ARCHITECTURE.md)](ARCHITECTURE.md)**。
+关于系统架构、数据处理流水线、数据模型和数据库设计的详细信息，请参阅 **[架构设计文档 (ARCHITECTURE.md)](architecture/three-layer-design.md)**。
 
 ### 目录结构 (V1 核心)
 
@@ -71,7 +71,7 @@ Unifiles/
 - **`database`**: 负责与 PostgreSQL 数据库交互，包括元数据和向量数据的管理。
 - **`storage`**: 负责与 MinIO 对象存储交互。
 
-更详细的设计思想请参考 **[架构设计文档 (ARCHITECTURE.md)](ARCHITECTURE.md)**。
+更详细的设计思想请参考 **[架构设计文档 (ARCHITECTURE.md)](architecture/three-layer-design.md)**。
 
 ---
 
@@ -208,7 +208,7 @@ CMD ["uvicorn", "server.app.v1.main:app", "--host", "0.0.0.0", "--port", "8088"]
 3.  更新了相关的文档。
 4.  所有测试均已通过。
 
-更详细的贡献流程、代码规范和提交信息格式，请参阅 **[贡献指南 (CONTRIBUTING.md)](CONTRIBUTING.md)**。
+更详细的贡献流程、代码规范和提交信息格式，请参阅 **[贡献指南 (CONTRIBUTING.md)](contributing.md)**。
 
 ---
 

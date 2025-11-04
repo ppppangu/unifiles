@@ -587,6 +587,6 @@ curl -X DELETE "http://localhost:8088/knowledge-bases/my_kb/documents/doc_a1b2c3
 
 - **API交互式文档**: http://localhost:8088/docs
 - **ReDoc文档**: http://localhost:8088/redoc
-- **架构设计**: [ARCHITECTURE.md](ARCHITECTURE.md)
-- **快速开始指南**: [QUICK_START.md](QUICK_START.md)
-- **开发指南**: [DEVELOPMENT.md](DEVELOPMENT.md)
+- **架构设计**: [ARCHITECTURE.md](architecture/three-layer-design.md)
+- **快速开始指南**: [QUICK_START.md](getting-started/index.md)
+- **开发指南**: [DEVELOPMENT.md](development/index.md)

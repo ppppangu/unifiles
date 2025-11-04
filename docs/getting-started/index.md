@@ -247,6 +247,6 @@ volumes:
 
 ## 📚 下一步
 
-- **熟悉API**: 查看 [API参考文档 (API_REFERENCE.md)](API_REFERENCE.md)
-- **理解架构**: 阅读 [架构设计文档 (ARCHITECTURE.md)](ARCHITECTURE.md)
-- **深入开发**: 参考 [开发文档 (DEVELOPMENT.md)](DEVELOPMENT.md)
+- **熟悉API**: 查看 [API参考文档 (API_REFERENCE.md)](api/reference.md)
+- **理解架构**: 阅读 [架构设计文档 (ARCHITECTURE.md)](architecture/three-layer-design.md)
+- **深入开发**: 参考 [开发文档 (DEVELOPMENT.md)](development/index.md)
