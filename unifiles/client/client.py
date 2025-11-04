@@ -99,7 +99,11 @@ class SearchResult:
 
     def __repr__(self) -> str:
         """字符串表示"""
-        preview = self.text_content[:50] + "..." if len(self.text_content) > 50 else self.text_content
+        preview = (
+            self.text_content[:50] + "..."
+            if len(self.text_content) > 50
+            else self.text_content
+        )
         return f"SearchResult(score={self.similarity_score:.3f}, text='{preview}')"
 
     def __str__(self) -> str:
@@ -125,6 +129,11 @@ class Document:
         self._file_info = file_info
         self._extracted_content = None
         self._indexed_content = None
+        # 异步提取任务跟踪
+        self._extraction_task_id: Optional[str] = None
+        self._extraction_status: Optional[str] = (
+            None  # queued|processing|completed|failed
+        )
 
     @property
     def filename(self) -> str:
@@ -143,6 +152,16 @@ class Document:
         - EXTRACTED: 已完成内容提取
         - UPLOADED: 仅上传完成
         """
+        # 优先根据异步任务状态推断
+        if self._extraction_status:
+            st = self._extraction_status
+            if st in {"queued", "processing", "pending"}:
+                return DocumentStatus.EXTRACTING
+            if st == "completed":
+                return DocumentStatus.EXTRACTED
+            if st in {"failed", "cancelled", "timeout"}:
+                return DocumentStatus.FAILED
+
         if self._indexed_content:
             return DocumentStatus.INDEXED
         if self._extracted_content:
@@ -212,28 +231,50 @@ class Document:
         """
         start_time = time.time()
 
+        # 确保我们有任务ID可用
+        def _ensure_task_id() -> Optional[str]:
+            if self._extraction_task_id:
+                return self._extraction_task_id
+            try:
+                tasks_resp = self.client._get(
+                    "/tasks", params={"task_type": "extraction", "limit": 50}
+                )
+                for t in tasks_resp.get("tasks", []):
+                    if t.get("entity_id") == self.file_id:
+                        return t.get("task_id") or t.get("id")
+            except Exception:
+                return None
+            return None
+
+        task_id = _ensure_task_id()
+        if not task_id:
+            raise UnifilesError(
+                "No extraction task found. Call extract_content() first."
+            )
+
         try:
             while time.time() - start_time < timeout:
-                # 检查当前文档状态
                 try:
-                    current_status = self.status
+                    status_resp = self.client._get(f"/tasks/{task_id}")
+                    st = (status_resp.get("status") or "").lower()
+                    self._extraction_status = st
 
-                    if current_status == DocumentStatus.EXTRACTED:
+                    if st == "completed":
+                        # 获取最终结果
+                        result = self.client._get(f"/tasks/{task_id}/result")
+                        extracted = result.get("extracted_content")
+                        if extracted:
+                            self._extracted_content = extracted
                         return True
-                    if current_status == DocumentStatus.INDEXED:
-                        # 已索引意味着已提取
-                        return True
-                    if current_status == DocumentStatus.FAILED:
+                    if st in {"failed", "cancelled", "timeout"}:
                         raise UnifilesError(
-                            f"Document extraction failed for {self.file_id}"
+                            f"Document extraction failed with status: {st}"
                         )
 
-                    # 继续等待
                     time.sleep(poll_interval)
-
                 except UnifilesError as e:
-                    # 如果是网络错误，继续重试
-                    if "Connection failed" in str(e) or "timeout" in str(e).lower():
+                    msg = str(e).lower()
+                    if "connection failed" in msg or "timeout" in msg:
                         time.sleep(poll_interval)
                     else:
                         raise
@@ -241,38 +282,56 @@ class Document:
             raise UnifilesError(
                 f"Document extraction timeout after {timeout} seconds for {self.file_id}"
             )
-
         except KeyboardInterrupt:
             raise UnifilesError("Document extraction cancelled by user")
 
-    def extract_content(self, mode: str = "normal") -> Dict[str, Any]:
+    def extract_content(
+        self,
+        mode: str = "simple",
+        *,
+        wait: bool = False,
+        timeout: int = 300,
+        poll_interval: int = 5,
+    ) -> Dict[str, Any]:
         """
-        触发内容提取（第二层处理）
+        触发内容提取（第二层处理，异步任务）
 
         Args:
-            mode: 提取模式 simple|normal
+            mode: 提取模式 simple|mistral|selfhosted|openai
+            wait: 是否等待任务完成并返回内容
+            timeout: 等待超时时间（秒），仅在 wait=True 时生效
+            poll_interval: 轮询间隔（秒），仅在 wait=True 时生效
 
         Returns:
-            提取任务信息
+            - 当 wait=False 时：返回任务提交结果（task_id/status）
+            - 当 wait=True 时：返回任务结果，包含 extracted_content
         """
         data = {"mode": mode}
         response = self.client._post(f"/files/{self.file_id}/extract", data=data)
 
-        # 更新本地缓存
-        if response.get("success") and "extracted_content" in response:
-            self._extracted_content = response["extracted_content"]
+        # 记录任务信息
+        task_id = response.get("task_id")
+        status = response.get("status")
+        if task_id:
+            self._extraction_task_id = task_id
+            self._extraction_status = status or "queued"
+
+        if wait and task_id:
+            if self.wait_for_extraction(timeout=timeout, poll_interval=poll_interval):
+                # 返回最终任务结果（包含 extracted_content）
+                return self.client._get(f"/tasks/{task_id}/result")
 
         return response
 
     def index_to_knowledge_base(
-        self, knowledge_base_id: str, chunk_strategy: str = "semantic"
+        self, knowledge_base_id: str, chunk_strategy: str = "markdown_hierarchical"
     ) -> Dict[str, Any]:
         """
         将文档索引到知识库（第三层处理）
 
         Args:
             knowledge_base_id: 目标知识库ID
-            chunk_strategy: 分块策略 semantic|fixed|sliding
+            chunk_strategy: 分块策略 markdown_hierarchical|fixed|semantic
 
         Returns:
             索引任务信息
@@ -364,8 +423,8 @@ class KnowledgeBase:
         document = self.client.upload_file(file_path, is_public=is_public)
 
         if auto_extract:
-            # 第二层：内容提取
-            document.extract_content(mode=extract_mode)
+            # 第二层：内容提取（等待完成以便索引）
+            document.extract_content(mode=extract_mode, wait=True)
 
             if auto_index:
                 # 第三层：索引到知识库
@@ -415,9 +474,7 @@ class KnowledgeBase:
         # 调用检索 API
         data = {"query": query, "top_k": top_k}
 
-        response = self.client._post(
-            f"/knowledge-bases/{self.kb_id}/search", data=data
-        )
+        response = self.client._post(f"/knowledge-bases/{self.kb_id}/search", data=data)
 
         # 解析响应并构建 SearchResult 对象列表
         results = []
@@ -437,7 +494,7 @@ class Unifile:
     3. 知识库索引：文档分块、向量化和检索
     """
 
-    def __init__(self, api_key: str, base_url: str = "http://localhost:8087"):
+    def __init__(self, api_key: str, base_url: str = "http://localhost:8088"):
         """
         初始化客户端
 
@@ -461,13 +518,13 @@ class Unifile:
 
             # 处理HTTP状态码错误
             if response.status_code == 401:
-                raise UnifilesError("Authentication failed: Invalid API key")
+                raise AuthenticationError("Authentication failed: Invalid API key")
             if response.status_code == 403:
                 raise UnifilesError("Access denied: Insufficient permissions")
             if response.status_code == 404:
                 raise UnifilesError("Resource not found")
             if response.status_code == 429:
-                raise UnifilesError("Rate limit exceeded: Too many requests")
+                raise RateLimitError("Rate limit exceeded: Too many requests")
             if response.status_code >= 500:
                 raise UnifilesError(f"Server error: {response.status_code}")
 
@@ -565,17 +622,40 @@ class Unifile:
                 f"File too large: {file_size} bytes (max: {max_size} bytes)"
             )
 
-        # 文件类型检查
+        # 文件类型检查（与服务端支持列表对齐）
         allowed_extensions = {
-            ".pdf",
+            # 文档类型
             ".doc",
             ".docx",
+            ".ppt",
+            ".pptx",
+            ".xls",
+            ".xlsx",
+            ".odt",
+            ".ods",
+            ".odp",
             ".txt",
+            ".rtf",
             ".md",
+            ".html",
+            ".htm",
+            ".csv",
+            ".tsv",
+            ".xml",
+            # PDF
+            ".pdf",
+            # 图片类型
             ".jpg",
             ".jpeg",
             ".png",
             ".tiff",
+            ".tif",
+            ".bmp",
+            # 代码类型
+            ".py",
+            ".ipynb",
+            ".js",
+            ".json",
         }
         if file_path.suffix.lower() not in allowed_extensions:
             raise UnifilesError(f"Unsupported file type: {file_path.suffix}")
@@ -731,8 +811,8 @@ class Unifile:
         # 上传文件
         document = self.upload_file(file_path)
 
-        # 触发内容提取
-        document.extract_content(mode=extract_mode)
+        # 触发内容提取并等待完成
+        document.extract_content(mode=extract_mode, wait=True)
 
         # 如果指定了知识库，则索引到知识库
         if knowledge_base_name:

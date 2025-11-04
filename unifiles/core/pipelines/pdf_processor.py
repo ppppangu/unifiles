@@ -14,8 +14,6 @@ import aiofiles
 import fitz  # PyMuPDF
 import httpx
 import pdfplumber
-from unifiles.core.logging import get_logger
-logger = get_logger()
 from tenacity import (
     retry,
     retry_if_exception_type,
@@ -23,11 +21,14 @@ from tenacity import (
     wait_exponential,
 )
 
+from unifiles.core.logging import get_logger
 from unifiles.core.ocr.factory import OCRProviderFactory
 from unifiles.core.ocr.processor import OCRProcessor
 from unifiles.core.storage import get_initialized_storage
 
 from ..config.env_config import convert_to_internal_minio_url, read_config
+
+logger = get_logger()
 
 
 # OCR接口定义
@@ -269,9 +270,7 @@ class SimplePDFReader:
 
         return images_info
 
-    async def extract_images_from_pdf(
-        self, pdf_path: str
-    ) -> List[Dict[str, Any]]:
+    async def extract_images_from_pdf(self, pdf_path: str) -> List[Dict[str, Any]]:
         """从PDF提取所有图片（优化：不保存到磁盘，直接返回字节数据）
 
         Args:
@@ -288,9 +287,7 @@ class SimplePDFReader:
 
             # 并行提取所有页面的图片（无需创建目录）
             tasks = [
-                asyncio.to_thread(
-                    self._extract_images_from_page, pdf_path, page_num
-                )
+                asyncio.to_thread(self._extract_images_from_page, pdf_path, page_num)
                 for page_num in range(page_count)
             ]
             results = await asyncio.gather(*tasks)
@@ -955,7 +952,9 @@ class PDFProcessingPipeline:
 
             # 避免将包含 bytes 的大对象写入日志，只输出精简统计信息
             try:
-                total_img_bytes = sum(int(img.get("size_bytes", 0)) for img in images_info)
+                total_img_bytes = sum(
+                    int(img.get("size_bytes", 0)) for img in images_info
+                )
                 sample_names = [img.get("filename") for img in images_info[:3]]
                 logger.info(
                     "Extracted images summary: count=%d, total_bytes=%d, samples=%s",
@@ -965,7 +964,7 @@ class PDFProcessingPipeline:
                 )
             except Exception:
                 # 兜底：即便统计失败，也不要打印原始 images_info 以免日志过大
-                logger.info("Extracted images summary: count=%d", len(images_info))
+                logger.info(f"Extracted images summary: count={len(images_info)}")
 
             # === Stage 2.5: Upload extracted images to storage (MinIO) ===
             # Note: OCR providers can return images as bytes (memory) or path (file).
