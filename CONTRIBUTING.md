@@ -1,258 +1,462 @@
-# 贡献指南
+# 🤝 贡献指南
 
-感谢您考虑为文件服务器项目做出贡献！本文档将指导您如何参与项目开发。
+感谢你对 Unifiles 项目的关注！我们欢迎任何形式的贡献。
 
-## 开始之前
+## 🚀 快速开始
 
-### 环境准备
-1. 确保安装了 Python 3.11+
-2. 安装 `uv` 包管理器
-3. 克隆项目到本地
-4. 阅读 [开发文档](docs/DEVELOPMENT.md)
+### 环境搭建
 
-### 开发环境配置
 ```bash
-# 克隆项目
-git clone <repository-url>
-cd file_server
+# 1. Fork 并克隆项目
+git clone https://github.com/your-username/Unifiles.git
+cd Unifiles
 
-# 安装依赖
-uv sync
+# 2. 安装开发依赖
+pip install -e ".[dev]"
 
-# 复制配置文件
-cp config.yaml.example config.yaml
-
-# 启动开发服务器
-uv run uvicorn main:app --reload
+# 3. 启动开发服务
+docker-compose -f docker-compose.dev.yml up -d
+uvicorn server.app.v1.main:app --reload --port 8088
 ```
 
-## 贡献流程
+## 📋 贡献类型
 
-### 1. 创建Issue
-在开始开发之前，请先创建或查看相关的Issue:
-- **Bug报告**: 使用Bug模板，详细描述问题
-- **功能请求**: 使用功能请求模板，说明需求背景
-- **改进建议**: 描述当前问题和改进方案
+### 🐛 Bug报告
+- 使用 [Bug Report](https://github.com/your-repo/issues/new?template=bug_report.md) 模板
+- 提供详细的复现步骤
+- 包含错误日志和环境信息
 
-### 2. 分支管理
+### ✨ 功能建议
+- 使用 [Feature Request](https://github.com/your-repo/issues/new?template=feature_request.md) 模板
+- 说明使用场景和预期效果
+- 考虑向后兼容性
+
+### 📚 文档改进
+- 修正错别字、链接错误
+- 补充使用示例
+- 翻译文档
+
+### 🛠️ 代码贡献
+- 新功能开发
+- Bug修复
+- 性能优化
+- 测试覆盖
+
+## 🔧 开发流程
+
+### 1. 创建分支
+
 ```bash
-# 创建功能分支
+# 功能分支
 git checkout -b feature/your-feature-name
 
-# 创建修复分支
+# 修复分支
 git checkout -b fix/issue-description
 
-# 创建文档分支
+# 文档分支
 git checkout -b docs/update-readme
 ```
 
-### 3. 开发规范
+### 2. 编写代码
 
-#### 代码风格
-- 遵循 PEP 8 Python编码规范
-- 使用类型提示 (Type Hints)
-- 编写清晰的文档字符串
-- 保持函数简洁，单一职责
-
-#### 示例代码
+#### 代码规范
 ```python
-from typing import Optional, Dict, Any
-from fastapi import APIRouter, HTTPException
-from app.models.responses import BaseResponse
-
-router = APIRouter()
-
-async def process_file(
-    file_url: str,
-    user_id: str,
-    options: Optional[Dict[str, Any]] = None
-) -> Dict[str, Any]:
-    """处理文件的业务逻辑
+# ✅ 良好的代码示例
+async def upload_file(
+    file: UploadFile,
+    user_id: str
+) -> FileUploadResponse:
+    """
+    上传文件到存储系统
     
     Args:
-        file_url: 文件URL
+        file: 上传的文件对象
         user_id: 用户ID
-        options: 可选配置参数
         
     Returns:
-        处理结果字典
+        FileUploadResponse: 上传结果
         
     Raises:
-        HTTPException: 当文件处理失败时
+        HTTPException: 文件验证失败时
     """
-    try:
-        # 业务逻辑实现
-        result = {"status": "success"}
-        return result
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+    if not file.filename:
+        raise HTTPException(
+            status_code=400,
+            detail="Filename is required"
+        )
+    
+    return await file_service.process_upload(file, user_id)
 ```
 
-#### 提交消息规范
-使用 [Conventional Commits](https://www.conventionalcommits.org/) 规范:
+#### 类型注解
+```python
+from typing import Dict, List, Optional, Union
 
-```bash
-# 功能开发
-git commit -m "feat: 添加文件批量上传功能"
-
-# Bug修复
-git commit -m "fix: 修复文件删除时的内存泄漏"
-
-# 重构
-git commit -m "refactor: 重构文件处理服务层"
-
-# 文档更新
-git commit -m "docs: 更新API接口文档"
-
-# 测试相关
-git commit -m "test: 添加文件上传单元测试"
-
-# 构建相关
-git commit -m "build: 更新依赖包版本"
+# 使用明确的类型注解
+def process_documents(
+    documents: List[Dict[str, Any]],
+    options: Optional[Dict[str, Union[str, int]]] = None
+) -> List[ProcessedDocument]:
+    # 实现逻辑
+    pass
 ```
 
-### 4. 测试要求
+### 3. 测试
 
-#### 单元测试
 ```bash
 # 运行所有测试
-uv run pytest
+pytest
 
-# 运行特定模块测试
-uv run pytest tests/test_file_service.py
+# 运行特定测试
+pytest tests/test_api.py::test_upload_file
 
-# 查看测试覆盖率
-uv run pytest --cov=app --cov-report=html
+# 测试覆盖率
+pytest --cov=server --cov-report=html
 ```
 
-#### 测试编写示例
+#### 测试示例
 ```python
-import pytest
-from fastapi.testclient import TestClient
-from app.main import app
-
-client = TestClient(app)
-
-def test_health_check():
-    """测试健康检查接口"""
-    response = client.get("/health")
-    assert response.status_code == 200
-    assert response.json()["status"] == "ok"
-
 @pytest.mark.asyncio
-async def test_file_upload():
-    """测试文件上传"""
-    with open("test_file.pdf", "rb") as f:
-        response = client.post(
-            "/upload_minio",
-            files={"upload_file": f},
-            data={"user_id": "test_user"}
-        )
-    assert response.status_code == 200
-    assert "file_url" in response.json()["data"]
+async def test_upload_file_success():
+    """测试文件上传成功场景"""
+    with TestClient(app) as client:
+        with open("test_files/sample.pdf", "rb") as f:
+            response = client.post(
+                "/files",
+                files={"file": ("sample.pdf", f, "application/pdf")},
+                headers={"Authorization": "Bearer test_token"}
+            )
+        
+        assert response.status_code == 200
+        data = response.json()
+        assert data["success"] is True
+        assert "file_id" in data["file"]
 ```
 
-### 5. 代码审查
+### 4. 提交代码
 
-#### 审查清单
-- [ ] 代码符合项目编码规范
-- [ ] 添加了必要的测试用例
-- [ ] 测试通过且覆盖率adequate
-- [ ] 更新了相关文档
-- [ ] 没有引入安全漏洞
-- [ ] 性能影响可接受
-- [ ] 向后兼容性良好
+#### 提交信息格式
+```
+类型(范围): 简短描述
 
-#### PR模板
+详细说明（可选）
+
+- 变更点1
+- 变更点2
+
+Closes #123
+```
+
+**类型标识**:
+- `feat`: 新功能
+- `fix`: Bug修复
+- `docs`: 文档更新
+- `style`: 代码格式
+- `refactor`: 重构
+- `test`: 测试相关
+- `chore`: 构建工具
+
+**示例**:
+```bash
+git commit -m "feat(api): add file batch upload endpoint
+
+- Support multiple file upload in single request
+- Add validation for total file size limit
+- Update API documentation
+
+Closes #45"
+```
+
+### 5. 创建Pull Request
+
+#### PR标题格式
+```
+类型: 简短描述 (#issue号)
+```
+
+#### PR描述模板
 ```markdown
-## 变更描述
-简要描述此PR的更改内容
+## 📋 变更说明
+简述本次PR的主要变更内容
 
-## 变更类型
-- [ ] 新功能
-- [ ] Bug修复
-- [ ] 重构
-- [ ] 文档更新
-- [ ] 其他
+## 🎯 解决的问题
+- 修复了什么问题
+- 添加了什么功能
+- Closes #123
 
-## 测试
-- [ ] 添加了单元测试
-- [ ] 添加了集成测试
-- [ ] 手动测试通过
+## 🧪 测试计划
+- [ ] 单元测试通过
+- [ ] 集成测试通过
+- [ ] 手动测试完成
 
-## 影响范围
-描述此变更可能影响的功能模块
+## 📸 截图（如适用）
+贴出相关截图
 
-## 截图/日志
-如适用，提供相关截图或日志
-
-## 检查项
-- [ ] 代码符合规范
+## ✅ 检查清单
+- [ ] 代码遵循项目规范
+- [ ] 添加了必要的测试
 - [ ] 文档已更新
-- [ ] 测试已通过
-- [ ] 无breaking changes
+- [ ] CI检查通过
 ```
 
-## 项目结构说明
+## 🧩 架构指南
 
-### 当前重构进展
+### 添加新的API端点
+
+```python
+# 1. 在 server/app/v1/main.py 添加路由
+@app.post("/files/{file_id}/analyze", tags=["Files"])
+async def analyze_file(
+    request: Request,
+    file_id: str,
+    analysis_type: str = "basic"
+):
+    user_id = request.state.user_id
+    # 业务逻辑
+    return {"result": "analysis complete"}
 ```
-file_server/
-├── app/                    # 新架构 (重构中)
-│   ├── core/              # 核心配置
-│   ├── api/               # API层
-│   ├── services/          # 业务逻辑
-│   └── models/            # 数据模型
-├── main.py                # 当前入口 (待重构)
-├── utils/                 # 工具函数
-├── src/                   # 旧代码 (待迁移)
-└── docs/                  # 项目文档
+
+### 添加新的数据模型
+
+```python
+# server/core/database/models.py
+from dataclasses import dataclass
+from typing import Optional
+
+@dataclass
+class AnalysisResult:
+    file_id: str
+    analysis_type: str
+    result: dict
+    created_at: Optional[str] = None
 ```
 
-### 重构任务
-参与重构可以从以下任务开始:
-1. **拆分路由**: 将main.py中的路由分离到app/api/v1/endpoints/
-2. **服务层抽象**: 将业务逻辑移至app/services/
-3. **配置统一**: 使用app/core/config.py统一配置管理
-4. **错误处理**: 实现统一的异常处理机制
-5. **测试补充**: 为新模块编写测试用例
+### 添加新的服务组件
 
-## 发布流程
+```python
+# server/core/services/analysis_service.py
+class AnalysisService:
+    def __init__(self, config: dict):
+        self.config = config
+    
+    async def analyze_file(
+        self, 
+        file_path: str, 
+        analysis_type: str
+    ) -> dict:
+        # 分析逻辑实现
+        return {"status": "completed"}
+```
+
+### 扩展中间件
+
+```python
+# server/app/v1/middlewares.py
+class CustomMiddleware:
+    def __init__(self, app):
+        self.app = app
+    
+    async def __call__(self, scope, receive, send):
+        # 中间件逻辑
+        await self.app(scope, receive, send)
+
+# 在 main.py 中注册
+app.add_middleware(CustomMiddleware)
+```
+
+## 🧪 测试指南
+
+### 单元测试
+```python
+# tests/unit/test_file_service.py
+def test_validate_file_extension():
+    service = FileService()
+    
+    # 测试支持的格式
+    assert service.validate_extension("document.pdf") is True
+    
+    # 测试不支持的格式
+    assert service.validate_extension("malware.exe") is False
+```
+
+### 集成测试
+```python
+# tests/integration/test_api_endpoints.py
+@pytest.mark.asyncio
+async def test_file_upload_workflow():
+    """测试完整的文件上传工作流"""
+    # 上传文件
+    upload_response = await client.post("/files", ...)
+    file_id = upload_response.json()["file"]["file_id"]
+    
+    # 处理文档
+    process_response = await client.post(
+        f"/knowledge-bases/test/documents",
+        json={"file_id": file_id}
+    )
+    
+    # 验证结果
+    assert process_response.status_code == 200
+```
+
+## 📝 文档规范
+
+### API文档
+```python
+@app.post("/files", response_model=FileUploadResponse)
+async def upload_file(file: UploadFile = File(...)):
+    """
+    上传文件到存储系统
+    
+    支持的文件格式：
+    - 文档：PDF, DOC, DOCX, TXT
+    - 图片：JPG, PNG, GIF
+    - 表格：XLS, XLSX, CSV
+    
+    限制：
+    - 最大文件大小：100MB
+    - 并发上传限制：5个文件
+    
+    Returns:
+        FileUploadResponse: 包含文件ID和访问URL
+    """
+```
+
+### 代码注释
+```python
+class DocumentProcessor:
+    """
+    文档处理器
+    
+    负责协调文档的格式转换、OCR处理和向量化存储
+    支持可插拔的OCR提供者
+    """
+    
+    def __init__(self, ocr_provider: OCRProvider):
+        """
+        初始化文档处理器
+        
+        Args:
+            ocr_provider: OCR服务提供者实例
+        """
+        self.ocr_provider = ocr_provider
+    
+    async def process(self, file_url: str) -> ProcessResult:
+        """
+        处理单个文档
+        
+        执行步骤：
+        1. 下载并验证文件
+        2. 转换为PDF格式
+        3. 执行OCR识别
+        4. 向量化存储
+        
+        Args:
+            file_url: 待处理文件的URL
+            
+        Returns:
+            ProcessResult: 处理结果，包含状态和生成的文件URL
+            
+        Raises:
+            ValidationError: 文件格式不支持
+            ProcessingError: 处理过程中出现错误
+        """
+```
+
+## 🚀 发布流程
 
 ### 版本号规范
-使用 [Semantic Versioning](https://semver.org/):
-- `MAJOR.MINOR.PATCH`
-- `1.0.0` → `1.0.1` (patch: Bug修复)
-- `1.0.1` → `1.1.0` (minor: 新功能)
-- `1.1.0` → `2.0.0` (major: 破坏性变更)
+遵循 [语义化版本](https://semver.org/lang/zh-CN/)：
+- `1.0.0` - 主版本号.次版本号.修订号
+- `1.0.0-alpha.1` - 预发布版本
 
-### 发布清单
-- [ ] 更新版本号
-- [ ] 更新CHANGELOG.md
-- [ ] 确保所有测试通过
-- [ ] 更新文档
-- [ ] 创建Release标签
-- [ ] 部署到测试环境验证
+### 发布检查清单
+- [ ] 所有测试通过
+- [ ] 文档已更新
+- [ ] CHANGELOG已更新
+- [ ] 版本号已更新
+- [ ] 创建发布标签
 
-## 社区规范
+```bash
+# 更新版本
+bump2version minor  # 或 major/patch
 
-### 行为准则
-- 尊重所有贡献者
-- 建设性地参与讨论
-- 接受建设性的反馈
-- 帮助新贡献者入门
+# 生成变更日志
+git-changelog -o CHANGELOG.md
 
-### 沟通渠道
-- **Issue**: 报告Bug和功能请求
-- **Discussion**: 设计讨论和问答
-- **PR**: 代码审查和技术讨论
+# 创建标签
+git tag -a v1.1.0 -m "Release v1.1.0"
+git push origin main --tags
+```
 
-## 获得帮助
+## 🛡️ 安全考虑
 
-如果您在贡献过程中遇到问题:
-1. 查看[常见问题文档](docs/FAQ.md)
-2. 搜索现有的Issues
-3. 创建新的Issue寻求帮助
-4. 参与GitHub Discussions
+### 代码审查重点
+- SQL注入防护
+- 文件上传安全
+- 用户输入验证
+- 敏感信息保护
 
-感谢您的贡献！🎉
+### 安全测试
+```python
+def test_sql_injection_protection():
+    """测试SQL注入防护"""
+    malicious_input = "'; DROP TABLE users; --"
+    
+    with pytest.raises(ValidationError):
+        validate_user_id(malicious_input)
+
+def test_file_upload_security():
+    """测试文件上传安全"""
+    # 测试危险文件类型
+    dangerous_file = ("malware.exe", b"executable_content")
+    
+    response = client.post("/files", files={"file": dangerous_file})
+    assert response.status_code == 400
+```
+
+## ❓ 常见问题
+
+### Q: 如何调试API？
+```bash
+# 启用调试模式
+LOG_LEVEL=DEBUG uvicorn server.app.v1.main:app --reload
+
+# 查看日志
+tail -f server/app/v1/logs/$(date +%Y-%m-%d).log
+```
+
+### Q: 如何添加新的OCR提供者？
+```python
+# 1. 实现OCRProvider接口
+class CustomOCRProvider:
+    async def extract_text_from_pdf(self, pdf_url: str) -> str:
+        # 实现OCR逻辑
+        return extracted_text
+
+# 2. 注册到系统
+# 在配置中添加provider配置
+```
+
+### Q: 如何运行特定测试？
+```bash
+# 运行单个测试文件
+pytest tests/test_api.py
+
+# 运行单个测试函数
+pytest tests/test_api.py::test_upload_file
+
+# 运行特定标记的测试
+pytest -m "not slow"
+```
+
+## 📞 获取帮助
+
+- 💬 **讨论**: [GitHub Discussions](https://github.com/your-repo/discussions)
+- 🐛 **Bug报告**: [GitHub Issues](https://github.com/your-repo/issues)
+- 📧 **邮件**: dev@yourproject.com
+- 💬 **社区**: [Discord/Slack链接]
+
+---
+
+**🙏 感谢你的贡献！** 每一个PR都让项目变得更好。

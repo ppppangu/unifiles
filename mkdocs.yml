@@ -1,0 +1,121 @@
+site_name: Unifiles Documentation
+site_url: https://unifiles.dev
+site_description: 简洁、可扩展的文件处理与知识库服务
+repo_url: https://github.com/ppppangu/Unifiles
+repo_name: ppppangu/Unifiles
+site_dir: site
+docs_dir: docs
+
+# 主题配置
+theme:
+  name: material
+  language: zh
+  features:
+    - content.code.copy
+    - content.code.select
+    - content.tabs.link
+    - content.footnote.tooltips
+    - navigation.instant
+    - navigation.instant.prefetch
+    - navigation.tabs
+    - navigation.tabs.sticky
+    - navigation.sections
+    - navigation.expand
+    - navigation.path
+    - navigation.indexes
+    - navigation.top
+    - search.suggest
+    - search.highlight
+  palette:
+    # Light mode
+    - scheme: default
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    # Dark mode
+    - scheme: slate
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+  icon:
+    repo: fontawesome/brands/github
+
+# Markdown extensions
+markdown_extensions:
+  - pymdownx.highlight:
+      anchor_linenums: true
+      line_spans: __span
+      pygments_lang_class: true
+  - pymdownx.inlinehilite
+  - pymdownx.snippets
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
+  - pymdownx.tabbed:
+      alternate_style: true
+  - pymdownx.tasklist:
+      custom_checkbox: true
+  - pymdownx.emoji:
+      emoji_index: !!python/name:material.extensions.emoji.twemoji
+      emoji_generator: !!python/name:material.extensions.emoji.to_svg
+  - tables
+  - footnotes
+  - attr_list
+  - md_in_html
+  - def_list
+  - admonition
+  - pymdownx.details
+  - toc:
+      permalink: true
+
+# Navigation - 简洁的分组结构
+nav:
+  - 首页: index.md
+
+  - 快速开始:
+    - 5分钟上手: quickstart.md
+    - 详细安装: installation.md
+
+  - 功能与 API:
+    - 功能介绍: features.md
+    - 认证方式: authentication.md
+    - API 参考: api-reference.md
+
+  - 部署与配置:
+    - 部署指南: deployment.md
+    - Docker 部署: docker.md
+    - 配置说明: configuration.md
+    - 故障排查: troubleshooting.md
+    - 常见问题: faq.md
+
+  - 教程:
+    - 教程索引: tutorials/index.md
+    - 第一次上传: tutorials/first-upload.md
+
+  - 关于:
+    - 关于项目: about.md
+    - 发布说明: release-notes.md
+
+# Plugins
+plugins:
+  - search:
+      lang:
+        - zh
+        - en
+  - git-revision-date-localized:
+      enable_creation_date: true
+
+# Extra
+extra:
+  version:
+    provider: mike
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/ppppangu/Unifiles
+      name: Unifiles on GitHub
