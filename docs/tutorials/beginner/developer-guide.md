@@ -10,7 +10,7 @@
 
 ## Prerequisites
 
-- Completed the [Quick Start Guide](01-quick-start.md)
+- Completed the [Quick Start Guide](../../quickstart.md)
 - Python 3.8+ with pip
 - Git installed
 - Basic knowledge of FastAPI and async Python
@@ -835,8 +835,8 @@ You've learned:
 
 ## Next Steps
 
-1. **Explore Advanced Features**: Check the [Integration Tutorial](03-integration-tutorial.md)
-2. **Deploy to Production**: See the [Deployment Guide](04-deployment-guide.md)
+1. **Explore Advanced Features**: Check the [Integration Tutorial](../first-upload.md)
+2. **Deploy to Production**: See the [Deployment Guide](../../deployment.md)
 3. **Join the Community**: Contribute to the project on GitHub
 4. **Build Something**: Create your own document processing application
 
@@ -872,5 +872,5 @@ pytest --cov=unifiles --cov-report=html
 ## Resources
 
 - [API Documentation](http://localhost:8087/docs)
-- [Architecture Diagram](../architecture.md)
-- [Contributing Guidelines](../../CONTRIBUTING.md)
+- [Architecture Diagram](../../../ARCHITECTURE.md)
+- [Contributing Guidelines](../../../CONTRIBUTING.md)

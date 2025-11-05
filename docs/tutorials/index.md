@@ -13,7 +13,7 @@
    - 配置数据库和依赖服务
    - 启动 Unifiles 服务
 
-   [查看教程](../getting-started/index.md)
+   [查看教程](../quickstart.md)
 
 2. **第一个文件上传**
    - 使用 API 上传文件
@@ -89,19 +89,19 @@
 ## 按功能分类
 
 ### 文件管理
-- [文件上传](../features/index.md#文件管理)
-- [文件下载](../features/index.md#文件管理)
-- [文件元数据管理](../features/index.md#文件管理)
+- [文件上传](../features.md#第一层文件管理)
+- [文件下载](../features.md#第一层文件管理)
+- [文件元数据管理](../features.md#第一层文件管理)
 
 ### 内容提取
-- [OCR 文本提取](../features/index.md#内容提取)
-- [格式转换](../features/index.md#内容提取)
-- [内容结构化](../features/index.md#内容提取)
+- [OCR 文本提取](../features.md#第二层内容提取)
+- [格式转换](../features.md#第二层内容提取)
+- [内容结构化](../features.md#第二层内容提取)
 
 ### 知识库
-- [知识库创建](../features/index.md#知识库管理)
-- [文档索引](../features/index.md#知识库管理)
-- [向量搜索](../features/index.md#知识库管理)
+- [知识库创建](../features.md#第三层知识库管理)
+- [文档索引](../features.md#第三层知识库管理)
+- [向量搜索](../features.md#第三层知识库管理)
 
 ## 实践项目
 
@@ -221,7 +221,7 @@ A: 确保图片清晰度足够，可以尝试调整 DPI 设置。
 **Q: 搜索结果不准确怎么办？**
 A: 尝试调整分块策略，使用更合适的 embedding 模型。
 
-[更多 FAQ](../getting-started/index.md#常见问题)
+[更多 FAQ](../faq.md)
 
 ## 社区贡献
 
@@ -231,7 +231,7 @@ A: 尝试调整分块策略，使用更合适的 embedding 模型。
 2. 在 `docs/tutorials/` 下创建教程
 3. 提交 Pull Request
 
-[贡献指南](../development/contributing.md)
+[贡献指南](../CONTRIBUTING.md)
 
 ## 反馈
 
@@ -243,6 +243,6 @@ A: 尝试调整分块策略，使用更合适的 embedding 模型。
 
 ## 下一步
 
-- [快速开始](../getting-started/index.md) - 立即开始使用 Unifiles
-- [API 文档](../api/index.md) - 查看完整的 API 参考
-- [开发指南](../development/index.md) - 参与 Unifiles 开发
+- [快速开始](../quickstart.md) - 立即开始使用 Unifiles
+- [API 文档](../api-reference.md) - 查看完整的 API 参考
+- [开发指南](../CONTRIBUTING.md) - 参与 Unifiles 开发
