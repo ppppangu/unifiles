@@ -74,23 +74,33 @@ markdown_extensions:
   - toc:
       permalink: true
 
-# Navigation - 扁平化用户文档结构
+# Navigation - 简洁的分组结构
 nav:
   - 首页: index.md
-  - 5分钟上手: quickstart.md
-  - 详细安装: installation.md
-  - 功能介绍: features.md
-  - 认证方式: authentication.md
-  - API 参考: api-reference.md
-  - 部署指南: deployment.md
-  - Docker 部署: docker.md
-  - 配置说明: configuration.md
-  - 故障排查: troubleshooting.md
-  - 常见问题: faq.md
-  - 教程: tutorials/index.md
-  - 第一次上传: tutorials/first-upload.md
-  - 关于项目: about.md
-  - 发布说明: release-notes.md
+
+  - 快速开始:
+    - 5分钟上手: quickstart.md
+    - 详细安装: installation.md
+
+  - 功能与 API:
+    - 功能介绍: features.md
+    - 认证方式: authentication.md
+    - API 参考: api-reference.md
+
+  - 部署与配置:
+    - 部署指南: deployment.md
+    - Docker 部署: docker.md
+    - 配置说明: configuration.md
+    - 故障排查: troubleshooting.md
+    - 常见问题: faq.md
+
+  - 教程:
+    - 教程索引: tutorials/index.md
+    - 第一次上传: tutorials/first-upload.md
+
+  - 关于:
+    - 关于项目: about.md
+    - 发布说明: release-notes.md
 
 # Plugins
 plugins:
