@@ -1,35 +1,30 @@
-# Include important metadata files
+# Include important project files
 include README.md
 include LICENSE
 include CHANGELOG.md
 include pyproject.toml
 
-# Include example files
-recursive-include examples *.py
-recursive-include examples *.md
+# Include all Python packages
+recursive-include unifiles *.py
+recursive-include unifiles *.pyi
 
-# Include test files  
-recursive-include tests *.py
+# Include type stubs
+recursive-include unifiles py.typed
 
-# Include documentation
-recursive-include docs *.md *.rst *.txt
-
-# Exclude development and build files
-exclude .gitignore
-exclude .pre-commit-config.yaml
-exclude test_client.py
-exclude config_validation_test.py
-exclude env_config.py
-exclude .env*
-
-# Exclude cache and build directories
+# Exclude unnecessary files
+global-exclude *.pyc
+global-exclude *.pyo
 global-exclude __pycache__
-global-exclude *.py[co]
-global-exclude .pytest_cache
-global-exclude .coverage
-global-exclude *.egg-info
-global-exclude build
-global-exclude dist
+global-exclude .DS_Store
+global-exclude *.so
+global-exclude *.dylib
 
-# Exclude version control
-global-exclude .git*
+# Exclude test and development files
+prune tests
+prune docs
+prune examples
+prune scripts
+prune web
+prune deploy
+prune .github
+prune .venv
