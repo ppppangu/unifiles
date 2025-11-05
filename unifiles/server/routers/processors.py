@@ -8,7 +8,7 @@ from fastapi import (
 )
 from loguru import logger
 
-from unifiles.app.schemas import (
+from unifiles.server.schemas import (
     FileExtractRequest,
     FileExtractResponse,
 )
@@ -59,7 +59,7 @@ async def extract_file_content(
         import uuid
         from datetime import datetime
 
-        from unifiles.app.schemas import ExtractedContent
+        from unifiles.server.schemas import ExtractedContent
 
         extracted_content = ExtractedContent(
             file_id=file_id,

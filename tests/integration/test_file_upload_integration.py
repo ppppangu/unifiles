@@ -1,5 +1,5 @@
 """
-Integration tests for file upload functionality in unifiles.app.routers.unifiles
+Integration tests for file upload functionality in unifiles.server.routers.unifiles
 
 Tests the complete file upload workflow including:
 - Authentication middleware

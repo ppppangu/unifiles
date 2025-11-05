@@ -12,7 +12,7 @@ from fastapi import (
 )
 from loguru import logger
 
-from unifiles.app.schemas import (
+from unifiles.server.schemas import (
     KnowledgeBaseInfo,
     KnowledgeBaseListResponse,
     ProcessDocumentRequest,

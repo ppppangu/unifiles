@@ -192,7 +192,7 @@ uv run pytest --cov=unifiles
 
 1. 启用调试模式:
    ```bash
-   APP_DEBUG=true APP_LOG_LEVEL=DEBUG uv run uvicorn unifiles.app.main:app
+   APP_DEBUG=true APP_LOG_LEVEL=DEBUG uv run uvicorn unifiles.server.main:app
    ```
 
 2. 使用断点:

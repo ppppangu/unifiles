@@ -7,7 +7,7 @@ from fastapi import (
 )
 from loguru import logger
 
-from unifiles.app.routers.unifiles import (
+from unifiles.server.routers.unifiles import (
     StandardResponse,
 )
 

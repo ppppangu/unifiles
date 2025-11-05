@@ -76,10 +76,10 @@ UNIFILES_PORT=8087
 
 ```bash
 # Using uvicorn directly
-uvicorn unifiles.app.v1.main:app --host 0.0.0.0 --port 8087 --reload
+uvicorn unifiles.server.v1.main:app --host 0.0.0.0 --port 8087 --reload
 
 # Or using the Python module
-python -m uvicorn unifiles.app.v1.main:app --host 0.0.0.0 --port 8087 --reload
+python -m uvicorn unifiles.server.v1.main:app --host 0.0.0.0 --port 8087 --reload
 ```
 
 Expected output:
@@ -282,7 +282,7 @@ lsof -i :8087  # On Mac/Linux
 netstat -ano | findstr :8087  # On Windows
 
 # Kill the process or use a different port
-uvicorn unifiles.app.v1.main:app --port 8088
+uvicorn unifiles.server.v1.main:app --port 8088
 ```
 
 #### Import Error

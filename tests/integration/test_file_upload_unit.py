@@ -11,7 +11,7 @@ from unittest.mock import AsyncMock, Mock, patch
 import pytest
 from fastapi import HTTPException, UploadFile
 
-from unifiles.app.routers.unifiles import (
+from unifiles.server.routers.unifiles import (
     SUPPORTED_FILE_TYPES,
     get_auth_service,
     get_file_service,
@@ -91,7 +91,7 @@ class TestFileUploadRouter:
     @pytest.mark.asyncio
     async def test_get_supported_file_types(self):
         """Test the supported file types endpoint"""
-        from unifiles.app.routers.unifiles import get_supported_file_types
+        from unifiles.server.routers.unifiles import get_supported_file_types
 
         # Call the endpoint function directly
         result = await get_supported_file_types()
@@ -111,7 +111,7 @@ class TestFileUploadRouter:
         self, mock_user_context, mock_file_service, test_upload_file
     ):
         """Test successful file upload"""
-        from unifiles.app.routers.unifiles import upload_file
+        from unifiles.server.routers.unifiles import upload_file
 
         result = await upload_file(
             file=test_upload_file,
@@ -132,7 +132,7 @@ class TestFileUploadRouter:
     @pytest.mark.asyncio
     async def test_list_user_files(self, mock_user_context, mock_file_service):
         """Test listing user files"""
-        from unifiles.app.routers.unifiles import list_user_files
+        from unifiles.server.routers.unifiles import list_user_files
 
         result = await list_user_files(
             limit=50,
@@ -151,7 +151,7 @@ class TestFileUploadRouter:
     @pytest.mark.asyncio
     async def test_get_file_info(self, mock_user_context, mock_file_service):
         """Test getting file information"""
-        from unifiles.app.routers.unifiles import get_file_info
+        from unifiles.server.routers.unifiles import get_file_info
 
         result = await get_file_info(
             file_id="test_file_123",
@@ -168,7 +168,7 @@ class TestFileUploadRouter:
     @pytest.mark.asyncio
     async def test_update_file_public_status(self, mock_user_context, mock_file_service):
         """Test updating file public status"""
-        from unifiles.app.routers.unifiles import update_file_public_status
+        from unifiles.server.routers.unifiles import update_file_public_status
 
         result = await update_file_public_status(
             file_id="test_file_123",
@@ -188,7 +188,7 @@ class TestFileUploadRouter:
     @pytest.mark.asyncio
     async def test_delete_file(self, mock_user_context, mock_file_service):
         """Test file deletion"""
-        from unifiles.app.routers.unifiles import delete_file
+        from unifiles.server.routers.unifiles import delete_file
 
         result = await delete_file(
             file_id="test_file_123",
@@ -206,7 +206,7 @@ class TestFileUploadRouter:
     @pytest.mark.asyncio
     async def test_get_public_file_info(self, mock_file_service):
         """Test getting public file information"""
-        from unifiles.app.routers.unifiles import get_public_file_info
+        from unifiles.server.routers.unifiles import get_public_file_info
 
         result = await get_public_file_info(
             file_id="public_file_123",
@@ -227,7 +227,7 @@ class TestErrorHandling:
         self, mock_user_context, test_upload_file
     ):
         """Test upload file when service raises an error"""
-        from unifiles.app.routers.unifiles import upload_file
+        from unifiles.server.routers.unifiles import upload_file
 
         # Mock file service that raises an exception
         mock_service = AsyncMock()
@@ -247,7 +247,7 @@ class TestErrorHandling:
     @pytest.mark.asyncio
     async def test_get_file_info_service_error(self, mock_user_context):
         """Test get file info when service raises an error"""
-        from unifiles.app.routers.unifiles import get_file_info
+        from unifiles.server.routers.unifiles import get_file_info
 
         mock_service = AsyncMock()
         mock_service.get_file_info.side_effect = Exception("Database error")
@@ -265,7 +265,7 @@ class TestErrorHandling:
     @pytest.mark.asyncio
     async def test_delete_file_service_error(self, mock_user_context):
         """Test delete file when service raises an error"""
-        from unifiles.app.routers.unifiles import delete_file
+        from unifiles.server.routers.unifiles import delete_file
 
         mock_service = AsyncMock()
         mock_service.delete_file.side_effect = Exception("Storage error")
@@ -286,8 +286,8 @@ class TestServiceDependencies:
 
     def test_get_file_service(self):
         """Test file service dependency creation"""
-        with patch('unifiles.app.routers.unifiles.storage_manager') as mock_storage, \
-             patch('unifiles.app.routers.unifiles.secure_file_db_manager') as mock_db:
+        with patch('unifiles.server.routers.unifiles.storage_manager') as mock_storage, \
+             patch('unifiles.server.routers.unifiles.secure_file_db_manager') as mock_db:
 
             mock_storage.return_value = Mock()
 
@@ -312,7 +312,7 @@ class TestFileConstants:
 
     def test_supported_file_types_coverage(self):
         """Test that all file type constants are properly defined"""
-        from unifiles.app.routers.unifiles import (
+        from unifiles.server.routers.unifiles import (
             CODE_FILE_TYPES,
             DOCUMENT_FILE_TYPES,
             PDF_FILE_TYPES,

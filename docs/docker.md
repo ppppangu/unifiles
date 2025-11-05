@@ -293,7 +293,7 @@ RUN uv sync --frozen
 EXPOSE 8088
 
 # 启动命令
-CMD ["uv", "run", "uvicorn", "unifiles.app.main:app", "--host", "0.0.0.0", "--port", "8088"]
+CMD ["uv", "run", "uvicorn", "unifiles.server.main:app", "--host", "0.0.0.0", "--port", "8088"]
 ```
 
 ### Worker Dockerfile

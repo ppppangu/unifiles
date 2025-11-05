@@ -159,7 +159,7 @@ LOG_BACKUP_COUNT=5       # 保留5个备份
 
 1. 查看详细日志:
    ```bash
-   APP_LOG_LEVEL=DEBUG uv run uvicorn unifiles.app.main:app
+   APP_LOG_LEVEL=DEBUG uv run uvicorn unifiles.server.main:app
    ```
 
 2. 搜索或提交 GitHub Issue:

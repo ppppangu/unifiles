@@ -64,7 +64,7 @@ vim .env
 
 ```bash
 # 启动 API 服务器
-uv run uvicorn unifiles.app.main:app --host 0.0.0.0 --port 8088 --reload
+uv run uvicorn unifiles.server.main:app --host 0.0.0.0 --port 8088 --reload
 
 # 启动 Worker（另一个终端）
 uv run python -m unifiles.workers.upload_worker
@@ -128,20 +128,28 @@ python scripts/dev/clean.py --apply --all
 ## 📂 项目结构
 
 ```
-Unifiles/
+unifiles/                  # 主包（发布到 PyPI）
 ├── unifiles/              # 核心代码
-│   ├── app/              # FastAPI 应用层
-│   ├── core/             # 核心业务逻辑
-│   ├── client/           # Python 客户端
+│   ├── server/           # SaaS 服务端（FastAPI 应用层）
+│   ├── client/           # Python 客户端库
+│   ├── core/             # 共享核心业务逻辑
 │   ├── workers/          # 后台任务处理
-│   └── types/            # 类型定义
-├── tests/                # 测试
+│   ├── types/            # 类型定义（聚合层）
+│   └── config/           # 配置管理
+├── tests/                # 测试套件
 ├── scripts/              # 开发与运维脚本
 ├── docs/                 # 用户文档（MkDocs）
+├── examples/             # 使用示例
 ├── ARCHITECTURE.md       # 架构设计文档
 ├── CONTRIBUTING.md       # 贡献指南
 └── README.md             # 本文件
 ```
+
+**使用场景**:
+- **SaaS 服务**: 从 `unifiles.server` 导入
+- **客户端库**: 从 `unifiles.client` 导入
+- **自部署**: 从 `unifiles.server` + `unifiles.core` 导入
+- **直接 API 调用**: 从 `unifiles.core.services` 导入
 
 ## 🤝 贡献
 

@@ -846,7 +846,7 @@ You've learned:
 
 ```bash
 # Start development server
-uvicorn unifiles.app.v1.main:app --reload
+uvicorn unifiles.server.v1.main:app --reload
 
 # Run tests
 pytest
