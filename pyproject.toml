@@ -4,10 +4,10 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "unifiles"
-version = "1.0.0"
+version = "0.1.0"
 description = "Unifiles document processing platform - SaaS service, client library, and self-deployment package"
 readme = "README.md"
-license = {text = "Apache-2.0"}
+license = "Apache-2.0"
 authors = [
     {name = "Unifiles Team", email = "support@unifiles.com"},
 ]
@@ -17,7 +17,6 @@ maintainers = [
 classifiers = [
     "Development Status :: 4 - Beta",
     "Intended Audience :: Developers",
-    "License :: OSI Approved :: Apache Software License",
     "Operating System :: OS Independent",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.8",
@@ -31,70 +30,86 @@ classifiers = [
     "Topic :: Scientific/Engineering :: Artificial Intelligence",
 ]
 keywords = [
-    "document-processing", "ocr", "pdf", "knowledge-base", 
+    "document-processing", "ocr", "pdf", "knowledge-base",
     "vector-database", "text-extraction", "api-client", "unifiles"
 ]
+# Minimal core dependencies - required for all use cases
 dependencies = [
-    "requests>=2.28.0",
-    "pathlib2>=2.3.0; python_version<'3.6'",
-    "pydantic-settings>=2.8.1",
-    "passlib[bcrypt]>=1.7.4",
-    "cryptography>=46.0.3",
-    "pyjwt>=2.9.0",
-    "loguru>=0.7.3",
-    "asyncpg>=0.30.0",
-    "redis>=6.1.1",
-    "fastapi>=0.119.1",
-    "uvicorn>=0.33.0",
-    "minio>=7.2.7",
-    "httpx>=0.28.1",
-    "python-multipart>=0.0.20",
-    "pillow>=10.4.0",
-    "aiofiles>=24.1.0",
-    "pdfplumber>=0.11.5",
-    "pymupdf>=1.24.11",
-    "pypdf>=5.9.0",
-    "opentelemetry-api>=1.33.1",
-    "opentelemetry-sdk>=1.33.1",
-    "opentelemetry-instrumentation-fastapi>=0.54b1",
-    "bcrypt<5.0.0",
+    "pydantic>=2.0.0",
+    "pydantic-settings>=2.0.0",
+    "loguru>=0.7.0",
 ]
 requires-python = ">=3.8"
 
 [project.optional-dependencies]
+# Client library dependencies
+client = [
+    "requests>=2.28.0",
+    "httpx>=0.27.0",
+]
+
+# Server dependencies (FastAPI application)
+server = [
+    "fastapi>=0.110.0",
+    "uvicorn[standard]>=0.27.0",
+    "python-multipart>=0.0.9",
+    "asyncpg>=0.29.0",
+    "redis>=5.0.0",
+    "minio>=7.2.0",
+    "aiofiles>=23.0.0",
+    "passlib[bcrypt]>=1.7.4",
+    "cryptography>=42.0.0",
+    "pyjwt>=2.8.0",
+    "bcrypt>=4.0.0,<5.0.0",
+]
+
+# Document processing (OCR, PDF)
+ocr = [
+    "pillow>=10.0.0",
+    "pdfplumber>=0.11.0",
+    "pymupdf>=1.24.0",
+    "pypdf>=4.0.0",
+]
+
+# All server features
+all = [
+    "unifiles[client,server,ocr]",
+]
+
+# Development dependencies
 dev = [
-    "pytest>=7.0.0",
+    "pytest>=8.0.0",
     "pytest-cov>=4.0.0",
-    "black>=22.0.0",
-    "isort>=5.10.0",
-    "flake8>=5.0.0",
-    "mypy>=1.0.0",
-    "pre-commit>=2.20.0",
+    "pytest-asyncio>=0.23.0",
+    "pytest-mock>=3.12.0",
+    "ruff>=0.3.0",
+    "mypy>=1.8.0",
 ]
-docs = [
-    "sphinx>=5.0.0",
-    "sphinx-rtd-theme>=1.0.0",
-    "myst-parser>=0.18.0",
-]
+
+# Testing dependencies
 test = [
-    "pytest>=7.0.0",
+    "pytest>=8.0.0",
     "pytest-cov>=4.0.0",
-    "pytest-mock>=3.8.0",
-    "responses>=0.21.0",
+    "pytest-asyncio>=0.23.0",
+    "pytest-mock>=3.12.0",
+    "requests-toolbelt>=1.0.0",
 ]
+
+[project.scripts]
+# CLI entry point for starting the server
+unifiles-server = "unifiles.server.cli:main"
 
 [project.urls]
-Homepage = "https://github.com/unifiles/unifiles-client"
-Documentation = "https://unifiles-client.readthedocs.io/"
-Repository = "https://github.com/unifiles/unifiles-client.git"
-Issues = "https://github.com/unifiles/unifiles-client/issues"
-Changelog = "https://github.com/unifiles/unifiles-client/blob/main/CHANGELOG.md"
+Homepage = "https://github.com/unifiles/unifiles"
+Documentation = "https://unifiles.dev/docs"
+Repository = "https://github.com/unifiles/unifiles.git"
+Issues = "https://github.com/unifiles/unifiles/issues"
+Changelog = "https://github.com/unifiles/unifiles/blob/main/CHANGELOG.md"
 
-[tool.setuptools]
-packages = ["unifiles"]
-
-[tool.setuptools.package-dir]
-unifiles = "unifiles"
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["unifiles*"]
+exclude = ["tests*", "docs*", "examples*", "scripts*"]
 
 [tool.black]
 line-length = 88
