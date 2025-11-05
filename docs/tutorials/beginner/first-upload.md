@@ -13,7 +13,7 @@
 
 ## 前置要求
 
-- Unifiles 服务已安装并运行（参见 [安装指南](../../getting-started/installation.md)）
+- Unifiles 服务已安装并运行（参见 [安装指南](../../installation.md)）
 - 一个 PDF 文件用于测试
 
 ## 步骤 1：注册用户
@@ -153,9 +153,9 @@ print("File downloaded successfully!")
 
 ## 下一步
 
-- [内容提取教程](content-extraction.md) - 学习如何从文件中提取内容
-- [知识库教程](knowledge-base-basics.md) - 创建您的第一个知识库
-- [API 参考](../../api/reference.md) - 查看更多 API 端点
+- [内容提取教程](../../features.md) - 学习如何从文件中提取内容
+- [知识库教程](../../features.md) - 创建您的第一个知识库
+- [API 参考](../../api-reference.md) - 查看更多 API 端点
 
 ## 常见问题
 
