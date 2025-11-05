@@ -2,7 +2,7 @@
 
 简洁、可扩展的文件处理与知识库服务平台。
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 [![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
 
 ## 🚀 特性
@@ -161,7 +161,7 @@ unifiles/                  # 主包（发布到 PyPI）
 
 ## 📄 许可证
 
-本项目采用 [MIT License](LICENSE)。
+本项目采用 [Apache License 2.0](LICENSE)。
 
 ## 🔗 链接
 
