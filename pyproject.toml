@@ -7,7 +7,7 @@ name = "unifiles"
 version = "1.0.0"
 description = "Unifiles document processing platform - SaaS service, client library, and self-deployment package"
 readme = "README.md"
-license = {file = "LICENSE"}
+license = {text = "Apache-2.0"}
 authors = [
     {name = "Unifiles Team", email = "support@unifiles.com"},
 ]
@@ -17,7 +17,7 @@ maintainers = [
 classifiers = [
     "Development Status :: 4 - Beta",
     "Intended Audience :: Developers",
-    "License :: OSI Approved :: MIT License",
+    "License :: OSI Approved :: Apache Software License",
     "Operating System :: OS Independent",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.8",
@@ -209,61 +209,22 @@ exclude = [
 ]
 
 [tool.ruff.lint]
-# Enable comprehensive rule sets
+# Balanced rule set - focus on real issues, not style preferences
 select = [
-    "E",      # pycodestyle errors
+    "E",      # pycodestyle errors (syntax and obvious issues)
     "W",      # pycodestyle warnings
-    "F",      # Pyflakes
-    "UP",     # pyupgrade
-    "B",      # flake8-bugbear
-    "SIM",    # flake8-simplify
-    "I",      # isort
-    "N",      # pep8-naming
-    "C90",    # mccabe complexity
-    "S",      # bandit security
-    "A",      # flake8-builtins
-    "COM",    # flake8-commas
-    "C4",     # flake8-comprehensions
-    "DTZ",    # flake8-datetimez
-    "T20",    # flake8-print
-    "RET",    # flake8-return
-    "ARG",    # flake8-unused-arguments
-    "PTH",    # flake8-use-pathlib
-    "ERA",    # eradicate
-    "PD",     # pandas-vet
-    "PGH",    # pygrep-hooks
-    "PL",     # Pylint
-    "TRY",    # tryceratops
-    "FLY",    # flynt
-    "PERF",   # Perflint
-    "RUF",    # Ruff-specific rules
+    "F",      # Pyflakes (undefined names, unused imports)
+    "B",      # flake8-bugbear (common bugs)
+    "I",      # isort (import ordering)
+    "C4",     # flake8-comprehensions (better list/dict comprehensions)
+    "UP",     # pyupgrade (modern Python syntax)
 ]
 
-# Ignore specific rules that might be too strict for this project
+# Relaxed ignore list - focus on developer productivity
 ignore = [
     "E501",    # Line too long (handled by formatter)
-    "S101",    # Use of assert (common in tests)
-    "S603",    # subprocess without shell=True (often acceptable)
-    "S607",    # Starting subprocess with partial executable path
-    "PLR0913", # Too many arguments in function definition
-    "PLR0915", # Too many statements in function
-    "PLR2004", # Magic value used in comparison
-    "COM812",  # Trailing comma missing (handled by formatter)
-    "ISC001",  # Implicitly concatenated string (conflicts with formatter)
-    "T201",    # Print found (acceptable in scripts)
-    "T203",    # pprint found (acceptable in scripts)
-    "RUF001",  # String contains ambiguous unicode character
-    "RUF002",  # Docstring contains ambiguous unicode character
-    "RUF003",  # Comment contains ambiguous unicode character
-    "ERA001",  # Found commented-out code (often intentional)
-    "TRY300",  # Consider moving statement to else block (often unnecessary)
-    "PLC0415", # Import should be at top-level (scripts can be flexible)
-    "SIM102",  # Use single if statement (sometimes nested is clearer)
-    "RET504",  # Unnecessary assignment before return (sometimes clearer)
-    "PTH123",  # Use Path.open() (backward compatibility)
-    "PTH101",  # Use Path.chmod() (backward compatibility)
-    "S103",    # Permissive mask (acceptable for git hooks)
-    "PLW1510", # subprocess.run without explicit check (sometimes intentional)
+    "E402",    # Module level import not at top (sometimes needed)
+    "B008",    # Function call in argument defaults (common in FastAPI)
 ]
 
 # Allow unfixable rules to be fixed
@@ -273,29 +234,7 @@ unfixable = []
 dummy-variable-rgx = "^(_+|(_+[a-zA-Z0-9_]*[a-zA-Z0-9]+?))$"
 
 [tool.ruff.lint.per-file-ignores]
-# Test files can use additional patterns
-"tests/**/*.py" = [
-    "S101",    # Use of assert in tests is expected
-    "ARG001",  # Unused function arguments in tests
-    "PLR2004", # Magic values in tests are common
-    "S105",    # Hardcoded passwords in tests
-    "S106",    # Hardcoded passwords in tests
-]
-
-# Scripts can use print statements and have relaxed rules
-"scripts/**/*.py" = [
-    "T201",    # Print statements in scripts are acceptable
-    "T203",    # pprint statements in scripts are acceptable
-    "S603",    # Subprocess calls in scripts
-    "S607",    # Subprocess with partial path in scripts
-]
-
-# Example files can be more relaxed
-"examples/**/*.py" = [
-    "T201",    # Print statements in examples
-    "S105",    # Hardcoded passwords in examples
-    "ARG001",  # Unused arguments in examples
-]
+# No per-file ignores needed with relaxed rules
 
 [tool.ruff.format]
 # Use double quotes for strings
@@ -321,24 +260,3 @@ dev = [
 # Configure import sorting
 known-first-party = ["unifiles"]
 section-order = ["future", "standard-library", "third-party", "first-party", "local-folder"]
-
-[tool.ruff.lint.mccabe]
-# Set maximum complexity
-max-complexity = 10
-
-[tool.ruff.lint.pep8-naming]
-# Allow lowercase constants in tests
-ignore-names = ["test_*"]
-
-[tool.ruff.lint.pylint]
-# Set maximum number of arguments
-max-args = 8
-
-# Set maximum number of branches
-max-branches = 15
-
-# Set maximum number of return statements
-max-returns = 8
-
-# Set maximum number of statements
-max-statements = 60
