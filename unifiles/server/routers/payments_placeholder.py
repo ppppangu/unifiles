@@ -10,8 +10,8 @@ import asyncpg
 from fastapi import APIRouter, Body, Depends, HTTPException
 from loguru import logger
 
-from unifiles.app.schemas import StandardResponse
-from unifiles.app.routers.api_keys import get_user_context
+from unifiles.server.schemas import StandardResponse
+from unifiles.server.routers.api_keys import get_user_context
 from unifiles.config import settings
 
 

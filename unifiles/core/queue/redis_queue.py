@@ -31,6 +31,11 @@ try:
 except ImportError:
     REDIS_AVAILABLE = False
     logger.warning("redis package not installed, RedisQueueClient will not be available")
+    # Fallback type definitions
+    Redis = Any  # type: ignore
+    PubSub = Any  # type: ignore
+    RedisError = Exception  # type: ignore
+    RedisConnectionError = Exception  # type: ignore
 
 from unifiles.core.queue.constants import (
     QueueNames,
@@ -812,3 +817,5 @@ async def close_queue_client():
         await _global_queue_client.close()
         _global_queue_client = None
         logger.info("Global queue client closed")
+# Add alias for backward compatibility
+get_queue_service = get_queue_client

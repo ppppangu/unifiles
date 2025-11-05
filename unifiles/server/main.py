@@ -6,7 +6,7 @@ Unifiles v1 API - RESTful Architecture
 1. Files - 文件存储和管理
 2. Knowledge Bases - 知识库操作和文档处理
 
-启动命令：uv run uvicorn unifiles.app.main:app --host 0.0.0.0 --port 8088 --reload
+启动命令：uv run uvicorn unifiles.server.main:app --host 0.0.0.0 --port 8088 --reload
 """
 
 from contextlib import asynccontextmanager
@@ -16,7 +16,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 # 导入中间件和 schemas
-from unifiles.app.middlewares import (
+from unifiles.server.middlewares import (
     AuthMiddleware,
     ClientIPMiddleware,
     FileValidationMiddleware,
@@ -24,7 +24,7 @@ from unifiles.app.middlewares import (
 )
 
 # 导入API路由
-from unifiles.app.routers import (
+from unifiles.server.routers import (
     api_keys,
     knowledge_bases,
     manager,
@@ -35,7 +35,7 @@ from unifiles.app.routers import (
     usage,
     webhooks,
 )
-from unifiles.app.schemas import StandardResponse
+from unifiles.server.schemas import StandardResponse
 
 # 导入核心工具
 from unifiles.core.utils import mk_need_path

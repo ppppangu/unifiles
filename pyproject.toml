@@ -3,9 +3,9 @@ requires = ["setuptools>=61.0", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "unifiles-client"
+name = "unifiles"
 version = "1.0.0"
-description = "Python client for Unifiles document processing service"
+description = "Unifiles document processing platform - SaaS service, client library, and self-deployment package"
 readme = "README.md"
 license = {file = "LICENSE"}
 authors = [
@@ -91,11 +91,10 @@ Issues = "https://github.com/unifiles/unifiles-client/issues"
 Changelog = "https://github.com/unifiles/unifiles-client/blob/main/CHANGELOG.md"
 
 [tool.setuptools]
-packages = ["unifiles_client", "unifiles"]
+packages = ["unifiles"]
 
 [tool.setuptools.package-dir]
-unifiles_client = "unifiles/client"
-unifiles = "Unifiles"
+unifiles = "unifiles"
 
 [tool.black]
 line-length = 88
@@ -119,7 +118,7 @@ extend-exclude = '''
 profile = "black"
 multi_line_output = 3
 line_length = 88
-known_first_party = ["unifiles_client"]
+known_first_party = ["unifiles"]
 
 [tool.mypy]
 python_version = "3.8"
@@ -153,7 +152,7 @@ markers = [
 ]
 
 [tool.coverage.run]
-source = ["unifiles_client"]
+source = ["unifiles"]
 omit = [
     "*/tests/*",
     "*/test_*.py",

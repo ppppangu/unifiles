@@ -10,7 +10,7 @@ import asyncpg
 from fastapi import APIRouter, Body, Depends, HTTPException, Request
 from loguru import logger
 
-from unifiles.app.schemas import StandardResponse
+from unifiles.server.schemas import StandardResponse
 from unifiles.config import settings
 from unifiles.core.services import AuthService
 

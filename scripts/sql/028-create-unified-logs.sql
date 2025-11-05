@@ -40,7 +40,7 @@ CREATE TABLE IF NOT EXISTS unifiles.unified_logs (
     stack_trace TEXT,                     -- 完整堆栈跟踪
 
     -- 代码位置（便于调试）
-    module_name TEXT,                     -- Python 模块路径（如 unifiles.app.main）
+    module_name TEXT,                     -- Python 模块路径（如 unifiles.server.main）
     function_name TEXT,                   -- 函数名
     line_number INTEGER,                  -- 行号
 

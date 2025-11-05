@@ -15,13 +15,13 @@ from datetime import datetime, timedelta
 from unittest.mock import AsyncMock, MagicMock, patch
 from fastapi.testclient import TestClient
 
-from unifiles.app.main import app
+from unifiles.server.main import app
 
 
 @pytest.fixture
 def mock_pool_manager():
     """模拟连接池管理器"""
-    with patch('unifiles.app.routers.logs.get_pool_manager') as mock:
+    with patch('unifiles.server.routers.logs.get_pool_manager') as mock:
         manager = AsyncMock()
         pool = AsyncMock()
         conn = AsyncMock()

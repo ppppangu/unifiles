@@ -5,7 +5,7 @@ from typing import Any, Dict, Optional
 from fastapi import HTTPException, UploadFile
 from loguru import logger
 
-from unifiles.app.schemas import FileInfo, FileListResponse, FileUploadResponse
+from unifiles.server.schemas import FileInfo, FileListResponse, FileUploadResponse
 from unifiles.core.database.base import FileDBManager
 from unifiles.core.security.authorization import FileAccessControl
 from unifiles.core.security.validators import FileSecurityValidator

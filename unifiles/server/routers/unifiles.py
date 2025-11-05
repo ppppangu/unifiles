@@ -13,7 +13,7 @@ from fastapi import (
 )
 from loguru import logger
 
-from unifiles.app.schemas import (
+from unifiles.server.schemas import (
     FileInfo,
     FileListResponse,
     FileUploadResponse,
@@ -344,4 +344,4 @@ async def get_user_storage_stats(user_context: dict = Depends(get_user_context))
 
 
 # Note: Security logging middleware should be added to the main app, not to the router
-# This is handled in unifiles.app.main.py
+# This is handled in unifiles.server.main.py

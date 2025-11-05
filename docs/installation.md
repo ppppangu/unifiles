@@ -234,7 +234,7 @@ bash scripts/setup/init_database.sh
 启动 API 服务器：
 
 ```bash
-uv run uvicorn unifiles.app.main:app --host 0.0.0.0 --port 8088 --reload
+uv run uvicorn unifiles.server.main:app --host 0.0.0.0 --port 8088 --reload
 ```
 
 启动 Worker（在另一个终端）：
@@ -252,7 +252,7 @@ uv run python -m unifiles.workers.extraction_worker
 使用 Gunicorn + Uvicorn Workers：
 
 ```bash
-gunicorn unifiles.app.main:app \
+gunicorn unifiles.server.main:app \
   --bind 0.0.0.0:8088 \
   --workers 4 \
   --worker-class uvicorn.workers.UvicornWorker \
