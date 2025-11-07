@@ -31,7 +31,7 @@ class SelfHostedConfig(BaseConfig):
 
         self.api_key = self._get_env_var("UNIFILES_SERVICE_OCR_SELFHOSTED_API_KEY", "")
         # Async processing configuration
-        self.max_concurrency = int(self._get_env_var("UNIFILES_SERVICE_OCR_SELFHOSTED_MAX_CONCURRENCY", "5"))
+        self.max_concurrency = int(self._get_env_var("UNIFILES_SERVICE_OCR_SELFHOSTED_MAX_CONCURRENCY", "20"))
         self.max_retries = int(self._get_env_var("UNIFILES_SERVICE_OCR_SELFHOSTED_MAX_RETRIES", "2"))
         self.request_timeout = float(self._get_env_var("UNIFILES_SERVICE_OCR_SELFHOSTED_REQUEST_TIMEOUT", "120.0"))
 

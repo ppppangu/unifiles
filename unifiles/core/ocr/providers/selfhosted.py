@@ -15,13 +15,23 @@ from ..utils.parser import load_images_from_pdf, to_rgb
 
 
 class SelfHostedOCRProvider(BaseOCRProvider):
-    """Self-hosted OCR provider (OpenAI-compatible).
+    """Self-hosted OCR provider (OpenAI-compatible) for PDF processing.
 
-    This trimmed version keeps only process_file and its required helpers.
+    This provider processes PDF files only with support for both sync and async operations.
+    Features:
+    - Concurrent page processing with configurable concurrency
+    - Automatic retry mechanism with exponential backoff
+    - In-memory image handling (no disk I/O)
+    - Progress callback support for async operations
     """
 
     def __init__(self, config: Optional[SelfHostedConfig] = None):
         super().__init__(config or SelfHostedConfig())
+        # Initialize OpenAI clients
+        base_url = self._normalize_base_url(self.config.get_url())
+        api_key = self.config.get_api_key() or "no-key"
+        self._sync_client = OpenAI(api_key=api_key, base_url=base_url)
+        self._async_client = AsyncOpenAI(api_key=api_key, base_url=base_url)
 
     def get_provider_name(self) -> str:
         return "selfhosted"
@@ -51,23 +61,6 @@ class SelfHostedOCRProvider(BaseOCRProvider):
             logger.error(f"Failed to process image for model: {e!s}")
             return None
 
-    def _build_request_payload(self, image_path: Path) -> Optional[list]:
-        """Build Chat Completions messages with base64 image and prompt."""
-        base64_image = self._process_image_for_model(image_path)
-        if not base64_image:
-            return None
-        return [
-            {
-                "role": "user",
-                "content": [
-                    {
-                        "type": "image_url",
-                        "image_url": {"url": f"data:image/png;base64,{base64_image}"},
-                    },
-                    {"type": "text", "text": self.config.get_prompt()},
-                ],
-            }
-        ]
 
     def _normalize_base_url(self, url: str) -> str:
         suffix = "/chat/completions"
@@ -75,21 +68,10 @@ class SelfHostedOCRProvider(BaseOCRProvider):
             return url[: -len(suffix)]
         return url.rstrip("/")
 
-    def _get_sync_client(self) -> OpenAI:
-        base_url = self._normalize_base_url(self.config.get_url())
-        api_key = self.config.get_api_key() or "no-key"
-        return OpenAI(api_key=api_key, base_url=base_url)
-
-    def _get_async_client(self) -> AsyncOpenAI:
-        base_url = self._normalize_base_url(self.config.get_url())
-        api_key = self.config.get_api_key() or "no-key"
-        return AsyncOpenAI(api_key=api_key, base_url=base_url)
-
     def _send_request(self, messages: list) -> str:
         """Sync request via OpenAI SDK; returns text content."""
         try:
-            client = self._get_sync_client()
-            resp = client.chat.completions.create(
+            resp = self._sync_client.chat.completions.create(
                 model=self.config.get_model(),
                 messages=messages,
                 temperature=self.config.get_temperature(),
@@ -145,10 +127,12 @@ class SelfHostedOCRProvider(BaseOCRProvider):
 
                         category = el["category"]
 
-                        if category == "Picture":
+                        if category in ["Picture", "Table"]:
                             # Crop image
                             img_crop = img.crop((abs_x1, abs_y1, abs_x2, abs_y2))
-                            filename = f"picture_{i}_{index}.png"
+                            # Use category name as filename prefix
+                            prefix = category.lower()
+                            filename = f"{prefix}_{i}_{index}.png"
 
                             # === Optimization: Save to memory instead of disk ===
                             img_buffer = io.BytesIO()
@@ -194,8 +178,7 @@ class SelfHostedOCRProvider(BaseOCRProvider):
     # --------------------
     async def _send_request_async(self, messages: list) -> str:
         """Async request via OpenAI-compatible SDK; returns text content."""
-        client = self._get_async_client()
-        resp = await client.chat.completions.create(
+        resp = await self._async_client.chat.completions.create(
             model=self.config.get_model(),
             messages=messages,
             temperature=self.config.get_temperature(),
@@ -315,9 +298,11 @@ class SelfHostedOCRProvider(BaseOCRProvider):
 
                             category = el["category"]
 
-                            if category == "Picture":
+                            if category in ["Picture", "Table"]:
                                 img_crop = img.crop((abs_x1, abs_y1, abs_x2, abs_y2))
-                                filename = f"picture_{page_num}_{index}.png"
+                                # Use category name as filename prefix
+                                prefix = category.lower()
+                                filename = f"{prefix}_{page_num}_{index}.png"
 
                                 # === 优化：保存到内存而非磁盘 ===
                                 img_buffer = io.BytesIO()
@@ -452,7 +437,7 @@ class SelfHostedOCRProvider(BaseOCRProvider):
         return ""
 
     def process_file(self, file_path: Union[str, Path]) -> str:
-        """Process local file with OCR (PDF per-page; images direct).
+        """Process local PDF file with OCR.
 
         Note: This method only returns markdown text for backward compatibility.
         For images_info, use aprocess_file() instead.
@@ -463,18 +448,12 @@ class SelfHostedOCRProvider(BaseOCRProvider):
         if not p.exists():
             logger.error(f"File not found: {p}")
             return ""
-        if p.suffix.lower() == ".pdf":
-            # _process_pdf now returns (text, images_info), extract only text
-            markdown_text, _ = self._process_pdf(p)
-            return markdown_text
-        if not self.validate_file(p):
-            logger.error(f"File validation failed: {p}")
+        if p.suffix.lower() != ".pdf":
+            logger.error(f"Only PDF files are supported, got: {p.suffix}")
             return ""
-        payload = self._build_request_payload(p)
-        if not payload:
-            logger.error(f"Failed to build request for {p}")
-            return ""
-        return self._send_request(payload)
+        # _process_pdf now returns (text, images_info), extract only text
+        markdown_text, _ = self._process_pdf(p)
+        return markdown_text
 
     # --------------------
     # Async public API
@@ -486,10 +465,10 @@ class SelfHostedOCRProvider(BaseOCRProvider):
         output_dir: Optional[Path] = None,
         progress_callback: Optional[Callable[[int, int, str, str], None]] = None,
     ) -> Tuple[str, List[Dict[str, Any]]]:
-        """Async process for local file.
+        """Async process for local PDF file.
 
         Args:
-            file_path: Path to the file to process
+            file_path: Path to the PDF file to process
             output_dir: Directory to save extracted images (default: current directory)
             progress_callback: Optional callback for progress updates
 
@@ -506,28 +485,9 @@ class SelfHostedOCRProvider(BaseOCRProvider):
             logger.error(f"File not found: {p}")
             return "", []
 
+        if p.suffix.lower() != ".pdf":
+            logger.error(f"Only PDF files are supported, got: {p.suffix}")
+            return "", []
+
         # PDF handling with async parallel processing
-        if p.suffix.lower() == ".pdf":
-            return await self._process_pdf_async(p, output_dir, progress_callback)
-
-        # Image handling (no images to extract from single image OCR)
-        if not self.validate_file(p):
-            logger.error(f"File validation failed: {p}")
-            return "", []
-
-        messages = self._build_request_payload(p)
-        if not messages:
-            logger.error(f"Failed to build request for {p}")
-            return "", []
-        try:
-            client = self._get_async_client()
-            resp = await client.chat.completions.create(
-                model=self.config.get_model(),
-                messages=messages,
-                temperature=self.config.get_temperature(),
-                max_tokens=self.config.get_max_tokens(),
-            )
-            return resp.choices[0].message.content or "", []
-        except Exception as e:
-            logger.error(f"Self-hosted async request failed: {e!s}")
-            return "", []
+        return await self._process_pdf_async(p, output_dir, progress_callback)
