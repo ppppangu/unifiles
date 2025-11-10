@@ -88,7 +88,6 @@ class SelfHostedOCRProvider(BaseOCRProvider):
         Returns:
             Tuple[str, List[Dict]]: (markdown_text, images_info)
         """
-        import io  # For BytesIO
 
         full_texts: List[str] = []
         all_images_info: List[Dict[str, Any]] = []
@@ -116,48 +115,13 @@ class SelfHostedOCRProvider(BaseOCRProvider):
                         }
                     ]
                     json_markdown = self._send_request(messages)
-                    json_dict = self._extract_json_from_markdown(json_markdown.strip())
-                    index = 0
-                    for el in json_dict.get("layout_elements", []):
-                        bbox = el["bbox"]
-                        abs_y1 = int(bbox[1] / 999 * img.height)
-                        abs_x1 = int(bbox[0] / 999 * img.width)
-                        abs_y2 = int(bbox[3] / 999 * img.height)
-                        abs_x2 = int(bbox[2] / 999 * img.width)
 
-                        category = el["category"]
-
-                        if category in ["Picture", "Table"]:
-                            # Crop image
-                            img_crop = img.crop((abs_x1, abs_y1, abs_x2, abs_y2))
-                            # Use category name as filename prefix
-                            prefix = category.lower()
-                            filename = f"{prefix}_{i}_{index}.png"
-
-                            # === Optimization: Save to memory instead of disk ===
-                            img_buffer = io.BytesIO()
-                            img_crop.save(img_buffer, format="PNG", optimize=False)
-                            img_bytes = img_buffer.getvalue()
-                            img_buffer.close()
-
-                            # Collect image metadata with bytes
-                            all_images_info.append({
-                                "page": i,
-                                "index": index,
-                                "filename": filename,
-                                "bytes": img_bytes,
-                                "extension": "png",
-                                "size_bytes": len(img_bytes),
-                            })
-
-                            full_texts.append(f"\n![{category}]({filename})\n")
-                            index += 1
-
-                        else:
-                            text = el.get("text", "")
-                            full_texts.append(f"\n{text}\n")
-
-                    full_texts.append("\n\n---\n\n")
+                    # Unified parsing and extraction via class method
+                    page_text, page_images = self._parse_and_extract(
+                        json_markdown, img, i + 1
+                    )
+                    full_texts.append(page_text)
+                    all_images_info.extend(page_images)
 
                 except Exception as e:
                     logger.warning(f"Failed to OCR page {i + 1}: {e!s}")
@@ -277,63 +241,10 @@ class SelfHostedOCRProvider(BaseOCRProvider):
                         )
                     return (page_num, "")
 
-                # Parse and reconstruct text/crops. Run parsing and cropping in threads.
-                def parse_and_extract() -> Tuple[str, List[Dict[str, Any]]]:
-                    import io  # For BytesIO
-
-                    out_parts: List[str] = []
-                    page_images_info: List[Dict[str, Any]] = []
-
-                    try:
-                        json_dict = self._extract_json_from_markdown(
-                            json_markdown.strip()
-                        )
-                        index = 0
-                        for el in json_dict.get("layout_elements", []):
-                            bbox = el["bbox"]
-                            abs_y1 = int(bbox[1] / 999 * img.height)
-                            abs_x1 = int(bbox[0] / 999 * img.width)
-                            abs_y2 = int(bbox[3] / 999 * img.height)
-                            abs_x2 = int(bbox[2] / 999 * img.width)
-
-                            category = el["category"]
-
-                            if category in ["Picture", "Table"]:
-                                img_crop = img.crop((abs_x1, abs_y1, abs_x2, abs_y2))
-                                # Use category name as filename prefix
-                                prefix = category.lower()
-                                filename = f"{prefix}_{page_num}_{index}.png"
-
-                                # === 优化：保存到内存而非磁盘 ===
-                                img_buffer = io.BytesIO()
-                                img_crop.save(img_buffer, format="PNG", optimize=False)
-                                img_bytes = img_buffer.getvalue()
-                                img_buffer.close()
-
-                                # Collect image metadata (with bytes data)
-                                page_images_info.append(
-                                    {
-                                        "page": page_num - 1,  # Convert to 0-indexed
-                                        "index": index,
-                                        "filename": filename,
-                                        "bytes": img_bytes,  # Store bytes instead of path
-                                        "extension": "png",
-                                        "size_bytes": len(img_bytes),
-                                    }
-                                )
-
-                                out_parts.append(f"\n![{category}]({filename})\n")
-                                index += 1
-                            else:
-                                text = el.get("text", "")
-                                out_parts.append(f"\n{text}\n")
-                    except Exception as e:
-                        logger.warning(f"Failed to parse page {page_num} result: {e!s}")
-                    # Page separator
-                    out_parts.append("\n\n---\n\n")
-                    return "".join(out_parts), page_images_info
-
-                page_text, page_images = await asyncio.to_thread(parse_and_extract)
+                # Parse and reconstruct text/crops via class method in a thread.
+                page_text, page_images = await asyncio.to_thread(
+                    self._parse_and_extract, json_markdown, img, page_num
+                )
 
                 if progress_callback:
                     progress_callback(
@@ -418,6 +329,71 @@ class SelfHostedOCRProvider(BaseOCRProvider):
         except Exception as e:
             logger.error(f"Async PDF processing failed: {e!s}")
             return "", []
+
+    def _parse_and_extract(
+        self, json_markdown: str, img, page_num: int
+    ) -> Tuple[str, List[Dict[str, Any]]]:
+        """Parse model JSON markdown and extract text and in-memory image crops.
+
+        Returns a tuple of (markdown_text, images_info) for a single page.
+        """
+        import io  # For BytesIO
+
+        out_parts: List[str] = []
+        page_images_info: List[Dict[str, Any]] = []
+
+        try:
+            json_dict = self._extract_json_from_markdown(json_markdown.strip())
+            index = 0
+            for el in json_dict.get("layout_elements", []):
+                bbox = el["bbox"]
+                abs_y1 = int(bbox[1] / 999 * img.height)
+                abs_x1 = int(bbox[0] / 999 * img.width)
+                abs_y2 = int(bbox[3] / 999 * img.height)
+                abs_x2 = int(bbox[2] / 999 * img.width)
+
+                category = el["category"]
+
+                if category in ["Picture", "Table"]:
+                    img_crop = img.crop((abs_x1, abs_y1, abs_x2, abs_y2))
+                    # Use category name as filename prefix
+                    prefix = category.lower()
+                    filename = f"{prefix}_{page_num}_{index}.png"
+
+                    # Save to memory instead of disk
+                    img_buffer = io.BytesIO()
+                    img_crop.save(img_buffer, format="PNG", optimize=False)
+                    img_bytes = img_buffer.getvalue()
+                    img_buffer.close()
+
+                    # Collect image metadata (with bytes data)
+                    page_images_info.append(
+                        {
+                            "page": page_num - 1,  # Convert to 0-indexed
+                            "index": index,
+                            "filename": filename,
+                            "bytes": img_bytes,  # Store bytes instead of path
+                            "extension": "png",
+                            "size_bytes": len(img_bytes),
+                        }
+                    )
+
+                    out_parts.append(f"\n![{category}]({filename})\n")
+                    index += 1
+                else:
+                    text = el.get("text", "")
+                    out_parts.append(f"\n{text}\n")
+        except Exception as e:
+            logger.warning(f"Failed to parse page {page_num} result: {e!s}")
+
+        # Page separator
+        out_parts.append("\n\n---\n\n")
+
+        # 保存处理的结果用于调试
+        with open(f"debug_page_{page_num}.json", "w", encoding="utf-8") as f:
+            json.dump(json_dict, f, indent=2, ensure_ascii=False)
+
+        return "".join(out_parts), page_images_info
 
     def _extract_json_from_markdown(self, markdown: str) -> str:
         """Extract JSON string from markdown using regex."""

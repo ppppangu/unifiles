@@ -890,9 +890,6 @@ class PDFProcessingPipeline:
                     f"{provider_name} OCR processing returned empty result, using placeholder text"
                 )
 
-            logger.info(
-                f"{provider_name} OCR PDF processing completed, {len(text)} characters extracted"
-            )
             return text, images_info
         except Exception as e:
             logger.error(f"{provider_name} OCR PDF processing failed: {e}")
