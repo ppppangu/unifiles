@@ -502,128 +502,12 @@ class TextProcessor:
 
     def __init__(self, config: Optional[Dict[str, Any]] = None):
         self.config = config or read_config()
+        # 记录最近一次在分块之前的完整Markdown（已转换图片路径）
+        self._last_full_markdown: Optional[str] = None
 
-    def find_all_text_and_image_index(
-        self, text: str, user_id: str, knowledge_base_id: str, document_id: str
-    ) -> Tuple[str, List[Tuple[int, int, str]]]:
-        """
-        找到文本中所有图片和文本片段的索引位置，并将相对图片路径转换为绝对MinIO URLs
-
-        Returns:
-            tuple: (converted_text, results)
-                - converted_text: 转换后的markdown文本，图片路径已转换为绝对URLs
-                - results: 包含元组的列表，每个元组为(开始索引, 结束索引, 类型)
-        """
-        pattern = r"!\[([^\]]*)\]\(([^)]+)\)"
-        results = []
-
-        # 找到所有图片的位置
-        image_matches = []
-        for match in re.finditer(pattern, text):
-            logger.info(match.group(0))
-            logger.info(f"Found image: match at {match.start()}-{match.end()}")
-            image_matches.append((match.start(), match.end(), "image"))
-
-        # 按开始位置排序
-        logger.info(image_matches)
-        image_matches.sort(key=lambda x: x[0])
-
-        # 填充文本片段
-        text_length = len(text)
-        current_pos = 0
-
-        for image_start, image_end, _ in image_matches:
-            # 如果当前位置到图片开始位置之间有文本，添加文本片段
-            if current_pos < image_start:
-                results.append((current_pos, image_start, "text"))
-
-            # 添加图片片段
-            results.append((image_start, image_end, "image"))
-            current_pos = image_end
-
-        logger.info(results)
-
-        # 处理剩余文本
-        if image_matches:
-            if current_pos < text_length:
-                results.append((current_pos, text_length, "text"))
-        # 如果没有找到任何图片，整个文本都是文本片段
-        elif text_length > 0:
-            results.append((0, text_length, "text"))
-
-        # 按开始位置排序结果
-        results.sort(key=lambda x: x[0])
-
-        # 构建转换后的文本：将相对图片路径转换为仅包含对象路径（不包含域名/桶前缀）
-        converted_text = ""
-
-        for start, end, type_ in results:
-            if type_ == "text":
-                converted_text += text[start:end]
-            elif type_ == "image":
-                image_markdown = text[start:end]
-                match = re.search(r"!\[([^\]]*)\]\(([^)]+)\)", image_markdown)
-                if match:
-                    alt_text = match.group(1)
-                    image_path = match.group(2)
-
-                    logger.info(f"alt text: {alt_text}, image_path: {image_path}")
-
-                    # 将相对路径转换为对象路径（仅对象键，不包含协议/域名/桶）
-                    # 与上传阶段保持一致：{user_id}/knowledge_base/{kb}/{doc}/{filename}
-                    object_path = f"{user_id}/knowledge_base/{knowledge_base_id}/{document_id}/{image_path}"
-
-                    converted_markdown = f"![{alt_text}]({object_path})"
-                    converted_text += converted_markdown
-                else:
-                    converted_text += image_markdown
-        logger.info(converted_text)
-        logger.info(results)
-        return converted_text, results
-
-    async def split_text(
-        self, text: str, mode: str = "SlidingWindow", module: str = "normal"
-    ) -> List[str]:
-        """根据指定的模式和模块对文本进行分块"""
-        if mode == "SlidingWindow" and module == "normal":
-            chunk_size = (
-                self.config.get("text_chunk_strategy", {})
-                .get("SlidingWindow", {})
-                .get("chunk_size", 1000)
-            )
-            chunk_overlap = (
-                self.config.get("text_chunk_strategy", {})
-                .get("SlidingWindow", {})
-                .get("chunk_overlap", 200)
-            )
-
-            if len(text) <= chunk_size:
-                return [text] if text.strip() else []
-
-            new_text = []
-            start = 0
-            while start < len(text):
-                end = start + chunk_size
-
-                if end >= len(text):
-                    chunk = text[start:]
-                    if chunk.strip():
-                        new_text.append(chunk)
-                    break
-                chunk = text[start:end]
-                if chunk.strip():
-                    new_text.append(chunk)
-
-                start = end - chunk_overlap
-
-                # 防止无限循环
-                if chunk_overlap >= chunk_size:
-                    start = end
-
-            return new_text
-
-        # 默认返回原文本作为单个块
-        return [text] if text.strip() else []
+    def get_last_full_markdown(self) -> Optional[str]:
+        """获取最近一次处理时的未分块完整Markdown（图片路径已转换）。"""
+        return self._last_full_markdown
 
     def save_results_to_json_sync(
         self, converted_text: str, results: List[Tuple[int, int, str]]
@@ -645,23 +529,17 @@ class TextProcessor:
         results_dict.sort(key=lambda x: x["index"])
         return results_dict
 
-    def _segment_by_images(
+    def _convert_image_paths(
         self, text: str, user_id: str, knowledge_base_id: str, document_id: str
-    ) -> Tuple[str, List[Dict[str, Any]]]:
-        """按图片边界切分文本，并在过程中将图片相对路径转换为对象路径。
+    ) -> str:
+        """将markdown中的相对图片路径转换为对象路径，返回转换后的完整文本。
 
-        Returns:
-            tuple: (converted_text, segments)
-                - converted_text: 路径转换后的完整文本
-                - segments: 切分后的片段列表，每个元素包含：{"content": str, "type": "text"|"image"}
-
-        注意：segments中的content已经是转换后的内容，与converted_text保持一致
+        注：已删除分块逻辑，该方法不再返回分段，仅做路径转换。
         """
         if not text:
-            return "", []
+            return ""
 
         pattern = r"!\[([^\]]*)\]\(([^)]+)\)"
-        segments: List[Dict[str, Any]] = []
         converted_parts: List[str] = []
 
         last_pos = 0
@@ -670,10 +548,7 @@ class TextProcessor:
             # 追加前置文本
             if last_pos < start:
                 pre = text[last_pos:start]
-                if pre.strip():
-                    segments.append({"content": pre, "type": "text"})
-                    converted_parts.append(pre)
-                elif pre:  # 保留空白字符
+                if pre:
                     converted_parts.append(pre)
 
             # 图片片段（路径转换为对象路径）
@@ -681,7 +556,6 @@ class TextProcessor:
             image_path = m.group(2)
             object_path = f"{user_id}/knowledge_base/{knowledge_base_id}/{document_id}/{image_path}"
             converted = f"![{alt_text}]({object_path})"
-            segments.append({"content": converted, "type": "image"})
             converted_parts.append(converted)
 
             last_pos = end
@@ -689,17 +563,18 @@ class TextProcessor:
         # 末尾文本
         if last_pos < len(text):
             tail = text[last_pos:]
-            if tail.strip():
-                segments.append({"content": tail, "type": "text"})
-                converted_parts.append(tail)
-            elif tail:  # 保留空白字符
+            if tail:
                 converted_parts.append(tail)
 
         converted_text = "".join(converted_parts)
-        return converted_text, segments
+        return converted_text
 
     async def process_text_content(
-        self, text: str, user_id: str, knowledge_base_id: str, document_id: str
+        self,
+        text: str,
+        user_id: str,
+        knowledge_base_id: str,
+        document_id: str,
     ) -> List[Dict[str, Any]]:
         """
         处理文本内容：
@@ -714,43 +589,29 @@ class TextProcessor:
         try:
             # 步骤1：按图片边界切分，同时获取转换后的完整文本
             logger.info("Processing text content - Step 1: Segment by image boundaries")
-            converted_text, base_segments = await asyncio.to_thread(
-                self._segment_by_images, text, user_id, knowledge_base_id, document_id
+            converted_text = await asyncio.to_thread(
+                self._convert_image_paths, text, user_id, knowledge_base_id, document_id
             )
+            # 保存未分块的完整Markdown，以供上层用于 full_markdown 持久化
+            self._last_full_markdown = converted_text
             logger.info(
                 "Image segmentation completed",
                 {
-                    "segments": len(base_segments),
+                    "segments": len(converted_text),
                     "text_length_before": len(text),
                     "text_length_after": len(converted_text),
                 },
             )
 
-            # 步骤2：对文本类型进行分块
-            logger.info("Processing text content - Step 2: Text chunking")
-            final_segments: List[Dict[str, Any]] = []
-            for seg in base_segments:
-                if seg["type"] == "text":
-                    chunks = await self.split_text(seg["content"])
-                    for chunk in chunks:
-                        final_segments.append(
-                            {
-                                "content": chunk,
-                                "index": len(final_segments),
-                                "type": "text",
-                                "embedding": None,
-                            }
-                        )
-                else:
-                    # 图片片段不分块，直接添加
-                    final_segments.append(
-                        {
-                            "content": seg["content"],
-                            "index": len(final_segments),
-                            "type": seg["type"],
-                            "embedding": None,
-                        }
-                    )
+            # 步骤2：不进行任何分块，返回单一整段内容（包含已转换好的图片路径）
+            final_segments: List[Dict[str, Any]] = [
+                {
+                    "content": converted_text,
+                    "index": 0,
+                    "type": "text",
+                    "embedding": None,
+                }
+            ]
 
             logger.info(
                 "Text chunking completed",
@@ -775,6 +636,8 @@ class PDFProcessingPipeline:
         self.ocr_provider = ocr_provider or SimplePDFReader()  # 默认使用简单PDF读取器
         self.downloader = FileDownloader(config)
         self.text_processor = TextProcessor(config)
+        # 缓存最近一次处理得到的未分块完整Markdown
+        self._last_full_markdown: Optional[str] = None
 
         # 创建临时目录
         self.tmp_dir = Path(__file__).parent / "tmp"
@@ -1042,6 +905,14 @@ class PDFProcessingPipeline:
                 text, user_id, knowledge_base_id, document_id
             )
 
+            # 记录未分块完整Markdown（优先从 TextProcessor 获取）
+            try:
+                self._last_full_markdown = (
+                    self.text_processor.get_last_full_markdown() or text
+                )
+            except Exception:
+                self._last_full_markdown = text
+
             # 在 structured_content 中添加图片元数据信息
             if images_info:
                 # 将图片信息添加到返回的元数据中
@@ -1090,3 +961,11 @@ class PDFProcessingPipeline:
             "temp_directory": str(self.tmp_dir),
             "config_loaded": bool(self.config),
         }
+
+    def get_last_full_markdown(self) -> Optional[str]:
+        """返回最近一次处理时的未分块完整Markdown。
+
+        用途：用于数据库 full_markdown 字段持久化，避免因分块（特别是重叠窗口）
+        导致重复或与原始内容不一致的问题。
+        """
+        return self._last_full_markdown

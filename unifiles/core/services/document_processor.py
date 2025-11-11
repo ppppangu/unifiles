@@ -48,12 +48,14 @@ def parse_image_assets_from_markdown(markdown: str) -> list[dict[str, Any]]:
         # 从对象路径中提取文件名
         filename = object_path.split("/")[-1] if "/" in object_path else object_path
 
-        assets.append({
-            "index": idx,
-            "alt_text": alt_text,
-            "object_path": object_path,
-            "filename": filename
-        })
+        assets.append(
+            {
+                "index": idx,
+                "alt_text": alt_text,
+                "object_path": object_path,
+                "filename": filename,
+            }
+        )
 
     return assets
 
@@ -489,10 +491,12 @@ class DocumentProcessingService:
 
             self.logger.info(f"Structured content: {structured_content}")
 
-            # 重新构建markdown内容
-            markdown_content = ""
-            for item in structured_content:
-                markdown_content += item["content"]
+            # 使用未分块的完整Markdown，避免因分块（如重叠窗口）导致内容重复
+            markdown_content = (
+                self.pdf_pipeline.get_last_full_markdown()  # 由文本处理阶段缓存
+                if hasattr(self.pdf_pipeline, "get_last_full_markdown")
+                else None
+            ) or "".join(item["content"] for item in structured_content)
 
             self.logger.info("=== Stage: Database Persistence ===")
 
@@ -563,9 +567,7 @@ class DocumentProcessingService:
                         alt_text=img_asset["alt_text"],
                     )
                     asset_ids.append(asset_id)
-                    self.logger.debug(
-                        f"Created asset {asset_id} for image {filename}"
-                    )
+                    self.logger.debug(f"Created asset {asset_id} for image {filename}")
                 except Exception as asset_error:
                     self.logger.warning(
                         f"Failed to create asset for {img_asset.get('filename')}: {asset_error}"
