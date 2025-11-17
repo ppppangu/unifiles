@@ -21,14 +21,11 @@
 # https://docker.aityp.com/image/docker.io/supabase/postgres:15.8.1.085 (仅支持X86的服务器)
 
 mkdir -p ./postgres-data
-sudo chown -R 999:999 ./postgres-data
-sudo chmod 777 ./postgres-data
 
 docker run -d \
   --name supabase-postgres-prod \
   --restart unless-stopped \
-  -e POSTGRES_USER=supabase_admin \
-  -e POSTGRES_PASSWORD=your_secure_password \
+  -e POSTGRES_PASSWORD=secret \
   -e POSTGRES_DB=unifiles_db \
   -e PGDATA=/var/lib/postgresql/data \
   -p 5432:5432 \

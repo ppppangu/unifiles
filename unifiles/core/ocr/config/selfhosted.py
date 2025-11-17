@@ -15,6 +15,8 @@ class SelfHostedConfig(BaseConfig):
     - UNIFILES_SERVICE_OCR_SELFHOSTED_MAX_CONCURRENCY (optional, default: 5)
     - UNIFILES_SERVICE_OCR_SELFHOSTED_MAX_RETRIES (optional, default: 2)
     - UNIFILES_SERVICE_OCR_SELFHOSTED_REQUEST_TIMEOUT (optional, default: 120.0)
+    - UNIFILES_SERVICE_OCR_SELFHOSTED_DUMP_PARSE_FAIL (optional, default: false)
+    - UNIFILES_SERVICE_OCR_SELFHOSTED_DUMP_DIR (optional, default: logs/ocr_parse_fail)
     """
 
     def __init__(self):
@@ -34,6 +36,15 @@ class SelfHostedConfig(BaseConfig):
         self.max_concurrency = int(self._get_env_var("UNIFILES_SERVICE_OCR_SELFHOSTED_MAX_CONCURRENCY", "20"))
         self.max_retries = int(self._get_env_var("UNIFILES_SERVICE_OCR_SELFHOSTED_MAX_RETRIES", "2"))
         self.request_timeout = float(self._get_env_var("UNIFILES_SERVICE_OCR_SELFHOSTED_REQUEST_TIMEOUT", "120.0"))
+        # Parse failure dump configuration
+        self.dump_parse_fail = self._get_env_var("UNIFILES_SERVICE_OCR_SELFHOSTED_DUMP_PARSE_FAIL", "false").lower() in (
+            "1",
+            "true",
+            "yes",
+        )
+        self.dump_dir = self._get_env_var(
+            "UNIFILES_SERVICE_OCR_SELFHOSTED_DUMP_DIR", "logs/ocr_parse_fail"
+        )
 
     def validate(self) -> bool:
         if not self.url:
@@ -74,3 +85,9 @@ class SelfHostedConfig(BaseConfig):
 
     def get_request_timeout(self) -> float:
         return self.request_timeout
+
+    def should_dump_parse_fail(self) -> bool:
+        return bool(self.dump_parse_fail)
+
+    def get_dump_dir(self) -> str:
+        return self.dump_dir

@@ -1,8 +1,8 @@
 import asyncio
 import base64
 import json
-import os
 import re
+import time
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 
@@ -61,7 +61,6 @@ class SelfHostedOCRProvider(BaseOCRProvider):
             logger.error(f"Failed to process image for model: {e!s}")
             return None
 
-
     def _normalize_base_url(self, url: str) -> str:
         suffix = "/chat/completions"
         if url.endswith(suffix):
@@ -81,6 +80,50 @@ class SelfHostedOCRProvider(BaseOCRProvider):
         except Exception as e:
             logger.error(f"Self-hosted sync request failed: {e!s}")
             return ""
+
+    def _dump_parse_failure(
+        self,
+        raw: str,
+        context: Dict[str, Any],
+    ) -> None:
+        """Dump parse-failed model output to JSON file for manual post-processing.
+
+        Controlled by config:
+        - should_dump_parse_fail(): enable/disable
+        - get_dump_dir(): base directory for dumps
+        """
+        try:
+            if not getattr(self.config, "should_dump_parse_fail", None):
+                return
+            if not self.config.should_dump_parse_fail():
+                return
+
+            dump_dir = Path(self.config.get_dump_dir())
+            dump_dir.mkdir(parents=True, exist_ok=True)
+
+            timestamp = time.strftime("%Y%m%d_%H%M%S")
+            page = context.get("page_num") or context.get("page") or "unknown"
+            doc = context.get("doc_path") or context.get("doc_id") or "unknown_doc"
+
+            safe_doc = str(doc).replace("/", "_").replace("\\", "_")
+            filename = f"{safe_doc}_page_{page}_{timestamp}.json"
+            dump_path = dump_dir / filename
+
+            payload: Dict[str, Any] = {
+                "provider": "selfhosted",
+                "context": context,
+                "raw": raw,
+            }
+
+            with dump_path.open("w", encoding="utf-8") as f:
+                json.dump(payload, f, ensure_ascii=False, indent=2)
+
+            logger.info(
+                f"[SelfHosted OCR] Dumped parse failure to {dump_path} "
+                f"(doc={doc}, page={page})"
+            )
+        except Exception as dump_err:
+            logger.error(f"Failed to dump parse failure: {dump_err!s}")
 
     def _process_pdf(self, pdf_path: Path) -> Tuple[str, List[Dict[str, Any]]]:
         """Render PDF pages to images using parser and OCR each page.
@@ -118,7 +161,10 @@ class SelfHostedOCRProvider(BaseOCRProvider):
 
                     # Unified parsing and extraction via class method
                     page_text, page_images = self._parse_and_extract(
-                        json_markdown, img, i + 1
+                        json_markdown,
+                        img,
+                        i + 1,
+                        doc_path=str(pdf_path),
                     )
                     full_texts.append(page_text)
                     all_images_info.extend(page_images)
@@ -155,13 +201,26 @@ class SelfHostedOCRProvider(BaseOCRProvider):
             return ""
 
     async def _send_request_with_retry(
-        self, messages: list, page_num: int
+        self, messages: list, page_num: int, doc_path: Optional[str] = None
     ) -> Tuple[int, str]:
-        """Send request with retries; returns (page_num, text)."""
+        """Send request with retries; returns (page_num, text).
+
+        Besides network/SDK errors, this also treats JSON 解析失败
+        (由 _extract_json_from_markdown 抛出的错误) 作为失败进行重试。
+        """
         max_retries = max(0, int(self.config.get_max_retries()))
         for attempt in range(max_retries + 1):
             try:
                 text = await self._send_request_async(messages)
+                # 空内容也视为失败，触发重试
+
+                if not text:
+                    raise ValueError("Empty response content from self-hosted OCR")
+
+                # 提前校验一次 JSON 是否可正确解析
+                # 如果解析失败，会抛出异常进入重试逻辑
+                self._extract_json_from_markdown(text.strip())
+
                 if attempt > 0:
                     logger.info(f"Page {page_num} succeeded after {attempt} retries")
                 return (page_num, text)
@@ -170,6 +229,23 @@ class SelfHostedOCRProvider(BaseOCRProvider):
                     logger.error(
                         f"Page {page_num} failed after {max_retries} retries: {e!s}"
                     )
+                    # 在重试耗尽时，如果还有最后一次的 text，可尝试记录
+                    try:
+                        # text 变量可能不存在/为空，先安全获取
+                        last_text = locals().get("text") or ""
+                    except Exception:
+                        last_text = ""
+                    if last_text:
+                        self._dump_parse_failure(
+                            last_text,
+                            {
+                                "error": str(e),
+                                "page_num": page_num,
+                                "attempt": attempt,
+                                "doc_path": doc_path,
+                                "phase": "retry_exhausted",
+                            },
+                        )
                     return (page_num, "")
                 wait_time = 2**attempt
                 logger.warning(
@@ -186,6 +262,7 @@ class SelfHostedOCRProvider(BaseOCRProvider):
         total_pages: int,
         output_dir: Optional[Path] = None,
         progress_callback: Optional[Callable[[int, int, str, str], None]] = None,
+        doc_path: Optional[str] = None,
     ) -> Tuple[int, str, List[Dict[str, Any]]]:
         """Process a single page image concurrently; returns (page_num, text, images_info)."""
         async with semaphore:
@@ -229,7 +306,7 @@ class SelfHostedOCRProvider(BaseOCRProvider):
 
                 # Request with retries
                 _, json_markdown = await self._send_request_with_retry(
-                    messages, page_num
+                    messages, page_num, doc_path=doc_path
                 )
                 if not json_markdown:
                     if progress_callback:
@@ -243,7 +320,11 @@ class SelfHostedOCRProvider(BaseOCRProvider):
 
                 # Parse and reconstruct text/crops via class method in a thread.
                 page_text, page_images = await asyncio.to_thread(
-                    self._parse_and_extract, json_markdown, img, page_num
+                    self._parse_and_extract,
+                    json_markdown,
+                    img,
+                    page_num,
+                    doc_path,
                 )
 
                 if progress_callback:
@@ -297,7 +378,13 @@ class SelfHostedOCRProvider(BaseOCRProvider):
 
             tasks = [
                 self._process_single_page_async(
-                    i + 1, img, semaphore, total_pages, output_dir, progress_callback
+                    i + 1,
+                    img,
+                    semaphore,
+                    total_pages,
+                    output_dir,
+                    progress_callback,
+                    str(pdf_path),
                 )
                 for i, img in enumerate(images)
             ]
@@ -331,7 +418,11 @@ class SelfHostedOCRProvider(BaseOCRProvider):
             return "", []
 
     def _parse_and_extract(
-        self, json_markdown: str, img, page_num: int
+        self,
+        json_markdown: str,
+        img,
+        page_num: int,
+        doc_path: Optional[str] = None,
     ) -> Tuple[str, List[Dict[str, Any]]]:
         """Parse model JSON markdown and extract text and in-memory image crops.
 
@@ -385,25 +476,40 @@ class SelfHostedOCRProvider(BaseOCRProvider):
                     out_parts.append(f"\n{text}\n")
         except Exception as e:
             logger.warning(f"Failed to parse page {page_num} result: {e!s}")
+            # Dump原始返回，方便后期手工修复
+            self._dump_parse_failure(
+                json_markdown,
+                {
+                    "error": str(e),
+                    "page_num": page_num,
+                    "doc_path": doc_path,
+                    "phase": "parse_and_extract",
+                },
+            )
 
         # Page separator
         out_parts.append("\n\n---\n\n")
 
-        # 保存处理的结果用于调试
-        with open(f"debug_page_{page_num}.json", "w", encoding="utf-8") as f:
-            json.dump(json_dict, f, indent=2, ensure_ascii=False)
-
         return "".join(out_parts), page_images_info
 
-    def _extract_json_from_markdown(self, markdown: str) -> str:
-        """Extract JSON string from markdown using regex."""
+    def _extract_json_from_markdown(self, markdown: str) -> Dict[str, Any]:
+        """Extract JSON object from markdown using regex.
+
+        Raises:
+            ValueError: If no JSON block is found or JSON is invalid.
+        """
         json_match = re.search(r"```json\s*(\{.*?\})\s*```", markdown, re.S)
         if not json_match:
             json_match = re.search(r"(\{.*\})", markdown, re.S)
-        if json_match:
-            json_dict = json.loads(json_match.group(1))
-            return json_dict
-        return ""
+
+        if not json_match:
+            raise ValueError("No JSON object found in markdown response")
+
+        try:
+            return json.loads(json_match.group(1))
+        except Exception as e:
+            # 将底层解析错误转为 ValueError，方便上层统一重试逻辑
+            raise ValueError(f"Failed to decode JSON from markdown: {e!s}") from e
 
     def process_url(self, url: str) -> str:
         logger.warning(
