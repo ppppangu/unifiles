@@ -215,6 +215,34 @@ END;
 $$ LANGUAGE plpgsql IMMUTABLE;
 
 
+-- 自动更新组件搜索字段的触发器函数
+CREATE OR REPLACE FUNCTION unifiles.update_component_search_fields()
+RETURNS TRIGGER AS $$
+BEGIN
+    -- 清理和优化搜索文本
+    NEW.searchable_text := unifiles.clean_text_for_search(NEW.content);
+
+    -- 检测内容语言
+    NEW.content_language := unifiles.detect_content_language(NEW.content);
+
+    -- 提取关键词（简单实现，可以后续优化）
+    IF NEW.searchable_text IS NOT NULL AND length(NEW.searchable_text) > 0 THEN
+        NEW.search_keywords := string_to_array(
+            regexp_replace(lower(NEW.searchable_text), '[^\w\u4e00-\u9fff]+', ' ', 'g'),
+            ' '
+        );
+        -- 过滤掉短词和空字符串
+        NEW.search_keywords := array_remove(
+            array(SELECT word FROM unnest(NEW.search_keywords) AS word WHERE length(word) >= 2),
+            ''
+        );
+    END IF;
+
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+
 -- 创建触发器
 CREATE TRIGGER trigger_update_component_search_fields
     BEFORE INSERT OR UPDATE ON unifiles.components

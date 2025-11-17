@@ -18,52 +18,57 @@
 ##### 生产环境优化版本
 
 ```bash
+# https://docker.aityp.com/image/docker.io/supabase/postgres:15.8.1.085 (仅支持X86的服务器)
+
+mkdir -p ./postgres-data
+sudo chown -R 999:999 ./postgres-data
+sudo chmod 777 ./postgres-data
+
 docker run -d \
   --name supabase-postgres-prod \
   --restart unless-stopped \
-  -e POSTGRES_USER=postgres \
+  -e POSTGRES_USER=supabase_admin \
   -e POSTGRES_PASSWORD=your_secure_password \
   -e POSTGRES_DB=unifiles_db \
-  -e PGDATA=/var/lib/postgresql/data/pgdata \
+  -e PGDATA=/var/lib/postgresql/data \
   -p 5432:5432 \
-  -v supabase-postgres-data:/var/lib/postgresql/data \
-  -v supabase-postgres-config:/etc/postgresql \
+  -v ./postgres-data:/var/lib/postgresql/data \
   --cpus=4 \
   --memory=8g \
-  --memory-swap=4g \
+  --memory-swap=12g \
   --health-cmd="pg_isready -U postgres" \
   --health-interval=30s \
   --health-timeout=10s \
   --health-retries=3 \
-  supabase/postgres:latest
+  supabase/postgres:15.14.1.049
 ```
 
 ##### 验证部署
 
 ```bash
 # 检查容器状态
-docker ps | grep supabase-postgres
+docker ps | grep supabase-postgres-prod
 
 # 查看容器日志
-docker logs supabase-postgres
+docker logs supabase-postgres-prod
 
 # 测试数据库连接
-docker exec -it supabase-postgres psql -U postgres -c "SELECT version();"
+docker exec -it supabase-postgres-prod psql -U postgres -c "SELECT version();"
 ```
 
 ##### 环境变量说明
 
-| 变量名 | 说明 | 默认值 |
-|--------|------|--------|
-| POSTGRES_USER | 数据库超级用户 | postgres |
-| POSTGRES_PASSWORD | 用户密码 | **必须设置** |
-| POSTGRES_DB | 默认数据库 | postgres |
-| PGDATA | 数据目录 | /var/lib/postgresql/data/pgdata |
+| 变量名            | 说明           | 默认值                          |
+| ----------------- | -------------- | ------------------------------- |
+| POSTGRES_USER     | 数据库超级用户 | postgres                        |
+| POSTGRES_PASSWORD | 用户密码       | **必须设置**                    |
+| POSTGRES_DB       | 默认数据库     | postgres                        |
+| PGDATA            | 数据目录       | /var/lib/postgresql/data/pgdata |
 
 ##### 数据持久化
 
-- `supabase-postgres-data`: PostgreSQL 数据文件持久化
-- `supabase-postgres-config`: 配置文件持久化（可选）
+- 创建 `./postgres-data` 目录并设置权限
+- 持久化数据存储在宿主机的 `./postgres-data` 目录中
 
 ##### 网络和端口
 
@@ -81,8 +86,8 @@ docker run -d \
   -e RABBITMQ_DEFAULT_USER=admin \
   -e RABBITMQ_DEFAULT_PASS=admin123 \
   -e RABBITMQ_DEFAULT_VHOST=/ \
-  -v /unifiles/rabbitmq/data:/var/lib/rabbitmq \
-  -v /unifiles/rabbitmq/conf/rabbitmq.conf:/etc/rabbitmq/rabbitmq.conf:ro \
+  -v ./rabbitmq/data:/var/lib/rabbitmq \
+  -v ./rabbitmq/conf/rabbitmq.conf:/etc/rabbitmq/rabbitmq.conf:ro \
   -p 5672:5672 \
   -p 15672:15672 \
   rabbitmq:4-management

@@ -19,8 +19,8 @@ from unifiles.client import Unifile, UnifilesError
 # 请替换为你的实际 API Key 和文件路径
 API_KEY = "[REDACTED]"
 BASE_URL = "http://localhost:8088"
-FILE_PATH = "./rag.pdf"  # 替换为你要处理的文件路径
-KNOWLEDGE_BASE_NAME = "我的第一个知识库"
+FILE_PATH = "./RAG的工作流程.pdf"  # 替换为你要处理的文件路径
+KNOWLEDGE_BASE_NAME = "测试知识库"
 # ===================================
 
 try:

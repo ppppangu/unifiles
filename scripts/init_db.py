@@ -3,9 +3,11 @@
 数据库初始化脚本
 
 功能：
-1. 删除现有表结构（开发模式）
-2. 按顺序执行 SQL 脚本创建数据库结构
-3. 支持跳过删除步骤（生产模式）
+1. 检查数据库是否存在，若不存在则自动创建
+2. 删除现有表结构（开发模式）
+3. 按顺序执行 SQL 脚本创建数据库结构
+4. 支持跳过删除步骤（生产模式）
+5. 验证数据库结构完整性
 
 用法：
     # 开发环境：完全重建数据库
@@ -13,6 +15,11 @@
 
     # 生产环境：仅初始化（不删除现有数据）
     python scripts/init_db.py
+
+特点：
+- 自动创建数据库（如果不存在）
+- 连接到 postgres 系统数据库进行数据库级操作
+- 然后切换到目标数据库进行表结构操作
 """
 
 import asyncio
@@ -42,6 +49,57 @@ async def execute_sql_file(conn: asyncpg.Connection, sql_file: Path):
         raise
 
 
+async def check_and_create_database(db_config: dict) -> bool:
+    """检查数据库是否存在，如果不存在则创建"""
+    print(f"\n" + "=" * 60)
+    print("  步骤 0: 检查数据库是否存在")
+    print("=" * 60)
+    
+    target_db = db_config['database']
+    
+    # 先连接到 postgres 数据库来检查和创建目标数据库
+    admin_dsn = f"postgresql://{db_config['user']}:{db_config['password']}@{db_config['host']}:{db_config['port']}/postgres"
+    
+    try:
+        admin_conn = await asyncpg.connect(admin_dsn)
+        
+        # 检查数据库是否存在
+        db_exists = await admin_conn.fetchval(
+            "SELECT EXISTS(SELECT 1 FROM pg_database WHERE datname = $1)",
+            target_db
+        )
+        
+        if db_exists:
+            print(f"  ✅ 数据库 '{target_db}' 已存在")
+            await admin_conn.close()
+            return True
+        else:
+            print(f"  ⚠️  数据库 '{target_db}' 不存在，正在创建...")
+            
+            # 创建数据库
+            try:
+                await admin_conn.execute(f'CREATE DATABASE "{target_db}"')
+                print(f"  ✅ 数据库 '{target_db}' 创建成功")
+                
+                # 授予用户权限（如果需要）
+                try:
+                    await admin_conn.execute(f'GRANT ALL PRIVILEGES ON DATABASE "{target_db}" TO {db_config["user"]}')
+                    print(f"  ✅ 权限授予成功")
+                except Exception as e:
+                    print(f"  ⚠️  权限授予失败: {e}")
+                    
+            except Exception as e:
+                print(f"  ❌ 数据库创建失败: {e}")
+                await admin_conn.close()
+                return False
+            
+            await admin_conn.close()
+            return True
+            
+    except Exception as e:
+        print(f"  ❌ 数据库检查失败: {e}")
+        return False
+
 async def init_database(drop_existing: bool = False):
     """初始化数据库"""
     print("=" * 60)
@@ -50,24 +108,33 @@ async def init_database(drop_existing: bool = False):
 
     # 构建连接字符串
     db_config = read_pg_config()
-    dsn = f"postgresql://{db_config['user']}:{db_config['password']}@{db_config['host']}:{db_config['port']}/{db_config['database']}"
-
+    
     print(f"\n📡 连接信息:")
     print(f"  Host: {db_config['host']}:{db_config['port']}")
     print(f"  Database: {db_config['database']}")
     print(f"  User: {db_config['user']}")
     print(f"  Mode: {'DROP & RECREATE' if drop_existing else 'INIT ONLY'}")
 
-    # 连接数据库
+    # 首先检查并创建数据库（如果需要）
+    db_check_result = await check_and_create_database(db_config)
+    if not db_check_result:
+        print(f"\n❌ 数据库准备失败，程序退出")
+        sys.exit(1)
+    
+    # 构建目标数据库的连接字符串
+    target_dsn = f"postgresql://{db_config['user']}:{db_config['password']}@{db_config['host']}:{db_config['port']}/{db_config['database']}"
+
+    # 连接目标数据库
     try:
-        conn = await asyncpg.connect(dsn)
-        print(f"\n✅ 数据库连接成功")
+        conn = await asyncpg.connect(target_dsn)
+        print(f"\n✅ 目标数据库连接成功")
     except Exception as e:
-        print(f"\n❌ 数据库连接失败: {e}")
+        print(f"\n❌ 目标数据库连接失败: {e}")
         print(f"\n请检查：")
         print(f"  1. PostgreSQL 服务是否启动")
         print(f"  2. 数据库配置是否正确（.env 文件）")
         print(f"  3. 用户名和密码是否正确")
+        print(f"  4. 数据库是否已创建")
         sys.exit(1)
 
     try:
