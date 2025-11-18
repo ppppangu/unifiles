@@ -375,6 +375,15 @@ class KnowledgeBase:
         return f"knowledge_base_{self.kb_id}"
 
     @property
+    def description(self) -> str:
+        """知识库描述"""
+        if self._kb_info:
+            # 与服务端 KnowledgeBaseInfo 模型中的字段对齐
+            return self._kb_info.get("description", "") or ""
+        # 若本地没有信息，则返回空字符串避免属性缺失
+        return ""
+
+    @property
     def document_count(self) -> int:
         """知识库中的文档数量"""
         if self._kb_info:

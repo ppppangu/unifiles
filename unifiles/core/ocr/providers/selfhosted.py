@@ -15,19 +15,21 @@ from ..utils.parser import load_images_from_pdf, to_rgb
 
 
 class SelfHostedOCRProvider(BaseOCRProvider):
-    """Self-hosted OCR provider (OpenAI-compatible) for PDF processing.
+    """Self-hosted, OpenAI-compatible vision OCR provider for PDFs.
 
-    This provider processes PDF files only with support for both sync and async operations.
-    Features:
-    - Concurrent page processing with configurable concurrency
-    - Automatic retry mechanism with exponential backoff
-    - In-memory image handling (no disk I/O)
-    - Progress callback support for async operations
+    This provider only supports PDF inputs and exposes both synchronous and
+    asynchronous APIs. It is designed for self-hosted OpenAI-compatible
+    backends such as Qwen3-VL-8B and provides:
+
+    - Concurrent page-level processing with configurable concurrency
+    - Automatic retry with exponential backoff on transient failures
+    - In-memory image handling (no temporary files on disk)
+    - Optional progress callbacks for long-running async jobs
     """
 
     def __init__(self, config: Optional[SelfHostedConfig] = None):
         super().__init__(config or SelfHostedConfig())
-        # Initialize OpenAI clients
+        # OpenAI-compatible clients for sync and async calls
         base_url = self._normalize_base_url(self.config.get_url())
         api_key = self.config.get_api_key() or "no-key"
         self._sync_client = OpenAI(api_key=api_key, base_url=base_url)
@@ -37,22 +39,30 @@ class SelfHostedOCRProvider(BaseOCRProvider):
         return "selfhosted"
 
     def _process_image_for_model(self, image, factor: int = 8) -> Optional[str]:
-        """Convert PIL Image or path to base64-encoded PNG suitable for model."""
+        """Encode an image as base64 PNG suitable for the vision model.
+
+        Args:
+            image: PIL Image instance or path to an image file.
+            factor: Reserved parameter for potential size alignment (unused).
+
+        Returns:
+            Base64-encoded PNG string if encoding succeeds, otherwise ``None``.
+        """
         try:
             import io
 
             from PIL import Image as PILImage
 
-            # Load image if it's a path
+            # Load the image from disk if a path is provided
             if isinstance(image, (str, Path)):
                 pil_image = PILImage.open(image)
             else:
                 pil_image = image
 
-            # Convert to RGB (handle RGBA with white background)
+            # Normalize to RGB and handle alpha channel on a white background
             pil_image = to_rgb(pil_image)
 
-            # Convert to base64 PNG
+            # Encode as PNG in memory and return base64 data URL payload
             img_byte_arr = io.BytesIO()
             pil_image.save(img_byte_arr, format="PNG", optimize=False)
             base64_image = base64.b64encode(img_byte_arr.getvalue()).decode("utf-8")
@@ -68,7 +78,7 @@ class SelfHostedOCRProvider(BaseOCRProvider):
         return url.rstrip("/")
 
     def _send_request(self, messages: list) -> str:
-        """Sync request via OpenAI SDK; returns text content."""
+        """Send a synchronous chat completion request and return the text content."""
         try:
             resp = self._sync_client.chat.completions.create(
                 model=self.config.get_model(),
@@ -86,11 +96,11 @@ class SelfHostedOCRProvider(BaseOCRProvider):
         raw: str,
         context: Dict[str, Any],
     ) -> None:
-        """Dump parse-failed model output to JSON file for manual post-processing.
+        """Persist a parse failure to disk for offline inspection.
 
-        Controlled by config:
-        - should_dump_parse_fail(): enable/disable
-        - get_dump_dir(): base directory for dumps
+        The behavior is controlled by the configuration:
+        - ``should_dump_parse_fail()``: feature flag
+        - ``get_dump_dir()``: base directory for dump files
         """
         try:
             if not getattr(self.config, "should_dump_parse_fail", None):
@@ -126,10 +136,10 @@ class SelfHostedOCRProvider(BaseOCRProvider):
             logger.error(f"Failed to dump parse failure: {dump_err!s}")
 
     def _process_pdf(self, pdf_path: Path) -> Tuple[str, List[Dict[str, Any]]]:
-        """Render PDF pages to images using parser and OCR each page.
+        """Render a PDF to images and OCR each page synchronously.
 
         Returns:
-            Tuple[str, List[Dict]]: (markdown_text, images_info)
+            Tuple[str, List[Dict[str, Any]]]: (markdown_text, images_info)
         """
 
         full_texts: List[str] = []
@@ -159,7 +169,7 @@ class SelfHostedOCRProvider(BaseOCRProvider):
                     ]
                     json_markdown = self._send_request(messages)
 
-                    # Unified parsing and extraction via class method
+                    # Parse the model output and extract text and in-memory crops
                     page_text, page_images = self._parse_and_extract(
                         json_markdown,
                         img,
@@ -187,7 +197,7 @@ class SelfHostedOCRProvider(BaseOCRProvider):
     # Async helpers and PDF processing with concurrency
     # --------------------
     async def _send_request_async(self, messages: list) -> str:
-        """Async request via OpenAI-compatible SDK; returns text content."""
+        """Send an async chat completion request and return the text content."""
         resp = await self._async_client.chat.completions.create(
             model=self.config.get_model(),
             messages=messages,
@@ -202,36 +212,37 @@ class SelfHostedOCRProvider(BaseOCRProvider):
 
     async def _send_request_with_retry(
         self, messages: list, page_num: int, doc_path: Optional[str] = None
-    ) -> Tuple[int, str]:
-        """Send request with retries; returns (page_num, text).
+    ) -> Tuple[int, str, Optional[Dict[str, Any]]]:
+        """Send a request with retries and return parsed JSON on success.
 
-        Besides network/SDK errors, this also treats JSON 解析失败
-        (由 _extract_json_from_markdown 抛出的错误) 作为失败进行重试。
+        Retries are triggered on network/SDK errors, empty responses and JSON
+        parsing failures (raised by ``_extract_json_from_markdown``). On the
+        first successful attempt, the parsed JSON is returned so downstream
+        consumers can avoid double-parsing the same payload.
         """
         max_retries = max(0, int(self.config.get_max_retries()))
         for attempt in range(max_retries + 1):
             try:
                 text = await self._send_request_async(messages)
-                # 空内容也视为失败，触发重试
-
+                # Treat empty content as a failure and trigger a retry
                 if not text:
                     raise ValueError("Empty response content from self-hosted OCR")
 
-                # 提前校验一次 JSON 是否可正确解析
-                # 如果解析失败，会抛出异常进入重试逻辑
-                self._extract_json_from_markdown(text.strip())
+                # Validate that the JSON block can be parsed; this will raise
+                # on failure and be handled by the retry logic.
+                parsed = self._extract_json_from_markdown(text.strip())
 
                 if attempt > 0:
                     logger.info(f"Page {page_num} succeeded after {attempt} retries")
-                return (page_num, text)
+                return (page_num, text, parsed)
             except Exception as e:
                 if attempt == max_retries:
                     logger.error(
                         f"Page {page_num} failed after {max_retries} retries: {e!s}"
                     )
-                    # 在重试耗尽时，如果还有最后一次的 text，可尝试记录
+                    # On final failure, persist the last response (if any) for debugging
                     try:
-                        # text 变量可能不存在/为空，先安全获取
+                        # text may not exist or may be empty; guard access via locals()
                         last_text = locals().get("text") or ""
                     except Exception:
                         last_text = ""
@@ -246,13 +257,13 @@ class SelfHostedOCRProvider(BaseOCRProvider):
                                 "phase": "retry_exhausted",
                             },
                         )
-                    return (page_num, "")
+                    return (page_num, "", None)
                 wait_time = 2**attempt
                 logger.warning(
                     f"Page {page_num} attempt {attempt + 1} failed, retrying in {wait_time}s: {e!s}"
                 )
                 await asyncio.sleep(wait_time)
-        return (page_num, "")
+        return (page_num, "", None)
 
     async def _process_single_page_async(
         self,
@@ -264,7 +275,11 @@ class SelfHostedOCRProvider(BaseOCRProvider):
         progress_callback: Optional[Callable[[int, int, str, str], None]] = None,
         doc_path: Optional[str] = None,
     ) -> Tuple[int, str, List[Dict[str, Any]]]:
-        """Process a single page image concurrently; returns (page_num, text, images_info)."""
+        """OCR a single page image under a concurrency semaphore.
+
+        Returns:
+            Tuple[int, str, List[Dict[str, Any]]]: (page_num, markdown_text, images_info)
+        """
         async with semaphore:
             try:
                 if progress_callback:
@@ -275,7 +290,7 @@ class SelfHostedOCRProvider(BaseOCRProvider):
                         f"Processing page {page_num}/{total_pages}",
                     )
 
-                # Encode image to base64 in a thread to avoid blocking loop
+                # Encode the image in a worker thread to avoid blocking the event loop
                 base64_image = await asyncio.to_thread(
                     self._process_image_for_model, img
                 )
@@ -304,8 +319,8 @@ class SelfHostedOCRProvider(BaseOCRProvider):
                     }
                 ]
 
-                # Request with retries
-                _, json_markdown = await self._send_request_with_retry(
+                # Request with retries and reuse parsed JSON to avoid double parsing
+                _, json_markdown, parsed_json = await self._send_request_with_retry(
                     messages, page_num, doc_path=doc_path
                 )
                 if not json_markdown:
@@ -318,13 +333,14 @@ class SelfHostedOCRProvider(BaseOCRProvider):
                         )
                     return (page_num, "")
 
-                # Parse and reconstruct text/crops via class method in a thread.
+                # Parse and reconstruct text and image crops in a worker thread
                 page_text, page_images = await asyncio.to_thread(
                     self._parse_and_extract,
                     json_markdown,
                     img,
                     page_num,
                     doc_path,
+                    parsed_json,
                 )
 
                 if progress_callback:
@@ -353,10 +369,10 @@ class SelfHostedOCRProvider(BaseOCRProvider):
         output_dir: Optional[Path] = None,
         progress_callback: Optional[Callable[[int, int, str, str], None]] = None,
     ) -> Tuple[str, List[Dict[str, Any]]]:
-        """Render PDF pages to images and OCR each page concurrently.
+        """Render a PDF to images and OCR each page concurrently.
 
         Returns:
-            Tuple[str, List[Dict]]: (markdown_text, images_info)
+            Tuple[str, List[Dict[str, Any]]]: (markdown_text, images_info)
         """
         try:
             images = load_images_from_pdf(str(pdf_path))
@@ -364,7 +380,7 @@ class SelfHostedOCRProvider(BaseOCRProvider):
                 logger.error("No pages were rendered from PDF")
                 return "", []
 
-            # Create output directory if not specified
+            # Ensure an output directory exists for image consumers if needed
             if output_dir is None:
                 output_dir = Path.cwd()
             output_dir.mkdir(parents=True, exist_ok=True)
@@ -391,7 +407,7 @@ class SelfHostedOCRProvider(BaseOCRProvider):
 
             results = await asyncio.gather(*tasks, return_exceptions=True)
 
-            # Collect and sort by page number
+            # Filter out failed tasks and sort results by page number
             ordered: List[Tuple[int, str, List[Dict[str, Any]]]] = []
             for r in results:
                 if isinstance(r, Exception):
@@ -402,7 +418,7 @@ class SelfHostedOCRProvider(BaseOCRProvider):
 
             ordered.sort(key=lambda x: x[0])
 
-            # Combine text and collect all images
+            # Concatenate page texts and flatten image metadata
             all_images_info: List[Dict[str, Any]] = []
             markdown_text = "".join(text for _, text, _ in ordered if text)
             for _, _, page_images in ordered:
@@ -423,18 +439,32 @@ class SelfHostedOCRProvider(BaseOCRProvider):
         img,
         page_num: int,
         doc_path: Optional[str] = None,
+        parsed_json: Optional[Dict[str, Any]] = None,
     ) -> Tuple[str, List[Dict[str, Any]]]:
-        """Parse model JSON markdown and extract text and in-memory image crops.
+        """Parse model output and extract page text and image crops.
 
-        Returns a tuple of (markdown_text, images_info) for a single page.
+        Args:
+            json_markdown: Raw markdown text containing a JSON block.
+            img: PIL Image for the current page.
+            page_num: 1-based page index.
+            doc_path: Optional document identifier used for diagnostics.
+            parsed_json: Optional pre-parsed JSON; if provided, it is reused
+                instead of parsing ``json_markdown`` again.
+
+        Returns:
+            Tuple[str, List[Dict[str, Any]]]: (markdown_text, images_info)
+            for a single page.
         """
-        import io  # For BytesIO
+        import io  # For in-memory PNG encoding
 
         out_parts: List[str] = []
         page_images_info: List[Dict[str, Any]] = []
 
         try:
-            json_dict = self._extract_json_from_markdown(json_markdown.strip())
+            # Prefer the pre-parsed JSON from the caller to avoid duplicate work
+            json_dict = parsed_json or self._extract_json_from_markdown(
+                json_markdown.strip()
+            )
             index = 0
             for el in json_dict.get("layout_elements", []):
                 bbox = el["bbox"]
@@ -447,17 +477,17 @@ class SelfHostedOCRProvider(BaseOCRProvider):
 
                 if category in ["Picture", "Table"]:
                     img_crop = img.crop((abs_x1, abs_y1, abs_x2, abs_y2))
-                    # Use category name as filename prefix
+                    # Use the semantic category as filename prefix
                     prefix = category.lower()
                     filename = f"{prefix}_{page_num}_{index}.png"
 
-                    # Save to memory instead of disk
+                    # Encode the crop into memory instead of writing to disk
                     img_buffer = io.BytesIO()
                     img_crop.save(img_buffer, format="PNG", optimize=False)
                     img_bytes = img_buffer.getvalue()
                     img_buffer.close()
 
-                    # Collect image metadata (with bytes data)
+                    # Collect image metadata and in-memory bytes for downstream consumers
                     page_images_info.append(
                         {
                             "page": page_num - 1,  # Convert to 0-indexed
@@ -476,7 +506,7 @@ class SelfHostedOCRProvider(BaseOCRProvider):
                     out_parts.append(f"\n{text}\n")
         except Exception as e:
             logger.warning(f"Failed to parse page {page_num} result: {e!s}")
-            # Dump原始返回，方便后期手工修复
+            # Persist the raw response so it can be inspected or fixed offline
             self._dump_parse_failure(
                 json_markdown,
                 {
@@ -487,7 +517,7 @@ class SelfHostedOCRProvider(BaseOCRProvider):
                 },
             )
 
-        # Page separator
+        # Add a page separator between pages
         out_parts.append("\n\n---\n\n")
 
         return "".join(out_parts), page_images_info
@@ -508,7 +538,7 @@ class SelfHostedOCRProvider(BaseOCRProvider):
         try:
             return json.loads(json_match.group(1))
         except Exception as e:
-            # 将底层解析错误转为 ValueError，方便上层统一重试逻辑
+            # Normalize all parse errors to ValueError so callers can retry uniformly
             raise ValueError(f"Failed to decode JSON from markdown: {e!s}") from e
 
     def process_url(self, url: str) -> str:
@@ -519,10 +549,10 @@ class SelfHostedOCRProvider(BaseOCRProvider):
         return ""
 
     def process_file(self, file_path: Union[str, Path]) -> str:
-        """Process local PDF file with OCR.
+        """Process a local PDF file synchronously and return markdown text.
 
-        Note: This method only returns markdown text for backward compatibility.
-        For images_info, use aprocess_file() instead.
+        This synchronous API returns only the combined markdown text for
+        backward compatibility. To obtain image metadata, use ``aprocess_file``.
         """
         if not self.config.validate():
             return ""
@@ -533,7 +563,7 @@ class SelfHostedOCRProvider(BaseOCRProvider):
         if p.suffix.lower() != ".pdf":
             logger.error(f"Only PDF files are supported, got: {p.suffix}")
             return ""
-        # _process_pdf now returns (text, images_info), extract only text
+        # _process_pdf returns (text, images_info); this API only exposes text
         markdown_text, _ = self._process_pdf(p)
         return markdown_text
 
@@ -547,17 +577,17 @@ class SelfHostedOCRProvider(BaseOCRProvider):
         output_dir: Optional[Path] = None,
         progress_callback: Optional[Callable[[int, int, str, str], None]] = None,
     ) -> Tuple[str, List[Dict[str, Any]]]:
-        """Async process for local PDF file.
+        """Async OCR for a local PDF file with optional progress reporting.
 
         Args:
-            file_path: Path to the PDF file to process
-            output_dir: Directory to save extracted images (default: current directory)
-            progress_callback: Optional callback for progress updates
+            file_path: Path to the PDF file to process.
+            output_dir: Directory used by callers that want to persist images;
+                this provider itself keeps images in memory.
+            progress_callback: Optional callback for progress updates, called
+                with (page_num, total_pages, status, message).
 
         Returns:
-            Tuple[str, List[Dict]]: (markdown_text, images_info)
-                - markdown_text: Extracted text in markdown format
-                - images_info: List of image metadata dictionaries
+            Tuple[str, List[Dict[str, Any]]]: (markdown_text, images_info).
         """
         if not self.config.validate():
             return "", []
@@ -571,5 +601,5 @@ class SelfHostedOCRProvider(BaseOCRProvider):
             logger.error(f"Only PDF files are supported, got: {p.suffix}")
             return "", []
 
-        # PDF handling with async parallel processing
+        # Delegate to the concurrent async PDF pipeline
         return await self._process_pdf_async(p, output_dir, progress_callback)

@@ -79,12 +79,30 @@ class KnowledgeBaseDBManager(BaseDBManager):
                 )
 
                 if result:
+                    raw_document_ids = result.get("document_ids")
+                    if raw_document_ids is None:
+                        document_ids: list[str] = []
+                    elif isinstance(raw_document_ids, list):
+                        document_ids = raw_document_ids
+                    elif isinstance(raw_document_ids, str):
+                        try:
+                            parsed = json.loads(raw_document_ids)
+                            document_ids = parsed if isinstance(parsed, list) else []
+                        except Exception:
+                            document_ids = []
+                    else:
+                        # Fallback: best-effort conversion
+                        try:
+                            document_ids = list(raw_document_ids)
+                        except Exception:
+                            document_ids = []
+
                     return KnowledgeBaseModel(
                         id=result["id"],
                         user_id=result["user_id"],
                         name=result["name"],
                         description=result["description"] or "",
-                        document_ids=result["document_ids"] or "[]",
+                        document_ids=document_ids,
                         created_at=result["created_at"],
                         updated_at=result["updated_at"],
                     )
@@ -128,6 +146,23 @@ class KnowledgeBaseDBManager(BaseDBManager):
         # 映射为模型（仅填充当前API所需字段，其他留默认）
         items: list[KnowledgeBaseModel] = []
         for r in rows:
+            raw_document_ids = r.get("document_ids")
+            if raw_document_ids is None:
+                document_ids: list[str] = []
+            elif isinstance(raw_document_ids, list):
+                document_ids = raw_document_ids
+            elif isinstance(raw_document_ids, str):
+                try:
+                    parsed = json.loads(raw_document_ids)
+                    document_ids = parsed if isinstance(parsed, list) else []
+                except Exception:
+                    document_ids = []
+            else:
+                try:
+                    document_ids = list(raw_document_ids)
+                except Exception:
+                    document_ids = []
+
             items.append(
                 KnowledgeBaseModel(
                     id=r["id"],
@@ -135,7 +170,7 @@ class KnowledgeBaseDBManager(BaseDBManager):
                     name=r["name"],
                     description=r.get("description") or "",
                     document_count=r.get("document_count", 0),
-                    document_ids=json.loads(r.get("document_ids") or "[]"),
+                    document_ids=document_ids,
                     created_at=r.get("created_at"),
                     updated_at=r.get("updated_at"),
                 )
