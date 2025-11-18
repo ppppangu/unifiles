@@ -8,17 +8,12 @@
 
 | 文档                                | 描述                                                               | 主要读者                   |
 | ----------------------------------- | ------------------------------------------------------------------ | -------------------------- |
-| 🚀 **[快速开始 (QUICK_START.md)]**   | 5分钟上手指南，教您如何快速部署和测试API。                         | 新用户、开发者             |
-| 📄 **[API 参考 (API_REFERENCE.md)]** | 详细的 RESTful API 接口文档，包含所有端点、请求和响应示例。        | 前端/后端开发者、API使用者 |
-| 🏗️ **[架构设计 (ARCHITECTURE.md)]**  | 深入解析系统核心设计理念、数据处理流水线、模块化组件和数据库设计。 | 核心开发者、架构师         |
-| 🛠️ **[开发指南 (DEVELOPMENT.md)]**   | V1 版本的开发环境搭建、代码规范、测试和部署指南。                  | 贡献者、后端开发者         |
-| 🤝 **[贡献指南 (CONTRIBUTING.md)]**  | 如何为项目贡献代码、报告问题或提出建议。                           | 开源贡献者                 |
-
-[快速开始 (QUICK_START.md)]: QUICK_START.md
-[API 参考 (API_REFERENCE.md)]: API_REFERENCE.md
-[架构设计 (ARCHITECTURE.md)]: ARCHITECTURE.md
-[开发指南 (DEVELOPMENT.md)]: DEVELOPMENT.md
-[贡献指南 (CONTRIBUTING.md)]: CONTRIBUTING.md
+| 🚀 **[快速开始 (quick-start.md)]**   | 5分钟上手指南，教您如何快速部署和测试API。                         | 新用户、开发者             |
+| 📄 **[API 参考 (api/README.md)]** | 详细的 RESTful API 接口文档，包含所有端点、请求和响应示例。        | 前端/后端开发者、API使用者 |
+| 🏗️ **[架构设计 (architecture/README.md)]**  | 深入解析系统核心设计理念、数据处理流水线、模块化组件和数据库设计。 | 核心开发者、架构师         |
+| 🛠️ **[开发指南 (development/README.md)]**   | V1 版本的开发环境搭建、代码规范、测试和部署指南。                  | 贡献者、后端开发者         |
+| 🤝 **[贡献指南 (contributing.md)]**  | 如何为项目贡献代码、报告问题或提出建议。                           | 开源贡献者                 |
+| 🚀 **[部署指南 (DEPLOYMENT.md)]** | 详细的部署指南。 | 运维、开发者 |
 
 ## 项目概述
 
@@ -31,4 +26,4 @@ Unifiles 是一个专为企业级应用设计的、支持高并发的智能文�
 - **异步处理流水线**: 高性能、可扩展的文档处理能力。
 - **企业级存储**: 基于 MinIO 和 PostgreSQL (pgvector) 构建，稳定可靠。
 
-我们希望这份文档能帮助您更好地理解和使用 UniFile。如果您发现任何问题，欢迎通过 [Issues](https://github.com/your-repo/issues) 提出。
+我们希望这份文档能帮助您更好地理解和使用 UniFile。如果您发现任何问题，欢迎通过 Issues 提出。

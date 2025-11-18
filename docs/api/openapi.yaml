@@ -1,25 +1,6 @@
 openapi: 3.1.0
 info:
   title: Unifiles v1 API
-  description: |
-    A comprehensive document processing API with three-layer architecture:
-    1. **File Storage Layer** - Upload and manage original files
-    2. **Content Extraction Layer** - OCR processing for text and image content
-    3. **Knowledge Base Layer** - Document chunking and vector indexing
-    
-    ## Authentication
-    All endpoints (except health check and public documentation) require Bearer token authentication:
-    ```
-    Authorization: Bearer <your_api_key>
-    ```
-    
-    ## Rate Limiting
-    - 100 requests per minute per API key
-    - 10 file uploads per minute per user
-    - Large file processing may have additional limits
-    
-    ## Error Handling
-    All errors follow RFC 7807 Problem Details format with consistent error codes.
   version: 1.1.0
   contact:
     name: Unifiles API Support
@@ -32,11 +13,8 @@ info:
 
 servers:
   - url: https://api.unifiles.com/v1
-    description: Production server
   - url: https://staging-api.unifiles.com/v1
-    description: Staging server
   - url: http://localhost:8088
-    description: Local development server
 
 security:
   - bearerAuth: []
@@ -235,17 +213,72 @@ paths:
         '500':
           $ref: '#/components/responses/InternalServerError'
 
+  /files/admin/health:
+    get:
+      tags: [Files]
+      summary: Get storage health
+      description: Get the health status of the storage backend (admin only)
+      responses:
+        '200':
+          description: Storage health status retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /files/admin/metrics:
+    get:
+      tags: [Files]
+      summary: Get storage metrics
+      description: Get storage metrics (admin only)
+      responses:
+        '200':
+          description: Storage metrics retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /files/user/stats:
+    get:
+      tags: [Files]
+      summary: Get user storage stats
+      description: Get storage statistics for the current user
+      responses:
+        '200':
+          description: User storage statistics retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
   # Content Extraction Layer
   /files/{file_id}/extract:
     post:
       tags: [Processors]
-      summary: Extract file content
+      summary: Extract file content (Async)
       description: |
-        Extract content from uploaded file using OCR and document processing.
+        Submit an asynchronous task to extract content from an uploaded file.
+        This endpoint returns a task ID immediately. Use the `/tasks/{task_id}` endpoint to check the status and retrieve the result upon completion.
         Supports extraction modes:
         - **simple**: Basic text extraction using built-in PDF reader (pdfplumber)
-        - **mistral**: OCR via Mistral OCR provider
-        - **selfhosted**: OCR via self-hosted OpenAI-compatible provider (e.g., vLLM + Qwen)
+        - **mistral/mineru/selfhosted/openai**: OCR via specified provider
       parameters:
         - $ref: '#/components/parameters/FileIdPath'
       requestBody:
@@ -255,12 +288,12 @@ paths:
             schema:
               $ref: '#/components/schemas/FileExtractRequest'
       responses:
-        '200':
-          description: Content extraction started successfully
+        '202':
+          description: Content extraction task accepted
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/FileExtractResponse'
+                $ref: '#/components/schemas/TaskSubmitResponse'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
@@ -272,8 +305,51 @@ paths:
         '500':
           $ref: '#/components/responses/InternalServerError'
 
+  /files/public/{file_id}:
+    get:
+      tags: [Files]
+      summary: Get public file info
+      description: Retrieve detailed information about a specific public file (no auth required)
+      security: [] # No auth required
+      parameters:
+        - $ref: '#/components/parameters/FileIdPath'
+      responses:
+        '200':
+          description: File information retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FileInfo'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
   # Knowledge Base Layer
   /knowledge-bases:
+    post:
+      tags: [Knowledge Bases]
+      summary: Create knowledge base
+      description: Create a new knowledge base for the current user.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/KnowledgeBaseCreateRequest'
+      responses:
+        '201':
+          description: Knowledge base created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/KnowledgeBaseCreateResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '409':
+          description: Knowledge base with the same name already exists
+        '500':
+          $ref: '#/components/responses/InternalServerError'
     get:
       tags: [Knowledge Bases]
       summary: Get knowledge bases
@@ -431,6 +507,148 @@ paths:
         '500':
           $ref: '#/components/responses/InternalServerError'
 
+  /knowledge-bases/{kb_id}/search:
+    post:
+      tags: [Knowledge Bases]
+      summary: Search in knowledge base
+      description: Perform a vector search within a specific knowledge base.
+      parameters:
+        - $ref: '#/components/parameters/KnowledgeBaseIdPath'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SearchRequest'
+      responses:
+        '200':
+          description: Search completed successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SearchResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  # Task endpoints
+  /tasks:
+    get:
+      tags: [Tasks]
+      summary: List user tasks
+      description: Retrieve paginated list of tasks for the current user
+      parameters:
+        - name: status
+          in: query
+          description: Filter tasks by status (e.g., pending, processing, completed)
+          schema:
+            type: string
+        - name: task_type
+          in: query
+          description: Filter tasks by type (e.g., extraction, indexing)
+          schema:
+            type: string
+        - name: limit
+          in: query
+          description: Number of tasks to return
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 50
+        - name: offset
+          in: query
+          description: Number of tasks to skip for pagination
+          schema:
+            type: integer
+            minimum: 0
+            default: 0
+      responses:
+        '200':
+          description: Tasks retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TaskListResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /tasks/{task_id}:
+    get:
+      tags: [Tasks]
+      summary: Get task status
+      description: Retrieve the current status and progress of a specific task
+      parameters:
+        - $ref: '#/components/parameters/TaskIdPath'
+      responses:
+        '200':
+          description: Task status retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TaskStatusResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+    delete:
+      tags: [Tasks]
+      summary: Cancel task
+      description: Attempt to cancel a running task
+      parameters:
+        - $ref: '#/components/parameters/TaskIdPath'
+      responses:
+        '200':
+          description: Task cancelled successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StandardResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /tasks/{task_id}/result:
+    get:
+      tags: [Tasks]
+      summary: Get task result
+      description: Retrieve the result of a completed task
+      parameters:
+        - $ref: '#/components/parameters/TaskIdPath'
+      responses:
+        '200':
+          description: Task result retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TaskResultResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '400':
+          description: Task not completed
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
   # Management endpoints
   /manager/system/status:
     get:
@@ -454,7 +672,7 @@ paths:
                     database: "connected"
                     storage: "healthy"
                     memory_usage: "normal"
-                    disk_usage: "normal"
+                  disk_usage: "normal"
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
@@ -462,16 +680,153 @@ paths:
         '500':
           $ref: '#/components/responses/InternalServerError'
 
+  # User endpoints
+  /users/create:
+    post:
+      tags: [Users]
+      summary: Create a new user
+      description: Register a new user in the system. No authentication required.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UserCreateRequest'
+      responses:
+        '201':
+          description: User created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserCreateResponse'
+        '409':
+          description: User already exists
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /users/login:
+    post:
+      tags: [Users]
+      summary: User login
+      description: Login with email to retrieve user information.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email]
+              properties:
+                email:
+                  type: string
+                  format: email
+      responses:
+        '200':
+          description: Login successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserInfo'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /users/{user_id}:
+    get:
+      tags: [Users]
+      summary: Get user information
+      description: Retrieve information for a specific user.
+      parameters:
+        - $ref: '#/components/parameters/UserIdPath'
+      responses:
+        '200':
+          description: User information retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserInfo'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /users/{user_id}/access-keys:
+    post:
+      tags: [Users]
+      summary: Create access key
+      description: Create a new access key (API key) for a user.
+      parameters:
+        - $ref: '#/components/parameters/UserIdPath'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AccessKeyCreateRequest'
+      responses:
+        '201':
+          description: Access key created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AccessKeyCreateResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    get:
+      tags: [Users]
+      summary: List access keys
+      description: List all access keys for a user.
+      parameters:
+        - $ref: '#/components/parameters/UserIdPath'
+      responses:
+        '200':
+          description: Access keys retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AccessKeyListResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /users/{user_id}/access-keys/{key_id}:
+    delete:
+      tags: [Users]
+      summary: Delete access key
+      description: Revoke/delete an access key.
+      parameters:
+        - $ref: '#/components/parameters/UserIdPath'
+        - $ref: '#/components/parameters/KeyIdPath'
+      responses:
+        '200':
+          description: Access key deleted successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StandardResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
 components:
   securitySchemes:
     bearerAuth:
       type: http
       scheme: bearer
       bearerFormat: JWT
-      description: |
-        API key authentication using Bearer token.
-        Obtain your API key from the dashboard and include it in the Authorization header:
-        `Authorization: Bearer <your_api_key>`
 
   parameters:
     FileIdPath:
@@ -503,6 +858,34 @@ components:
         type: string
         pattern: '^doc_[a-f0-9]{8}$'
         example: "doc_abc12345"
+
+    TaskIdPath:
+      name: task_id
+      in: path
+      required: true
+      description: Unique identifier for the asynchronous task
+      schema:
+        type: string
+        format: uuid
+        example: "550e8400-e29b-41d4-a716-446655440000"
+
+    UserIdPath:
+      name: user_id
+      in: path
+      required: true
+      description: Unique identifier for the user
+      schema:
+        type: string
+        example: "user_12345"
+
+    KeyIdPath:
+      name: key_id
+      in: path
+      required: true
+      description: Unique identifier for the access key
+      schema:
+        type: string
+        example: "ak_12345"
 
   schemas:
     # Response schemas
@@ -700,14 +1083,14 @@ components:
       properties:
         mode:
           type: string
-          enum: ["simple", "normal"]
+          enum: ["simple", "mistral", "mineru", "selfhosted", "openai"]
           default: "simple"
           description: |
             Content extraction mode:
             - **simple**: Basic text extraction using built-in PDF reader
-            - **mistral**: OCR via Mistral provider
+            - **mistral/mineru/selfhosted/openai**: OCR via specified provider
       example:
-        mode: "normal"
+        mode: "mistral"
 
     ExtractedContent:
       type: object
@@ -801,6 +1184,100 @@ components:
             processing_time: 15.2
           status: "completed"
           created_at: "2024-01-15T10:30:00Z"
+
+    # Task schemas
+    TaskSubmitResponse:
+      type: object
+      properties:
+        task_id:
+          type: string
+          format: uuid
+        status:
+          type: string
+        message:
+          type: string
+        file_id:
+          type: string
+        entity_id:
+          type: string
+      example:
+        task_id: "550e8400-e29b-41d4-a716-446655440000"
+        status: "queued"
+        message: "Extraction task submitted successfully. Use GET /tasks/{task_id} to check status."
+        file_id: "file-550e8400-e29b-41d4-a716-446655440000"
+        entity_id: "file-550e8400-e29b-41d4-a716-446655440000"
+
+    TaskInfo:
+      type: object
+      properties:
+        task_id:
+          type: string
+          format: uuid
+        task_type:
+          type: string
+        status:
+          type: string
+        progress_percent:
+          type: integer
+        progress_message:
+          type: string
+        entity_type:
+          type: string
+        entity_id:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+        started_at:
+          type: string
+          format: date-time
+        completed_at:
+          type: string
+          format: date-time
+        error_message:
+          type: string
+        priority:
+          type: integer
+
+    TaskListResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: string
+        tasks:
+          type: array
+          items:
+            $ref: '#/components/schemas/TaskInfo'
+        total_count:
+          type: integer
+        has_more:
+          type: boolean
+
+    TaskStatusResponse:
+      allOf:
+        - $ref: '#/components/schemas/TaskInfo'
+        - type: object
+          properties:
+            retry_count:
+              type: integer
+            max_retries:
+              type: integer
+
+    TaskResultResponse:
+      type: object
+      properties:
+        task_id:
+          type: string
+          format: uuid
+        status:
+          type: string
+        result_data:
+          type: object
+          additionalProperties: true
+        extracted_content:
+          $ref: '#/components/schemas/ExtractedContent'
 
     # Knowledge base schemas
     KnowledgeBaseInfo:
@@ -902,6 +1379,69 @@ components:
         knowledge_base_id: "kb_sample_001"
         chunk_strategy: "semantic"
 
+    KnowledgeBaseCreateRequest:
+      type: object
+      required: [name]
+      properties:
+        name:
+          type: string
+          description: Name for the new knowledge base
+        description:
+          type: string
+          description: Optional description for the knowledge base
+
+    KnowledgeBaseCreateResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: string
+        knowledge_base:
+          $ref: '#/components/schemas/KnowledgeBaseInfo'
+
+    SearchRequest:
+      type: object
+      required: [query]
+      properties:
+        query:
+          type: string
+          description: The search query text
+        top_k:
+          type: integer
+          default: 5
+          description: The number of results to return
+
+    SearchResultItem:
+      type: object
+      properties:
+        chunk_id:
+          type: string
+        component_id:
+          type: string
+        document_id:
+          type: string
+        text_content:
+          type: string
+        similarity_score:
+          type: number
+
+    SearchResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: string
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/SearchResultItem'
+        total_results:
+          type: integer
+        query:
+          type: string
+
     ProcessedDocument:
       type: object
       required:
@@ -965,6 +1505,132 @@ components:
           chunk_count: 15
           indexing_status: "processing"
           created_at: "2024-01-15T10:30:00Z"
+
+    # User and Auth Schemas
+    UserInfo:
+      type: object
+      properties:
+        id:
+          type: string
+        username:
+          type: string
+        email:
+          type: string
+          format: email
+        display_name:
+          type: string
+        user_status:
+          type: string
+        user_role:
+          type: string
+        knowledge_ids:
+          type: array
+          items:
+            type: string
+        user_settings:
+          type: object
+          additionalProperties: true
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+        last_login_at:
+          type: string
+          format: date-time
+
+    UserCreateRequest:
+      type: object
+      required: [user_id, username, email]
+      properties:
+        user_id:
+          type: string
+        username:
+          type: string
+        email:
+          type: string
+          format: email
+        display_name:
+          type: string
+        user_settings:
+          type: object
+          additionalProperties: true
+
+    UserCreateResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: string
+        user:
+          $ref: '#/components/schemas/UserInfo'
+
+    AccessKeyInfo:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        description:
+          type: string
+        scopes:
+          type: array
+          items:
+            type: string
+        is_active:
+          type: boolean
+        created_at:
+          type: string
+          format: date-time
+        expires_at:
+          type: string
+          format: date-time
+        last_used_at:
+          type: string
+          format: date-time
+
+    AccessKeyCreateRequest:
+      type: object
+      required: [name]
+      properties:
+        name:
+          type: string
+        description:
+          type: string
+        scopes:
+          type: array
+          items:
+            type: string
+        expires_at:
+          type: string
+          format: date-time
+
+    AccessKeyCreateResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: string
+        key_id:
+          type: string
+        access_key:
+          type: string
+
+    AccessKeyListResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: string
+        access_keys:
+          type: array
+          items:
+            $ref: '#/components/schemas/AccessKeyInfo'
 
   responses:
     BadRequest:
@@ -1099,6 +1765,10 @@ tags:
     description: Content extraction layer - OCR processing and content extraction
   - name: Knowledge Bases
     description: Knowledge base layer - Document chunking and vector indexing
+  - name: Tasks
+    description: Asynchronous task management
+  - name: Users
+    description: User and access key management
   - name: Manager
     description: Management and administration endpoints
 
