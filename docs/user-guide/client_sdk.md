@@ -101,15 +101,21 @@ client.delete_file(doc.file_id)
 To make a file useful, you need to extract its content. This is an asynchronous operation, but the SDK handles the waiting for you if you ask it to.
 
 ```python
+from unifiles_client import ContentType
+
 # Upload
 doc = client.upload_file("scan.png")
 
 # Extract content (wait for completion)
-content = doc.extract_content(mode="simple", wait=True)
+task_result = doc.extract_content(mode="simple", wait=True)
 
-# Access extracted text
-print(content['extracted_text'])
+# Recommended: use get_content() helper
+text_content = doc.get_content(ContentType.TEXT)["content"]
+print(text_content)
 ```
+
+When `wait=True`, `extract_content()` returns the task result object from `/tasks/{task_id}/result`, 
+and the SDK also caches the extracted content internally so that `get_content()` can be used afterwards.
 
 **Extraction Modes:**
 *   `simple`: Basic text extraction using the default OCR / parsing pipeline.
@@ -148,9 +154,9 @@ for res in results:
 
 ## API Reference
 
-### `Unifiles` / `Unifile` Client
+### `Unifiles` Client
 
-The main SDK entry point is the `Unifile` class (exported from the `unifiles_client` package). For convenience, it is also aliased as `Unifiles`:
+The main SDK entry point is the `Unifiles` class (exported from the `unifiles_client` package):
 
 ```python
 from unifiles_client import Unifiles
@@ -173,10 +179,10 @@ Key methods:
 
 Represents a single file and its processing state.
 
-*   `extract_content(mode="simple", wait=False, timeout=300, poll_interval=5)`: Starts the OCR/extraction process, optionally waiting for completion.
-*   `get_content(content_type: Optional[ContentType] = None)`: Returns the extracted content dict; optionally filters by text/image.
+*   `extract_content(mode="simple", wait=False, timeout=300, poll_interval=5)`: Starts the OCR/extraction process. When `wait=True`, it waits for completion and returns the task result from `/tasks/{task_id}/result`, and also caches the extracted content inside the `Document`.
+*   `get_content(content_type: Optional[ContentType] = None)`: Returns the extracted content dict; optionally filters by text/image via `ContentType.TEXT` or `ContentType.IMAGE`.
 *   `index_to_knowledge_base(kb_id, chunk_strategy="markdown_hierarchical")`: Indexes the extracted content into a Knowledge Base using the specified chunking strategy.
-*   `status`: Property that returns the current status (`UPLOADED`, `EXTRACTING`, `EXTRACTED`, `INDEXING`, `INDEXED`, `FAILED`).
+*   `status`: Property that returns the current status (`UPLOADED`, `EXTRACTING`, `EXTRACTED`, `INDEXED`, `FAILED`).
 
 ### `KnowledgeBase` Class
 
