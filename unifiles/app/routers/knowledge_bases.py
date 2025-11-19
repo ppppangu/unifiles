@@ -193,6 +193,55 @@ async def get_knowledge_base_info(
     )
 
 
+@router.delete("/{kb_id}", response_model=StandardResponse)
+async def delete_knowledge_base(
+    request: Request, kb_id: str = FastAPIPath(..., description="知识库ID")
+):
+    """删除知识库及其关联数据"""
+    try:
+        user_id = request.state.user_id
+        logger.info(f"DELETE /knowledge-bases/{kb_id} request from user: {user_id}")
+
+        # 1. 验证知识库存在且用户有权限
+        kb = await unified_kb_db_manager.get_knowledge_base(kb_id)
+        if not kb:
+            logger.warning(f"Knowledge base not found: {kb_id}")
+            raise HTTPException(status_code=404, detail="Knowledge base not found")
+
+        if kb.user_id != user_id:
+            logger.warning(
+                f"Access denied: KB {kb_id} belongs to user {kb.user_id}, "
+                f"requested by {user_id}"
+            )
+            raise HTTPException(
+                status_code=403,
+                detail="Access denied: you do not own this knowledge base",
+            )
+
+        # 2. 删除知识库（依赖数据库层级联删除文档及组件）
+        delete_result = await unified_kb_db_manager.delete_knowledge_base(kb_id)
+
+        return StandardResponse(
+            success=True,
+            message="Knowledge base deleted successfully",
+            data={"kb_id": kb_id, **delete_result},
+        )
+
+    except HTTPException:
+        raise
+    except asyncpg.PostgresError as e:
+        logger.error(f"Database error deleting knowledge base {kb_id}: {e}")
+        raise HTTPException(
+            status_code=503,
+            detail="Database unavailable while deleting knowledge base",
+        )
+    except Exception as e:
+        logger.error(f"Unexpected error deleting knowledge base {kb_id}: {e}")
+        raise HTTPException(
+            status_code=500, detail=f"Failed to delete knowledge base: {e!s}"
+        )
+
+
 @router.post("/{kb_id}/documents", response_model=ProcessDocumentResponse)
 async def index_extracted_content_to_knowledge_base(
     request: Request,

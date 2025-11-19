@@ -662,6 +662,47 @@ class KnowledgeBaseDBManager(BaseDBManager):
                 logger.error(f"Error updating KB statistics {kb_id}: {e}")
                 raise
 
+    async def delete_knowledge_base(self, kb_id: str) -> dict[str, bool]:
+        """
+        删除知识库及其所有关联数据。
+
+        依赖数据库外键的 ON DELETE CASCADE 约束，自动清理：
+        - documents（及其下游 components/chunks/photos）
+        - kb_statistics 等引用 knowledge_bases 的表
+
+        Args:
+            kb_id: 知识库ID
+
+        Returns:
+            包含删除结果的字典，例如 {"deleted": True}
+
+        Raises:
+            ValueError: 当指定的知识库不存在时
+        """
+        async with await self.get_connection() as conn:
+            try:
+                async with conn.transaction():
+                    result = await conn.execute(
+                        """
+                        DELETE FROM unifiles.knowledge_bases
+                        WHERE id = $1
+                        """,
+                        kb_id,
+                    )
+
+                    rows_deleted = int(result.split()[-1]) if result else 0
+
+                    if rows_deleted == 0:
+                        logger.warning(f"No knowledge base found to delete: {kb_id}")
+                        raise ValueError(f"Knowledge base not found: {kb_id}")
+
+                    logger.info(f"Knowledge base deleted: {kb_id}")
+                    return {"deleted": True}
+
+            except Exception as e:
+                logger.error(f"Error deleting knowledge base {kb_id}: {e}")
+                raise
+
     # ==================== 文件操作 ====================
 
     async def create_file_record(self, file_model: FileModel) -> FileModel:
