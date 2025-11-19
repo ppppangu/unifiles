@@ -28,6 +28,7 @@ from unifiles.app.schemas import (
     SearchResponse,
     SearchResultItem,
     StandardResponse,
+    KnowledgeBaseDocumentsResponse,
 )
 from unifiles.core.database import (
     UnifiedKnowledgeBaseDBManager,
@@ -349,7 +350,7 @@ async def index_extracted_content_to_knowledge_base(
         )
 
 
-@router.get("/{kb_id}/documents", response_model=List[ProcessedDocument])
+@router.get("/{kb_id}/documents", response_model=KnowledgeBaseDocumentsResponse)
 async def get_knowledge_base_documents(
     request: Request,
     kb_id: str = FastAPIPath(..., description="知识库ID"),
@@ -357,13 +358,85 @@ async def get_knowledge_base_documents(
     offset: int = 0,
 ):
     """获取知识库文档列表"""
-    user_id = request.state.user_id
-    logger.info(f"GET /knowledge-bases/{kb_id}/documents request from user: {user_id}")
-    # TODO: Implement logic to get documents from a KB
-    raise HTTPException(
-        status_code=501,
-        detail="Get knowledge base documents functionality not implemented yet",
-    )
+    try:
+        user_id = request.state.user_id
+        logger.info(
+            f"GET /knowledge-bases/{kb_id}/documents request from user: {user_id}, "
+            f"limit={limit}, offset={offset}"
+        )
+
+        # 简单参数校验（允许稍大分页以便人工检查）
+        if limit < 1 or limit > 200:
+            raise HTTPException(
+                status_code=400, detail="Limit must be between 1 and 200"
+            )
+        if offset < 0:
+            raise HTTPException(status_code=400, detail="Offset must be non-negative")
+
+        # 1. 验证知识库存在且用户有权限
+        kb = await unified_kb_db_manager.get_knowledge_base(kb_id)
+        if not kb:
+            logger.warning(f"Knowledge base not found: {kb_id}")
+            raise HTTPException(status_code=404, detail="Knowledge base not found")
+
+        if kb.user_id != user_id:
+            logger.warning(
+                f"Access denied: KB {kb_id} belongs to user {kb.user_id}, "
+                f"requested by {user_id}"
+            )
+            raise HTTPException(
+                status_code=403,
+                detail="Access denied: you do not own this knowledge base",
+            )
+
+        # 2. 查询知识库文档列表
+        doc_models, total_count = await unified_kb_db_manager.list_documents(
+            kb_id, limit=limit, offset=offset
+        )
+
+        documents: List[ProcessedDocument] = []
+        for m in doc_models:
+            # created_at 可能为 None，使用当前时间字符串作为回退
+            created_at = (
+                m.created_at.isoformat()
+                if getattr(m, "created_at", None)
+                else datetime.now().isoformat()
+            )
+            documents.append(
+                ProcessedDocument(
+                    document_id=m.id,
+                    extraction_id=m.extracted_document_id,
+                    knowledge_base_id=m.knowledge_base_id,
+                    chunk_count=m.chunk_count or 0,
+                    indexing_status=m.indexing_status,
+                    created_at=created_at,
+                )
+            )
+
+        has_more = (offset + len(documents)) < total_count
+
+        return KnowledgeBaseDocumentsResponse(
+            success=True,
+            message="Knowledge base documents retrieved successfully",
+            documents=documents,
+            total_count=total_count,
+            has_more=has_more,
+        )
+
+    except HTTPException:
+        raise
+    except asyncpg.PostgresError as e:
+        logger.error(f"Database error listing documents in KB {kb_id}: {e}")
+        raise HTTPException(
+            status_code=503,
+            detail="Database unavailable while listing knowledge base documents",
+        )
+    except Exception as e:
+        logger.error(f"Unexpected error listing documents in KB {kb_id}: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to list knowledge base documents: {e!s}",
+        )
 
 
 @router.delete("/{kb_id}/documents/{doc_id}", response_model=StandardResponse)

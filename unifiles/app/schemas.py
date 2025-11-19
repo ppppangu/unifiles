@@ -164,6 +164,16 @@ class ProcessDocumentResponse(BaseModel):
     document: ProcessedDocument = Field(description="处理后的文档信息")
 
 
+class KnowledgeBaseDocumentsResponse(BaseModel):
+    """知识库文档列表响应"""
+
+    success: bool = Field(description="是否成功")
+    message: str = Field(description="响应消息")
+    documents: List[ProcessedDocument] = Field(description="文档列表")
+    total_count: Optional[int] = Field(default=None, description="总文档数量")
+    has_more: bool = Field(description="是否有更多数据")
+
+
 # ========== Knowledge Base Search 检索相关模型 ==========
 class SearchRequest(BaseModel):
     """知识库检索请求"""

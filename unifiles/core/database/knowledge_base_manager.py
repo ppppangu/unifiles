@@ -372,6 +372,84 @@ class KnowledgeBaseDBManager(BaseDBManager):
                 )
                 raise
 
+    async def list_documents(
+        self, kb_id: str, limit: int = 50, offset: int = 0
+    ) -> tuple[list[DocumentModel], int]:
+        """列出指定知识库下的文档（分页）并返回总数。"""
+        # 参数校验与清理
+        kb_id = self.sanitize_input(kb_id)
+        self.validate_pagination(limit, offset)
+
+        # 查询文档列表
+        rows = await self.fetch_many(
+            """
+            SELECT *
+            FROM unifiles.documents
+            WHERE knowledge_base_id = $1
+            ORDER BY created_at DESC
+            LIMIT $2 OFFSET $3
+            """,
+            kb_id,
+            limit,
+            offset,
+        )
+
+        # 查询总数
+        total_count = await self.fetch_value(
+            "SELECT COUNT(*) FROM unifiles.documents WHERE knowledge_base_id = $1",
+            kb_id,
+        )
+
+        items: list[DocumentModel] = []
+        for r in rows:
+            chunking_val = r.get("chunking_strategy")
+            custom_cfg_val = r.get("custom_config") or {}
+            # Be tolerant: if DB returns TEXT, try to parse JSON
+            if isinstance(chunking_val, str):
+                try:
+                    chunking_val = json.loads(chunking_val)
+                except Exception:
+                    pass
+            if isinstance(custom_cfg_val, str):
+                try:
+                    custom_cfg_val = json.loads(custom_cfg_val)
+                except Exception:
+                    custom_cfg_val = {}
+
+            items.append(
+                DocumentModel(
+                    id=r["id"],
+                    knowledge_base_id=r["knowledge_base_id"],
+                    extracted_document_id=r["extracted_document_id"],
+                    title=r.get("title"),
+                    display_name=r.get("display_name"),
+                    description=r.get("description") or "",
+                    chunking_strategy=chunking_val,
+                    custom_config=custom_cfg_val,
+                    access_level=r.get("access_level", "inherited"),
+                    hierarchy_path=str(r.get("hierarchy_path", "root")),
+                    processing_status=r.get("processing_status", "pending"),
+                    indexing_status=r.get("indexing_status", "pending"),
+                    component_count=r.get("component_count", 0),
+                    chunk_count=r.get("chunk_count", 0),
+                    photo_count=r.get("photo_count", 0),
+                    total_chars=r.get("total_chars", 0),
+                    total_tokens=r.get("total_tokens", 0),
+                    created_at=r.get("created_at"),
+                    processed_at=r.get("processed_at"),
+                    indexed_at=r.get("indexed_at"),
+                    updated_at=r.get("updated_at"),
+                    last_accessed_at=r.get("last_accessed_at"),
+                )
+            )
+
+        try:
+            total_count = int(total_count or 0)
+        except Exception:
+            total_count = 0
+
+        return items, total_count
+
     async def ensure_document_exists(
         self,
         doc_id: str,
