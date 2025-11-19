@@ -88,7 +88,7 @@ Changelog = "https://github.com/unifiles/unifiles-client/blob/main/CHANGELOG.md"
 packages = ["unifiles_client"]
 
 [tool.setuptools.package-dir]
-unifiles_client = "unifiles/client"
+unifiles_client = "unifiles_client"
 
 [tool.black]
 line-length = 88

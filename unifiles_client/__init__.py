@@ -1,5 +1,5 @@
 """
-Unifile Python Client
+Unifiles Python Client
 
 简洁易用的文档处理客户端，支持三层文档处理架构：
 1. 文件存储层：原始文件上传和管理
@@ -23,7 +23,7 @@ from .client import (
     KnowledgeBaseNotFoundError,
     RateLimitError,
     SearchResult,
-    Unifile,
+    Unifiles,
     UnifilesError,
 )
 
@@ -38,6 +38,6 @@ __all__ = [
     "KnowledgeBaseNotFoundError",
     "RateLimitError",
     "SearchResult",
-    "Unifile",
+    "Unifiles",
     "UnifilesError",
 ]

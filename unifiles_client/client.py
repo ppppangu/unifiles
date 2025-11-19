@@ -122,7 +122,7 @@ class Document:
     """
 
     def __init__(
-        self, client: "Unifile", file_id: str, file_info: Optional[Dict] = None
+        self, client: "Unifiles", file_id: str, file_info: Optional[Dict] = None
     ):
         self.client = client
         self.file_id = file_id
@@ -361,7 +361,7 @@ class KnowledgeBase:
     知识库类 - 管理文档的第三层处理（分块和向量化）
     """
 
-    def __init__(self, client: "Unifile", kb_id: str, kb_info: Optional[Dict] = None):
+    def __init__(self, client: "Unifiles", kb_id: str, kb_info: Optional[Dict] = None):
         self.client = client
         self.kb_id = kb_id
         self._kb_info = kb_info
@@ -493,9 +493,9 @@ class KnowledgeBase:
         return results
 
 
-class Unifile:
+class Unifiles:
     """
-    Unifile客户端 - 主入口点
+    Unifiles客户端 - 主入口点
 
     提供简洁的API来管理三层文档处理架构：
     1. 文件存储：上传、下载、管理原始文件

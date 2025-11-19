@@ -35,10 +35,10 @@ pip install unifiles-client
 ### Basic Usage
 
 ```python
-from unifiles_client import Unifile
+from unifiles_client import Unifiles
 
 # Initialize the client
-client = Unifile(
+client = Unifiles(
     api_key="your_api_key_here",
     base_url="https://your-unifiles-server.com"
 )
@@ -98,7 +98,7 @@ for file in files:
 ```python
 from unifiles_client import ContentType
 
-# Trigger content extraction (choose a mode: simple | mistral | selfhosted)
+# Trigger content extraction (choose a mode: simple | mistral | selfhosted | openai)
 extraction_result = document.extract_content(mode="mistral")
 
 # Get different types of extracted content
@@ -192,7 +192,9 @@ export UNIFILES_BASE_URL="https://your-server.com"
 ### Client Options
 
 ```python
-client = Unifile(
+from unifiles_client import Unifiles
+
+client = Unifiles(
     api_key="your_key",
     base_url="https://your-server.com",
     timeout=30,          # Request timeout in seconds
