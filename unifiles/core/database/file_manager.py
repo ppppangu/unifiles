@@ -231,7 +231,7 @@ class FileDBManager(BaseDBManager):
                     result = await conn.execute(
                         f"""
                             UPDATE {self._schema_name}.files
-                            SET status = 'deleted', deleted_at = $3
+                            SET status = 'deleted', is_deleted = true, updated_at = $3
                             WHERE id = $1 AND user_id = $2 AND status != 'deleted'
                             """,
                         file_id,
@@ -475,7 +475,9 @@ class FileDBManager(BaseDBManager):
                     result = await conn.execute(
                         f"""
                             DELETE FROM {self._schema_name}.files
-                            WHERE status = 'deleted' AND deleted_at < $1
+                            WHERE status = 'deleted'
+                              AND is_deleted = true
+                              AND updated_at < $1
                             """,
                         cutoff_date,
                     )

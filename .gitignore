@@ -169,3 +169,6 @@ Thumbs.db
 *~
 
 storage_data/
+
+# Manual integration test scripts (user-run)
+tests/

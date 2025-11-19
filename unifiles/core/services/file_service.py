@@ -509,14 +509,24 @@ class FileService:
                 user_id, file_id, "delete"
             )
 
-            # 从存储后端删除文件
-            storage_backend = await self._get_storage_backend_for_file(file_record)
-            storage_deleted = await storage_backend.delete_file(
-                file_record["storage_path"]
-            )
-            if not storage_deleted:
+            # 从存储后端删除文件（失败时记录警告但不阻断数据库清理）
+            storage_deleted = False
+            try:
+                storage_backend = await self._get_storage_backend_for_file(
+                    file_record
+                )
+                storage_deleted = await storage_backend.delete_file(
+                    file_record["storage_path"]
+                )
+                if not storage_deleted:
+                    logger.warning(
+                        f"Storage deletion returned False for file {file_id}, "
+                        "continuing with DB cleanup"
+                    )
+            except Exception as storage_error:
                 logger.warning(
-                    f"Storage deletion failed for file {file_id}, continuing with DB cleanup"
+                    f"Storage deletion raised an exception for file {file_id}: "
+                    f"{storage_error}. Proceeding with DB cleanup."
                 )
 
             # 从数据库删除记录
