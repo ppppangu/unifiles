@@ -80,6 +80,7 @@ def process_file_extraction_task(
     user_id: str,
     task_db_id: str,
     mode: str = "simple",
+    parse_image_content: bool = False,
 ) -> Dict[str, Any]:
     """
     OCR 文件提取异步任务
@@ -89,7 +90,8 @@ def process_file_extraction_task(
         file_id: 文件ID
         user_id: 用户ID
         task_db_id: 数据库中的任务ID
-        mode: 提取模式（simple, mistral, selfhosted等）
+        mode: 提取模式(simple, mistral, selfhosted等)
+        parse_image_content: 是否解析图像内容到full_markdown
 
     Returns:
         提取结果字典
@@ -127,7 +129,7 @@ def process_file_extraction_task(
 
             # 执行提取
             result = await processor.process_file_by_id(
-                file_id=file_id, user_id=user_id, mode=mode
+                file_id=file_id, user_id=user_id, mode=mode, parse_image_content=parse_image_content
             )
 
             # 更新进度

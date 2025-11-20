@@ -68,6 +68,11 @@ class FileExtractRequest(BaseModel):
     mode: str = Field(
         default="simple", description="提取模式: simple|ocr_provider_name"
     )
+    parse_image_content: bool = Field(
+        default=False,
+        description="是否解析图像内容到full_markdown(仅对支持的OCR提供商有效,如selfhosted)"
+    )
+
 
 
 class ExtractedContent(BaseModel):

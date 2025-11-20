@@ -75,6 +75,7 @@ async def extract_file_content(
             input_params={
                 "file_id": file_id,
                 "mode": extract_request.mode,
+                "parse_image_content": extract_request.parse_image_content,
                 "filename": file_record.get("filename", "unknown"),
             },
             priority=5,
@@ -84,7 +85,7 @@ async def extract_file_content(
 
         # 提交 Celery 任务
         celery_task = process_file_extraction_task.apply_async(
-            args=[file_id, user_id, task_id, extract_request.mode],
+            args=[file_id, user_id, task_id, extract_request.mode, extract_request.parse_image_content],
             task_id=task_id,  # 使用数据库任务ID作为Celery任务ID
         )
 
