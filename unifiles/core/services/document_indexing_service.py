@@ -15,6 +15,7 @@ from ..database import extraction_db_manager, unified_kb_db_manager
 from ..database.models import ChunkModel, ComponentModel, ComponentType, DocumentModel, PhotoModel
 from .chunking_service import get_chunking_service
 from .embedding_service import get_embedding_service
+import re
 
 
 class DocumentIndexingService:
@@ -377,6 +378,7 @@ class DocumentIndexingService:
                 component_index=chunk["index"],
                 content=chunk["content"],
                 embedding=embedding,
+                search_keywords=self._generate_keywords(chunk["content"]),
             )
             await self.kb_manager.create_component(component)
 
@@ -440,6 +442,7 @@ class DocumentIndexingService:
                 component_index=chunk["index"],
                 content=image_description or image_path,
                 embedding=embedding,
+                search_keywords=self._generate_keywords(image_description or image_path),
             )
             await self.kb_manager.create_component(component)
 
@@ -475,6 +478,24 @@ class DocumentIndexingService:
             "embedding_service": self.embedding_service.get_service_info(),
         }
 
+    def _generate_keywords(self, text: str) -> List[str]:
+        """
+        Generate search keywords from text.
+        Simple implementation: split by non-word characters and filter short words.
+        TODO: Integrate jieba for better Chinese support.
+        """
+        if not text:
+            return []
+        
+        # Remove markdown and special chars (simplified)
+        # This regex matches alphanumeric and Chinese characters
+        words = re.findall(r"[\w\u4e00-\u9fff]+", text.lower())
+        
+        # Filter out short words (length < 2)
+        keywords = [w for w in words if len(w) >= 2]
+        
+        # Remove duplicates while preserving order
+        return list(dict.fromkeys(keywords))
 
 # 默认文档索引服务实例
 _default_document_indexing_service: Optional[DocumentIndexingService] = None

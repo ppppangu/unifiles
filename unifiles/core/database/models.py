@@ -454,8 +454,13 @@ class ComponentModel:
     component_index: int
     content: Optional[str] = None
     embedding: Optional[List[float]] = None
+    search_keywords: List[str] = field(default_factory=list)
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
+
+    def __post_init__(self):
+        if self.search_keywords is None:
+            self.search_keywords = []
 
 
 # ================================

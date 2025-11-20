@@ -868,8 +868,8 @@ class KnowledgeBaseDBManager(BaseDBManager):
                         """
                         INSERT INTO unifiles.components (
                             id, document_id, component_type, component_index,
-                            content, embedding, embedding_dimensions
-                        ) VALUES ($1, $2, $3, $4, $5, $6::vector, $7)
+                            content, embedding, embedding_dimensions, search_keywords
+                        ) VALUES ($1, $2, $3, $4, $5, $6::vector, $7, $8)
                         """,
                         component.id,
                         component.document_id,
@@ -880,6 +880,7 @@ class KnowledgeBaseDBManager(BaseDBManager):
                         component.content,
                         embedding_vector,
                         (len(component.embedding) if component.embedding else None),
+                        component.search_keywords,
                     )
                     logger.info(
                         f"Component created: {component.id} ({component.component_type})"

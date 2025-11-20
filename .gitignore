@@ -142,6 +142,7 @@ unfiles/app/v1/logs/
 htmlcov/
 .pytest_cache/
 tests/.pytest_cache/
+tests/
 
 # Development artifacts
 .mypy_cache/

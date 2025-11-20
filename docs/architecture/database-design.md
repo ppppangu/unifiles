@@ -219,16 +219,19 @@
 #### `components`
 对分块后的内容进行统一抽象，是检索的基本单位。
 
-| 字段名                 | 数据类型  | 约束                             | 描述                             |
-| ---------------------- | --------- | -------------------------------- | -------------------------------- |
-| `id`                   | `TEXT`    | `PRIMARY KEY`                    | 组件唯一标识                     |
-| `document_id`          | `TEXT`    | `NOT NULL`, `FK -> documents.id` | 所属的知识库文档                 |
-| `component_type`       | `TEXT`    | `NOT NULL`                       | 组件类型 (`chunk` 或 `photo`)    |
-| `component_index`      | `INTEGER` | `NOT NULL`                       | 组件在文档中的顺序               |
-| `content`              | `TEXT`    |                                  | 组件的文本内容或图片描述         |
-| `embedding`            | `vector`  |                                  | 内容的向量嵌入                   |
-| `embedding_dimensions` | `INTEGER` |                                  | 向量的维度                       |
-| `UNIQUE`               |           |                                  | `(document_id, component_index)` |
+| 字段名                 | 数据类型  | 约束                             | 描述                                                          |
+| ---------------------- | --------- | -------------------------------- | ------------------------------------------------------------- |
+| `id`                   | `TEXT`    | `PRIMARY KEY`                    | 组件唯一标识                                                  |
+| `document_id`          | `TEXT`    | `NOT NULL`, `FK -> documents.id` | 所属的知识库文档                                              |
+| `component_type`       | `TEXT`    | `NOT NULL`                       | 组件类型 (`chunk` 或 `photo`)                                 |
+| `component_index`      | `INTEGER` | `NOT NULL`                       | 组件在文档中的顺序                                            |
+| `content`              | `TEXT`    |                                  | 组件的文本内容或图片描述                                      |
+| `searchable_text`      | `TEXT`    |                                  | 经过清洗和优化的搜索文本（由应用层生成）                      |
+| `search_keywords`      | `TEXT[]`  |                                  | 提取的关键词数组（由应用层生成）                              |
+| `content_language`     | `TEXT`    | `DEFAULT 'mixed'`                | 内容语言 (`zh`/`en`/`mixed`/`unknown`，由应用层检测）         |
+| `embedding`            | `vector`  |                                  | 内容的向量嵌入                                                |
+| `embedding_dimensions` | `INTEGER` |                                  | 向量的维度                                                    |
+| `UNIQUE`               |           |                                  | `(document_id, component_index)`                              |
 
 #### `chunks` (文本组件)
 `components` 表的文本子类实现。
@@ -258,9 +261,10 @@
 
 数据库通过触发器实现了一些自动化逻辑，以保证数据的一致性和实时性。
 - **时间戳自动更新**: 大多数表都有 `updated_at` 字段，会在记录更新时通过统一触发器自动刷新。
-- **搜索字段自动生成**: 在 `components` 表插入或更新时，会自动清理 `content` 内容生成 `searchable_text` 和 `search_keywords`，并检测语言。
+- **搜索字段生成**: `searchable_text` 和 `search_keywords` 字段由应用层（`DocumentIndexingService`）在插入组件时生成和填充，不再使用数据库触发器（已移除 `trigger_update_component_search_fields`）。
 - **文档/知识库关联维护**: 当 `documents` 或 `components` 表发生变化时，会通过触发器更新 `knowledge_bases.document_ids` 以及相关记录的 `updated_at` 字段（目前不直接维护 `document_count` 等统计计数字段）。
 - **异步任务时间记录**: `async_tasks` 表的状态变更会通过触发器自动记录 `queued_at`, `started_at`, `completed_at` 等时间戳。
+
 
 该设计通过清晰的层次划分和解耦，构建了一个既健壮又灵活的数据模型，能够有效支持复杂的文件处理和智能检索业务。
 
