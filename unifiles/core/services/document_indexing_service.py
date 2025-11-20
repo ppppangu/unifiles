@@ -16,6 +16,7 @@ from ..database.models import ChunkModel, ComponentModel, ComponentType, Documen
 from .chunking_service import get_chunking_service
 from .embedding_service import get_embedding_service
 import re
+import jieba
 
 
 class DocumentIndexingService:
@@ -480,19 +481,20 @@ class DocumentIndexingService:
 
     def _generate_keywords(self, text: str) -> List[str]:
         """
-        Generate search keywords from text.
-        Simple implementation: split by non-word characters and filter short words.
-        TODO: Integrate jieba for better Chinese support.
+        Generate search keywords from text using jieba.
         """
         if not text:
             return []
         
-        # Remove markdown and special chars (simplified)
-        # This regex matches alphanumeric and Chinese characters
-        words = re.findall(r"[\w\u4e00-\u9fff]+", text.lower())
+        # Use jieba for word segmentation
+        words = jieba.lcut(text.lower())
         
-        # Filter out short words (length < 2)
-        keywords = [w for w in words if len(w) >= 2]
+        # Filter out short words (length < 2) and non-word characters
+        # We keep words that have at least 2 characters and contain at least one alphanumeric/Chinese char
+        keywords = [
+            w for w in words 
+            if len(w) >= 2 and re.search(r"[\w\u4e00-\u9fff]", w)
+        ]
         
         # Remove duplicates while preserving order
         return list(dict.fromkeys(keywords))
