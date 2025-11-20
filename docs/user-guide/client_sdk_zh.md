@@ -122,6 +122,54 @@ print(text_content)
 *   `mistral`：使用基于 Mistral 的 LLM OCR/提取后端（需要配置）。
 *   `openai`：使用兼容 OpenAI 的 OCR/提取后端（需要配置）。
 
+#### 图像内容解析（仅 selfhosted 模式）
+
+当使用 `selfhosted` 模式时，可以通过 `parse_image_content` 参数控制是否为文档中的图片和表格生成语义化描述：
+
+```python
+# 基础提取 - 图片使用简单标签
+doc = client.upload_file("report.pdf")
+result = doc.extract_content(
+    mode="selfhosted",
+    parse_image_content=False,  # 默认值
+    wait=True
+)
+# Markdown中: ![Picture](picture_1_0.png)
+
+# 完整提取 - 图片使用AI生成的描述
+result = doc.extract_content(
+    mode="selfhosted",
+    parse_image_content=True,  # 启用图像内容解析
+    wait=True,
+    timeout=600  # 建议增加超时时间
+)
+# Markdown中: ![产品外观设计图，展示了新款智能手机的三视图](picture_1_0.png)
+```
+
+**注意事项**：
+- `parse_image_content` 仅在 `mode="selfhosted"` 时有效，其他模式会被忽略
+- 为每张图片/表格生成描述会增加处理时间（约2-3倍）和API调用成本（约2-3倍）
+- 图像描述会使全文检索更准确，适合用于重要文档和知识库
+- 如果在非 `selfhosted` 模式下设置 `parse_image_content=True`，SDK 会抛出 `ValueError`
+
+**性能对比示例**：
+
+```python
+import time
+
+doc = client.upload_file("document_with_images.pdf")
+
+# 快速模式
+start = time.time()
+doc.extract_content(mode="selfhosted", parse_image_content=False, wait=True)
+print(f"快速模式: {time.time() - start:.1f}秒")
+
+# 完整模式
+start = time.time()
+doc.extract_content(mode="selfhosted", parse_image_content=True, wait=True)
+print(f"完整模式: {time.time() - start:.1f}秒")
+```
+
 ### 4. 知识库管理
 
 知识库是您索引文档的容器。
@@ -178,7 +226,18 @@ from unifiles_client import Unifiles
 
 表示单个文件及其处理状态。
 
-*   `extract_content(mode="simple", wait=False, timeout=300, poll_interval=5)`：启动 OCR/内容提取过程。当 `wait=True` 时，它会等待完成并返回来自 `/tasks/{task_id}/result` 的任务结果，同时将提取的内容缓存在 `Document` 内部。
+*   `extract_content(mode="simple", parse_image_content=False, wait=False, timeout=300, poll_interval=5)`：
+    启动 OCR/内容提取过程。
+    - `mode`：提取模式（simple|selfhosted|mistral|openai）
+    - `parse_image_content`：是否解析图像内容到full_markdown（仅selfhosted模式有效，默认False）
+    - `wait`：是否等待任务完成（默认False）
+    - `timeout`：等待超时时间（秒）
+    - `poll_interval`：轮询间隔（秒）
+    
+    当 `wait=True` 时，它会等待完成并返回来自 `/tasks/{task_id}/result` 的任务结果，同时将提取的内容缓存在 `Document` 内部。
+    
+    **注意**：如果 `parse_image_content=True` 但 `mode != "selfhosted"`，会抛出 `ValueError`。
+
 *   `get_content(content_type: Optional[ContentType] = None)`：返回提取的内容字典；可选地通过 `ContentType.TEXT` 或 `ContentType.IMAGE` 过滤文本/图像。
 *   `index_to_knowledge_base(kb_id, chunk_strategy="markdown_hierarchical")`：使用指定的分块策略将提取的内容索引到知识库中。
 *   `status`：返回当前状态的属性 (`UPLOADED`, `EXTRACTING`, `EXTRACTED`, `INDEXED`, `FAILED`)。

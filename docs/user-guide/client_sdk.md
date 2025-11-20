@@ -123,6 +123,54 @@ and the SDK also caches the extracted content internally so that `get_content()`
 *   `mistral`: Use a Mistral-based LLM OCR/extraction backend (requires configuration).
 *   `openai`: Use an OpenAI-compatible OCR/extraction backend (requires configuration).
 
+#### Image Content Parsing (selfhosted mode only)
+
+When using `selfhosted` mode, you can control whether to generate semantic descriptions for images and tables in the document via the `parse_image_content` parameter:
+
+```python
+# Basic extraction - images use simple labels
+doc = client.upload_file("report.pdf")
+result = doc.extract_content(
+    mode="selfhosted",
+    parse_image_content=False,  # Default value
+    wait=True
+)
+# In Markdown: ![Picture](picture_1_0.png)
+
+# Full extraction - images use AI-generated descriptions
+result = doc.extract_content(
+    mode="selfhosted",
+    parse_image_content=True,  # Enable image content parsing
+    wait=True,
+    timeout=600  # Recommend increasing timeout
+)
+# In Markdown: ![Product design diagram showing three views of the new smartphone](picture_1_0.png)
+```
+
+**Important Notes**:
+- `parse_image_content` is only effective when `mode="selfhosted"`, other modes will ignore it
+- Generating descriptions for each image/table increases processing time (~2-3x) and API call costs (~2-3x)
+- Image descriptions make full-text search more accurate, suitable for important documents and knowledge bases
+- If `parse_image_content=True` is set with a non-selfhosted mode, the SDK will raise a `ValueError`
+
+**Performance Comparison Example**:
+
+```python
+import time
+
+doc = client.upload_file("document_with_images.pdf")
+
+# Fast mode
+start = time.time()
+doc.extract_content(mode="selfhosted", parse_image_content=False, wait=True)
+print(f"Fast mode: {time.time() - start:.1f}s")
+
+# Full mode
+start = time.time()
+doc.extract_content(mode="selfhosted", parse_image_content=True, wait=True)
+print(f"Full mode: {time.time() - start:.1f}s")
+```
+
 ### 4. Knowledge Base Management
 
 Knowledge Bases are containers for your indexed documents.
@@ -179,7 +227,18 @@ Key methods:
 
 Represents a single file and its processing state.
 
-*   `extract_content(mode="simple", wait=False, timeout=300, poll_interval=5)`: Starts the OCR/extraction process. When `wait=True`, it waits for completion and returns the task result from `/tasks/{task_id}/result`, and also caches the extracted content inside the `Document`.
+*   `extract_content(mode="simple", parse_image_content=False, wait=False, timeout=300, poll_interval=5)`: 
+    Starts the OCR/extraction process.
+    - `mode`: Extraction mode (simple|selfhosted|mistral|openai)
+    - `parse_image_content`: Whether to parse image content to full_markdown (only effective for selfhosted mode, default False)
+    - `wait`: Whether to wait for task completion (default False)
+    - `timeout`: Wait timeout in seconds
+    - `poll_interval`: Polling interval in seconds
+    
+    When `wait=True`, it waits for completion and returns the task result from `/tasks/{task_id}/result`, and also caches the extracted content inside the `Document`.
+    
+    **Note**: If `parse_image_content=True` but `mode != "selfhosted"`, a `ValueError` will be raised.
+
 *   `get_content(content_type: Optional[ContentType] = None)`: Returns the extracted content dict; optionally filters by text/image via `ContentType.TEXT` or `ContentType.IMAGE`.
 *   `index_to_knowledge_base(kb_id, chunk_strategy="markdown_hierarchical")`: Indexes the extracted content into a Knowledge Base using the specified chunking strategy.
 *   `status`: Property that returns the current status (`UPLOADED`, `EXTRACTING`, `EXTRACTED`, `INDEXED`, `FAILED`).
