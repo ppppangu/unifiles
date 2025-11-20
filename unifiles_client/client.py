@@ -289,6 +289,7 @@ class Document:
         self,
         mode: str = "simple",
         *,
+        parse_image_content: bool = False,
         wait: bool = False,
         timeout: int = 300,
         poll_interval: int = 5,
@@ -298,6 +299,7 @@ class Document:
 
         Args:
             mode: 提取模式 simple|mistral|selfhosted|openai
+            parse_image_content: 是否解析图像内容到full_markdown (仅对支持的OCR提供商有效，如selfhosted)
             wait: 是否等待任务完成并返回内容
             timeout: 等待超时时间（秒），仅在 wait=True 时生效
             poll_interval: 轮询间隔（秒），仅在 wait=True 时生效
@@ -305,8 +307,22 @@ class Document:
         Returns:
             - 当 wait=False 时：返回任务提交结果（task_id/status）
             - 当 wait=True 时：返回任务结果，包含 extracted_content
+            
+        Raises:
+            ValueError: 当 parse_image_content=True 但 mode 不是 selfhosted 时
         """
-        data = {"mode": mode}
+        # 验证参数组合
+        if parse_image_content and mode != "selfhosted":
+            raise ValueError(
+                f"parse_image_content 参数仅在 mode='selfhosted' 时有效，"
+                f"当前 mode='{mode}'。"
+                f"请使用 mode='selfhosted' 或设置 parse_image_content=False"
+            )
+        
+        data = {
+            "mode": mode,
+            "parse_image_content": parse_image_content,
+        }
         response = self.client._post(f"/files/{self.file_id}/extract", data=data)
 
         # 记录任务信息
