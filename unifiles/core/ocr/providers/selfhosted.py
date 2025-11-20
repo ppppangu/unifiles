@@ -91,6 +91,55 @@ class SelfHostedOCRProvider(BaseOCRProvider):
             logger.error(f"Self-hosted sync request failed: {e!s}")
             return ""
 
+    def _get_image_description_sync(self, image) -> str:
+        """
+        Send a cropped image to LLM to get its description.
+        
+        Args:
+            image: PIL Image object (cropped image/table)
+            
+        Returns:
+            str: Description of the image from LLM, or empty string if failed
+        """
+        try:
+            # Encode the cropped image
+            base64_image = self._process_image_for_model(image)
+            if not base64_image:
+                logger.warning("Failed to encode image for description")
+                return ""
+            
+            # Create a specific prompt for image description
+            description_prompt = (
+                "请简要描述这张图片的内容。"
+                "如果是表格，请概括表格的主要信息和数据。"
+                "如果是图表，请说明图表类型和展示的关键信息。"
+                "如果是普通图片，请描述图片的主要内容。"
+                "用中文回答，控制在100字以内。"
+            )
+            
+            messages = [
+                {
+                    "role": "user",
+                    "content": [
+                        {
+                            "type": "image_url",
+                            "image_url": {
+                                "url": f"data:image/png;base64,{base64_image}"
+                            },
+                        },
+                        {"type": "text", "text": description_prompt},
+                    ],
+                }
+            ]
+            
+            # Send request to get description
+            description = self._send_request(messages)
+            return description.strip() if description else ""
+            
+        except Exception as e:
+            logger.error(f"Failed to get image description: {e!s}")
+            return ""
+
     def _dump_parse_failure(
         self,
         raw: str,
@@ -208,6 +257,55 @@ class SelfHostedOCRProvider(BaseOCRProvider):
             return resp.choices[0].message.content or ""
         except Exception:
             logger.warning("Self-hosted async response has no content")
+            return ""
+
+    async def _get_image_description_async(self, image) -> str:
+        """
+        Async version: Send a cropped image to LLM to get its description.
+        
+        Args:
+            image: PIL Image object (cropped image/table)
+            
+        Returns:
+            str: Description of the image from LLM, or empty string if failed
+        """
+        try:
+            # Encode the cropped image in a worker thread to avoid blocking
+            base64_image = await asyncio.to_thread(self._process_image_for_model, image)
+            if not base64_image:
+                logger.warning("Failed to encode image for description")
+                return ""
+            
+            # Create a specific prompt for image description
+            description_prompt = (
+                "请简要描述这张图片的内容。"
+                "如果是表格，请概括表格的主要信息和数据。"
+                "如果是图表，请说明图表类型和展示的关键信息。"
+                "如果是普通图片，请描述图片的主要内容。"
+                "用中文回答，控制在100字以内。"
+            )
+            
+            messages = [
+                {
+                    "role": "user",
+                    "content": [
+                        {
+                            "type": "image_url",
+                            "image_url": {
+                                "url": f"data:image/png;base64,{base64_image}"
+                            },
+                        },
+                        {"type": "text", "text": description_prompt},
+                    ],
+                }
+            ]
+            
+            # Send async request to get description
+            description = await self._send_request_async(messages)
+            return description.strip() if description else ""
+            
+        except Exception as e:
+            logger.error(f"Failed to get image description (async): {e!s}")
             return ""
 
     async def _send_request_with_retry(
@@ -440,6 +538,7 @@ class SelfHostedOCRProvider(BaseOCRProvider):
         page_num: int,
         doc_path: Optional[str] = None,
         parsed_json: Optional[Dict[str, Any]] = None,
+        parse_image_content: bool = False,
     ) -> Tuple[str, List[Dict[str, Any]]]:
         """Parse model output and extract page text and image crops.
 
@@ -450,6 +549,7 @@ class SelfHostedOCRProvider(BaseOCRProvider):
             doc_path: Optional document identifier used for diagnostics.
             parsed_json: Optional pre-parsed JSON; if provided, it is reused
                 instead of parsing ``json_markdown`` again.
+            parse_image_content: If True, include image descriptions in markdown output
 
         Returns:
             Tuple[str, List[Dict[str, Any]]]: (markdown_text, images_info)
@@ -499,7 +599,30 @@ class SelfHostedOCRProvider(BaseOCRProvider):
                         }
                     )
 
-                    out_parts.append(f"\n![{category}]({filename})\n")
+                    # 根据parse_image_content决定使用什么作为markdown的alt text
+                    if parse_image_content:
+                        # 二次调用LLM获取图像描述，并用描述替换category
+                        try:
+                            image_description = self._get_image_description_sync(img_crop)
+                            if image_description:
+                                # 使用LLM返回的描述作为alt text
+                                alt_text = image_description
+                            else:
+                                # 如果获取描述失败，仍使用category
+                                alt_text = category
+                        except Exception as desc_error:
+                            logger.warning(
+                                f"Failed to get description for {category} on page {page_num}: {desc_error}"
+                            )
+                            # 失败时使用category
+                            alt_text = category
+                    else:
+                        # 默认使用category作为alt text
+                        alt_text = category
+                    
+                    # 生成markdown图片引用
+                    out_parts.append(f"\n![{alt_text}]({filename})\n")
+                    
                     index += 1
                 else:
                     text = el.get("text", "")

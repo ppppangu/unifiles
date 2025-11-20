@@ -765,6 +765,7 @@ class PDFProcessingPipeline:
         knowledge_base_id: str,
         document_id: str,
         mode: str = "simple",
+        parse_image_content: bool = False,
     ) -> List[Dict[str, Any]]:
         """
         处理PDF到结构化内容
@@ -775,6 +776,7 @@ class PDFProcessingPipeline:
             knowledge_base_id: 知识库ID
             document_id: 文档ID
             mode: 处理模式 ("simple" 或 特定的OCR提供商名称)
+            parse_image_content: 是否解析图像内容到full_markdown
 
         Returns:
             结构化内容列表

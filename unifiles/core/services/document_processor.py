@@ -417,6 +417,7 @@ class DocumentProcessingService:
         file_id: str,
         user_id: str,
         mode: str = "simple",
+        parse_image_content: bool = False,
     ) -> Dict[str, Any]:
         """
         处理指定ID的文件内容
@@ -425,6 +426,7 @@ class DocumentProcessingService:
             file_id: 文件ID
             user_id: 用户ID
             mode: 处理模式 ("simple" 或 特定的OCR提供商名称)
+            parse_image_content: 是否解析图像内容到full_markdown
 
         Returns:
             处理结果字典
@@ -487,6 +489,7 @@ class DocumentProcessingService:
                 knowledge_base_id=f"temp_{user_id}_{document_id}",  # 使用临时知识库ID
                 document_id=document_id,
                 mode=mode,
+                parse_image_content=parse_image_content,
             )
 
             self.logger.info(f"Structured content: {structured_content}")
