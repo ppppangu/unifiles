@@ -6,7 +6,7 @@ from typing import Any, Callable, List, Optional, Tuple, Union
 from loguru import logger
 from openai import AsyncOpenAI, OpenAI
 
-from ..base import BaseOCRProvider
+from ..base import OCROutput, BaseOCRProvider
 from ..config.openai import OpenAIConfig
 
 
@@ -147,13 +147,13 @@ class OpenAIOCRProvider(BaseOCRProvider):
         self,
         file_path: Union[str, Path],
         progress_callback: Optional[Callable[[int, int, str, str], None]] = None,
-    ) -> str:
-        """Async: Process a local file with OCR and return markdown formatted text.
+    ) -> OCROutput:
+        """Async: Process a local file with OCR and return the standard OCROutput.
 
         Uses native async implementation with concurrency for PDF page processing.
 
-        For PDFs: renders pages to images and processes each page in parallel
-        For images: processes directly
+        For PDFs: renders pages to images and processes each page in parallel.
+        For images: processes directly.
 
         Args:
             file_path: Path to the file
@@ -161,29 +161,33 @@ class OpenAIOCRProvider(BaseOCRProvider):
                 Called with (current_page, total_pages, status, message)
 
         Returns:
-            Extracted text in Markdown format
+            OCROutput: (markdown_text, images_info)
+                - markdown_text: Extracted text in markdown format
+                - images_info: OpenAI provider does not currently emit images,
+                  so this will be an empty list.
         """
         if not self.config.validate():
-            return ""
+            return "", []
 
         p = Path(file_path)
         if not p.exists():
             logger.error(f"File not found: {p}")
-            return ""
+            return "", []
 
         # PDF handling with async parallel processing
         if p.suffix.lower() == ".pdf":
-            return await self._process_pdf_async(p, progress_callback)
+            text = await self._process_pdf_async(p, progress_callback)
+            return text, []
 
-        # Image handling (fallback to sync method)
+        # Image handling
         if not self.validate_file(p):
             logger.error(f"File validation failed: {p}")
-            return ""
+            return "", []
 
         # Use async SDK for single image as well
         messages = self._build_request_payload(p)
         if not messages:
-            return ""
+            return "", []
         try:
             client = self._get_async_client()
             resp = await client.chat.completions.create(
@@ -194,11 +198,11 @@ class OpenAIOCRProvider(BaseOCRProvider):
                 and resp.choices[0].message
                 and resp.choices[0].message.content
             ):
-                return resp.choices[0].message.content
-            return ""
+                return resp.choices[0].message.content, []
+            return "", []
         except Exception as e:
             logger.error(f"OpenAI async request failed: {e!s}")
-            return ""
+            return "", []
 
     # --------------------
     # PDF processing

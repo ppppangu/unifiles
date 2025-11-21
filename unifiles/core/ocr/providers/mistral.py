@@ -8,7 +8,7 @@ from typing import Any, Dict, List, Optional, Tuple, Union
 from loguru import logger
 from mistralai import Mistral
 
-from ..base import BaseOCRProvider
+from ..base import OCROutput, BaseOCRProvider
 from ..config.mistral import MistralConfig
 
 
@@ -86,7 +86,7 @@ class MistralOCRProvider(BaseOCRProvider):
     # --------------------
     async def aprocess_file(
         self, file_path: Union[str, Path], output_dir: Optional[Path] = None
-    ) -> Tuple[str, List[Dict[str, Any]]]:
+    ) -> OCROutput:
         """Async: Process a local file with OCR.
 
         Args:
@@ -94,7 +94,7 @@ class MistralOCRProvider(BaseOCRProvider):
             output_dir: Directory to save extracted images (default: same as input file)
 
         Returns:
-            Tuple[str, List[Dict]]: (markdown_text, images_info)
+            OCROutput: (markdown_text, images_info)
 
         Uses asyncio.to_thread to offload blocking file I/O and SDK calls.
         """

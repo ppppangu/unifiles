@@ -2,15 +2,15 @@ import asyncio
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple, Union
 
-from .base import BaseOCRProvider
+from .base import OCROutput, BaseOCRProvider
 from .factory import OCRProviderFactory
 
 
 class OCRProcessor:
-    """Main OCR processor that provides a unified interface for all OCR providers"""
+    """Main OCR processor that provides a unified interface for all OCR providers."""
 
     def __init__(self, provider_name: str = "mistral", config=None):
-        """Initialize OCR processor with specified provider
+        """Initialize OCR processor with specified provider.
 
         Args:
             provider_name: Name of the OCR provider to use
@@ -22,7 +22,7 @@ class OCRProcessor:
         )
 
     def process_file(self, file_path: Union[str, Path]) -> str:
-        """Process a local file with OCR and return markdown formatted text
+        """Process a local file with OCR and return markdown formatted text.
 
         Args:
             file_path: Path to the file to process
@@ -33,7 +33,7 @@ class OCRProcessor:
         return self.provider.process_file(file_path)
 
     def process_url(self, url: str) -> str:
-        """Process a file from URL with OCR and return markdown formatted text
+        """Process a file from URL with OCR and return markdown formatted text.
 
         Args:
             url: URL of the file to process
@@ -46,7 +46,7 @@ class OCRProcessor:
     def process_directory(
         self, directory_path: Union[str, Path], file_extensions: Optional[list] = None
     ) -> dict:
-        """Process all files in a directory
+        """Process all files in a directory.
 
         Args:
             directory_path: Path to the directory containing files
@@ -81,11 +81,11 @@ class OCRProcessor:
         return results
 
     def get_supported_providers(self) -> list:
-        """Get list of supported OCR providers"""
+        """Get list of supported OCR providers."""
         return OCRProviderFactory.get_supported_providers()
 
     def switch_provider(self, provider_name: str, config=None):
-        """Switch to a different OCR provider
+        """Switch to a different OCR provider.
 
         Args:
             provider_name: Name of the new provider
@@ -97,17 +97,15 @@ class OCRProcessor:
     # --------------------
     # Async counterparts
     # --------------------
-    async def aprocess_file(
-        self, file_path: Union[str, Path], **kwargs
-    ) -> Tuple[str, List[Dict[str, Any]]]:
-        """Async: Process a local file with OCR.
+    async def aprocess_file(self, file_path: Union[str, Path], **kwargs) -> OCROutput:
+        """Async: Process a local file with OCR and return OCROutput.
 
         Args:
             file_path: Path to the file to process
             **kwargs: Additional arguments to pass to the provider (e.g., output_dir)
 
         Returns:
-            Tuple[str, List[Dict]]: (markdown_text, images_info)
+            OCROutput: (markdown_text, images_info)
         """
         return await self.provider.aprocess_file(file_path, **kwargs)
 
@@ -159,7 +157,7 @@ class OCRProcessor:
 
         async def worker(p: Path) -> Tuple[str, str]:
             async with sem:
-                text = await self.aprocess_file(p)
+                text, _ = await self.aprocess_file(p)
                 return str(p), text
 
         results: Dict[str, str] = {}

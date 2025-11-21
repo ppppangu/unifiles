@@ -9,7 +9,7 @@ from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 from loguru import logger
 from openai import AsyncOpenAI, OpenAI
 
-from ..base import BaseOCRProvider
+from ..base import OCROutput, BaseOCRProvider
 from ..config.selfhosted import SelfHostedConfig
 from ..utils.parser import load_images_from_pdf, to_rgb
 
@@ -372,6 +372,7 @@ class SelfHostedOCRProvider(BaseOCRProvider):
         output_dir: Optional[Path] = None,
         progress_callback: Optional[Callable[[int, int, str, str], None]] = None,
         doc_path: Optional[str] = None,
+        parse_image_content: bool = False,
     ) -> Tuple[int, str, List[Dict[str, Any]]]:
         """OCR a single page image under a concurrency semaphore.
 
@@ -439,6 +440,7 @@ class SelfHostedOCRProvider(BaseOCRProvider):
                     page_num,
                     doc_path,
                     parsed_json,
+                    parse_image_content,
                 )
 
                 if progress_callback:
@@ -466,6 +468,7 @@ class SelfHostedOCRProvider(BaseOCRProvider):
         pdf_path: Path,
         output_dir: Optional[Path] = None,
         progress_callback: Optional[Callable[[int, int, str, str], None]] = None,
+        parse_image_content: bool = False,
     ) -> Tuple[str, List[Dict[str, Any]]]:
         """Render a PDF to images and OCR each page concurrently.
 
@@ -499,6 +502,7 @@ class SelfHostedOCRProvider(BaseOCRProvider):
                     output_dir,
                     progress_callback,
                     str(pdf_path),
+                    parse_image_content,
                 )
                 for i, img in enumerate(images)
             ]
@@ -699,7 +703,8 @@ class SelfHostedOCRProvider(BaseOCRProvider):
         file_path: Union[str, Path],
         output_dir: Optional[Path] = None,
         progress_callback: Optional[Callable[[int, int, str, str], None]] = None,
-    ) -> Tuple[str, List[Dict[str, Any]]]:
+        parse_image_content: bool = False,
+    ) -> OCROutput:
         """Async OCR for a local PDF file with optional progress reporting.
 
         Args:
@@ -725,4 +730,9 @@ class SelfHostedOCRProvider(BaseOCRProvider):
             return "", []
 
         # Delegate to the concurrent async PDF pipeline
-        return await self._process_pdf_async(p, output_dir, progress_callback)
+        return await self._process_pdf_async(
+            p,
+            output_dir,
+            progress_callback,
+            parse_image_content=parse_image_content,
+        )

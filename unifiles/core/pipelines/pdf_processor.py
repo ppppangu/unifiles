@@ -721,42 +721,36 @@ class PDFProcessingPipeline:
             )
 
     async def process_pdf_with_ocr_provider(
-        self, pdf_path: str, provider_name: str
+        self,
+        pdf_path: str,
+        provider_name: str,
+        parse_image_content: bool = False,
     ) -> Tuple[str, List[Dict]]:
-        """使用指定的OCR提供商处理PDF文件
+        """扩展版本：支持 parse_image_content，仅在 selfhosted 模式下生效。"""
+        # 兼容原有 provider 校验与回退逻辑
+        if provider_name not in OCRProviderFactory.get_supported_providers():
+            logger.warning(
+                f"OCR provider '{provider_name}' not supported, falling back to Mistral"
+            )
+            provider_name = "mistral"
 
-        Args:
-            pdf_path: PDF文件路径
-            provider_name: OCR提供商名称
+        ocr_processor = OCRProcessor(provider_name)
+        logger.info(f"Processing PDF with {provider_name} OCR provider (ex)")
 
-        Returns:
-            Tuple[str, List[Dict]]: (markdown文本, 图片信息列表)
-        """
-        try:
-            # 检查提供商是否受支持
-            if provider_name not in OCRProviderFactory.get_supported_providers():
-                logger.warning(
-                    f"OCR provider '{provider_name}' not supported, falling back to Mistral"
-                )
-                provider_name = "mistral"
-
-            # 创建OCR处理器
-            ocr_processor = OCRProcessor(provider_name)
-
-            # 使用OCR提取文本（优化后不再需要 output_dir，图片数据直接在内存中）
-            logger.info(f"Processing PDF with {provider_name} OCR provider")
+        if provider_name == "selfhosted" and parse_image_content:
+            text, images_info = await ocr_processor.aprocess_file(
+                pdf_path, parse_image_content=True
+            )
+        else:
             text, images_info = await ocr_processor.aprocess_file(pdf_path)
 
-            if not text or text.strip() == "":
-                text = "这是一个占位符，用于保证边缘情况，文档已经过OCR处理"
-                logger.info(
-                    f"{provider_name} OCR processing returned empty result, using placeholder text"
-                )
+        if not text or text.strip() == "":
+            text = "这是一个占位符，用于保证边缘情况，文档已经过OCR处理"
+            logger.info(
+                f"{provider_name} OCR processing returned empty result, using placeholder text"
+            )
 
-            return text, images_info
-        except Exception as e:
-            logger.error(f"{provider_name} OCR PDF processing failed: {e}")
-            return "这是一个占位符，用于保证边缘情况，文档已经过OCR处理", []
+        return text, images_info
 
     async def process_pdf_to_structured_content(
         self,
@@ -783,7 +777,6 @@ class PDFProcessingPipeline:
         """
         try:
             file_uuid = document_id
-            pdf_url.split("/")[-1]
             local_file_path = self.tmp_dir / f"{file_uuid}.{pdf_url.split('.')[-1]}"
 
             logger.info("=== Stage 1: Download file ===")
@@ -802,10 +795,12 @@ class PDFProcessingPipeline:
             if mode == "simple":
                 text, images_info = await self.process_pdf_simple(str(local_file_path))
             else:
-                # 模式直接作为OCR提供商名称处理
+                # 模式直接作为OCR提供商名称处理（simple 之外走 OCRProviderFactory/OCRProcessor）
                 logger.info(f"Using OCR provider: {mode}")
                 text, images_info = await self.process_pdf_with_ocr_provider(
-                    str(local_file_path), mode
+                    str(local_file_path),
+                    mode,
+                    parse_image_content=parse_image_content,
                 )
 
             logger.info(
@@ -959,7 +954,7 @@ class PDFProcessingPipeline:
 
         return {
             "ocr_provider": self.ocr_provider.get_provider_name(),
-            "supported_modes": ["simple"].append(providers),
+            "supported_modes": ["simple"] + providers,
             "temp_directory": str(self.tmp_dir),
             "config_loaded": bool(self.config),
         }

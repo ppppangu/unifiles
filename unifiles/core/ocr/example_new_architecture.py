@@ -15,7 +15,7 @@ async def main():
     sample_file = Path("samples/gpt-paper.pdf")
     if sample_file.exists():
         print(f"Processing file: {sample_file}")
-        text = await processor.aprocess_file(sample_file)
+        text, images = await processor.aprocess_file(sample_file)
         if text:
             print(f"Successfully extracted {len(text)} characters of text")
         else:
