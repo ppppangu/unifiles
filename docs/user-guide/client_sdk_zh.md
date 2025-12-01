@@ -40,10 +40,20 @@ document = kb.upload_document(
 print(f"Document processed: {document.filename}")
 
 # 4. 搜索知识库
+# 仅文本检索
 results = kb.search("What is the main topic of this document?", top_k=3)
 
-print("\nSearch Results:")
+print("\nSearch Results (Text Only):")
 for result in results:
+    print(f"- [{result.similarity_score:.3f}] {result.text_content[:100]}...")
+
+# 文本 + 图片检索（包含图片组件）
+image_results = kb.search(
+    "What is shown in the diagrams?", top_k=3, include_photos=True
+)
+
+print("\nSearch Results (Text + Photos):")
+for result in image_results:
     print(f"- [{result.similarity_score:.3f}] {result.text_content[:100]}...")
 ```
 
@@ -248,6 +258,9 @@ from unifiles_client import Unifiles
 
 *   `upload_document(file_path, is_public=False, auto_extract=True, auto_index=True, extract_mode="simple") -> Document`：
     一次性上传并处理文件的辅助方法（上传 → 提取 → 索引）。
-*   `search(query, top_k=10) -> List[SearchResult]`：在此知识库中执行语义搜索。
+*   `search(query, top_k=10, include_photos=False) -> List[SearchResult]`：在此知识库中执行语义搜索。
+    - `query`：检索查询文本。
+    - `top_k`：返回结果数量（1–100）。
+    - `include_photos`：是否在结果中包含图片组件（`component_type='photo'`），默认为 False。
 *   `list_documents(limit=50, offset=0) -> List[dict]`：列出此知识库中的文档（需要服务器支持相应的端点）。
 *   `delete_document(document_id) -> bool`：从知识库中移除文档（需要服务器端点支持）。

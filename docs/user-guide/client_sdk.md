@@ -40,10 +40,20 @@ document = kb.upload_document(
 print(f"Document processed: {document.filename}")
 
 # 4. Search the Knowledge Base
+# Text-only search
 results = kb.search("What is the main topic of this document?", top_k=3)
 
-print("\nSearch Results:")
+print("\nText Search Results:")
 for result in results:
+    print(f"- [{result.similarity_score:.3f}] {result.text_content[:100]}...")
+
+# Text + image search (include photo components)
+image_results = kb.search(
+    "What is shown in the diagrams?", top_k=3, include_photos=True
+)
+
+print("\nMixed (Text + Image) Search Results:")
+for result in image_results:
     print(f"- [{result.similarity_score:.3f}] {result.text_content[:100]}...")
 ```
 
@@ -249,6 +259,6 @@ Manages a collection of searchable documents.
 
 *   `upload_document(file_path, is_public=False, auto_extract=True, auto_index=True, extract_mode="simple") -> Document`:
     Helper to upload and process a file in one go (upload → extract → index).
-*   `search(query, top_k=10) -> List[SearchResult]`: Performs a semantic search within this knowledge base.
+*   `search(query, top_k=10, include_photos=False) -> List[SearchResult]`: Performs a semantic search within this knowledge base. Set `include_photos=True` to also include image components (`component_type='photo'`) in the results.
 *   `list_documents(limit=50, offset=0) -> List[dict]`: Lists documents in this Knowledge Base (requires server support for the corresponding endpoint).
 *   `delete_document(document_id) -> bool`: Removes a document from the Knowledge Base (requires server endpoint support).
