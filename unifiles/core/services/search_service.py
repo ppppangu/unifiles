@@ -21,7 +21,7 @@ class SearchService:
         self.kb_manager = unified_kb_db_manager
 
     async def search(
-        self, kb_id: str, query: str, top_k: int = 10
+        self, kb_id: str, query: str, top_k: int = 10, include_photos: bool = False
     ) -> List[Dict[str, Any]]:
         """在知识库中执行向量检索
 
@@ -35,14 +35,15 @@ class SearchService:
             kb_id: 知识库ID
             query: 检索查询文本
             top_k: 返回结果数量，默认10
+            include_photos: 是否包含图片块在检索结果中，默认False
 
         Returns:
             检索结果列表，每项包含：
-            - chunk_id: 文本块ID
-            - component_id: 组件ID
+            - component_id: 组件ID（统一主键）
             - document_id: 文档ID
-            - text_content: 文本内容
+            - text_content: 文本内容或图片描述
             - similarity_score: 相似度分数（0-1）
+            - component_type: 组件类型（chunk或photo）
 
         Raises:
             ValueError: 如果知识库不存在或查询为空
@@ -57,7 +58,7 @@ class SearchService:
                 raise ValueError("top_k must be between 1 and 100")
 
             logger.info(
-                f"Starting search for KB {kb_id}: query='{query[:50]}...', top_k={top_k}"
+                f"Starting search for KB {kb_id}: query='{query[:50]}...', top_k={top_k}, include_photos={include_photos}"
             )
 
             # 2. 验证知识库存在
@@ -75,7 +76,7 @@ class SearchService:
             # 4. 执行向量检索
             logger.debug("Performing vector search in database...")
             results = await self.kb_manager.search_knowledge_base_vector(
-                kb_id=kb_id, query_embedding=query_embedding, top_k=top_k
+                kb_id=kb_id, query_embedding=query_embedding, top_k=top_k, include_photos=include_photos
             )
 
             logger.info(

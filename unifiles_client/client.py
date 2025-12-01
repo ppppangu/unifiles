@@ -91,7 +91,7 @@ class SearchResult:
         Args:
             result_data: 服务端返回的结果数据字典
         """
-        self.chunk_id: str = result_data.get("chunk_id", "")
+        # 仅对外暴露统一组件ID；不暴露底层子表ID
         self.component_id: str = result_data.get("component_id", "")
         self.document_id: str = result_data.get("document_id", "")
         self.text_content: str = result_data.get("text_content", "")
@@ -467,13 +467,14 @@ class KnowledgeBase:
         except UnifilesError:
             return False
 
-    def search(self, query: str, top_k: int = 10) -> List[SearchResult]:
+    def search(self, query: str, top_k: int = 10, include_photos: bool = False) -> List[SearchResult]:
         """
         在知识库中进行向量检索
 
         Args:
             query: 检索查询文本
             top_k: 返回结果数量，默认 10，范围 1-100
+            include_photos: 是否在检索结果中包含图片组件（component_type='photo'），默认 False
 
         Returns:
             SearchResult 对象列表，按相似度降序排列
@@ -497,7 +498,7 @@ class KnowledgeBase:
             raise ValueError("top_k must be between 1 and 100")
 
         # 调用检索 API
-        data = {"query": query, "top_k": top_k}
+        data = {"query": query, "top_k": top_k, "include_photos": include_photos}
 
         response = self.client._post(f"/knowledge-bases/{self.kb_id}/search", data=data)
 

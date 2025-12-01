@@ -473,7 +473,7 @@ async def search_knowledge_base(
 
     Args:
         request: FastAPI请求对象（包含user_id）
-        search_request: 检索请求（包含query和top_k）
+        search_request: 检索请求（包含query、top_k和include_photos）
         kb_id: 知识库ID
 
     Returns:
@@ -488,7 +488,8 @@ async def search_knowledge_base(
         user_id = request.state.user_id
         logger.info(
             f"POST /knowledge-bases/{kb_id}/search from user: {user_id}, "
-            f"query='{search_request.query[:50]}...', top_k={search_request.top_k}"
+            f"query='{search_request.query[:50]}...', top_k={search_request.top_k}, "
+            f"include_photos={search_request.include_photos}"
         )
 
         # 1. 验证知识库存在且用户有权限
@@ -512,20 +513,23 @@ async def search_knowledge_base(
 
         search_service = get_search_service()
         results = await search_service.search(
-            kb_id=kb_id, query=search_request.query, top_k=search_request.top_k
+            kb_id=kb_id, 
+            query=search_request.query, 
+            top_k=search_request.top_k,
+            include_photos=search_request.include_photos
         )
 
-        # 3. 格式化响应
-        result_items = [
-            SearchResultItem(
-                chunk_id=r["chunk_id"],
+        # 3. 格式化响应（仅对外暴露 component_id）
+        result_items = []
+        for r in results:
+            item = SearchResultItem(
                 component_id=r["component_id"],
                 document_id=r["document_id"],
                 text_content=r["text_content"],
                 similarity_score=r["similarity_score"],
+                component_type=r.get("component_type", "chunk"),
             )
-            for r in results
-        ]
+            result_items.append(item)
 
         logger.info(
             f"Search completed for KB {kb_id}: returned {len(result_items)} results"

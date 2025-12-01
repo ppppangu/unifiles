@@ -1415,16 +1415,18 @@ components:
     SearchResultItem:
       type: object
       properties:
-        chunk_id:
-          type: string
         component_id:
           type: string
+          description: Component ID (primary identifier)
         document_id:
           type: string
+          description: Document ID
         text_content:
           type: string
+          description: Text content or image description
         similarity_score:
           type: number
+          description: Similarity score (0-1)
 
     SearchResponse:
       type: object

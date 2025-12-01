@@ -1015,10 +1015,11 @@ class KnowledgeBaseDBManager(BaseDBManager):
     # ==================== 向量检索操作 ====================
 
     async def search_knowledge_base_vector(
-        self,
+        self, 
         kb_id: str,
         query_embedding: list[float],
         top_k: int = 10,
+        include_photos: bool = False,
     ) -> list[dict]:
         """在知识库中进行向量检索
 
@@ -1026,14 +1027,15 @@ class KnowledgeBaseDBManager(BaseDBManager):
             kb_id: 知识库ID
             query_embedding: 查询向量（与存储的embedding维度一致）
             top_k: 返回结果数量，默认10
+            include_photos: 是否包含图片块在检索结果中，默认False
 
         Returns:
             检索结果列表，每项包含：
-            - chunk_id: 文本块ID
-            - component_id: 组件ID
+            - component_id: 组件ID（统一主键）
             - document_id: 文档ID
-            - text_content: 文本内容
+            - text_content: 文本内容或图片描述
             - similarity_score: 相似度分数（0-1，越大越相似）
+            - component_type: 组件类型（chunk或photo）
 
         Raises:
             ValueError: 如果查询向量为空或知识库不存在
@@ -1050,46 +1052,74 @@ class KnowledgeBaseDBManager(BaseDBManager):
 
         async with await self.get_connection() as conn:
             try:
-                # 执行向量相似度检索
-                # 使用 <=> 操作符计算余弦距离（值越小越相似）
-                # 1 - distance 转换为相似度分数（0-1，越大越相似）
-                results = await conn.fetch(
-                    """
-                    SELECT
-                        c.id as chunk_id,
-                        comp.id as component_id,
-                        d.id as document_id,
-                        c.text_content,
-                        1 - (comp.embedding <=> $1::vector) as similarity_score
-                    FROM unifiles.components comp
-                    JOIN unifiles.documents d ON comp.document_id = d.id
-                    JOIN unifiles.chunks c ON comp.id = c.component_id
-                    WHERE d.knowledge_base_id = $2
-                      AND comp.component_type = 'chunk'
-                      AND comp.embedding IS NOT NULL
-                    ORDER BY comp.embedding <=> $1::vector ASC
-                    LIMIT $3
-                    """,
-                    embedding_str,
-                    kb_id,
-                    top_k,
-                )
+                if include_photos:
+                    # 执行向量相似度检索，包含图片块
+                    # 使用 <=> 操作符计算余弦距离（值越小越相似）
+                    # 1 - distance 转换为相似度分数（0-1，越大越相似）
+                    results = await conn.fetch(
+                        """
+                        SELECT
+                            comp.id as component_id,
+                            d.id as document_id,
+                            CASE
+                                WHEN comp.component_type = 'chunk' THEN c.text_content
+                                WHEN comp.component_type = 'photo' THEN COALESCE(p.photo_description, p.alt_text, '')
+                            END as text_content,
+                            1 - (comp.embedding <=> $1::vector) as similarity_score,
+                            comp.component_type
+                        FROM unifiles.components comp
+                        JOIN unifiles.documents d ON comp.document_id = d.id
+                        LEFT JOIN unifiles.chunks c ON comp.id = c.component_id AND comp.component_type = 'chunk'
+                        LEFT JOIN unifiles.photos p ON comp.id = p.component_id AND comp.component_type = 'photo'
+                        WHERE d.knowledge_base_id = $2
+                          AND comp.embedding IS NOT NULL
+                          AND (comp.component_type = 'chunk' OR comp.component_type = 'photo')
+                        ORDER BY comp.embedding <=> $1::vector ASC
+                        LIMIT $3
+                        """,
+                        embedding_str,
+                        kb_id,
+                        top_k,
+                    )
+                else:
+                    # 只检索文本块（保持原有逻辑）
+                    results = await conn.fetch(
+                        """
+                        SELECT
+                            comp.id as component_id,
+                            d.id as document_id,
+                            c.text_content,
+                            1 - (comp.embedding <=> $1::vector) as similarity_score,
+                            comp.component_type
+                        FROM unifiles.components comp
+                        JOIN unifiles.documents d ON comp.document_id = d.id
+                        JOIN unifiles.chunks c ON comp.id = c.component_id
+                        WHERE d.knowledge_base_id = $2
+                          AND comp.component_type = 'chunk'
+                          AND comp.embedding IS NOT NULL
+                        ORDER BY comp.embedding <=> $1::vector ASC
+                        LIMIT $3
+                        """,
+                        embedding_str,
+                        kb_id,
+                        top_k,
+                    )
 
-                # 转换结果为字典列表
+                # 转换结果为字典列表（仅对外暴露 component_id）
                 search_results = [
                     {
-                        "chunk_id": row["chunk_id"],
                         "component_id": row["component_id"],
                         "document_id": row["document_id"],
                         "text_content": row["text_content"],
                         "similarity_score": float(row["similarity_score"]),
+                        "component_type": row["component_type"],
                     }
                     for row in results
                 ]
 
                 logger.info(
                     f"Vector search completed for KB {kb_id}: "
-                    f"found {len(search_results)} results (top_k={top_k})"
+                    f"found {len(search_results)} results (top_k={top_k}, include_photos={include_photos})"
                 )
 
                 return search_results

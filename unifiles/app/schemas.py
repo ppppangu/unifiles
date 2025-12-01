@@ -185,16 +185,17 @@ class SearchRequest(BaseModel):
 
     query: str = Field(..., min_length=1, description="检索查询文本")
     top_k: int = Field(default=10, ge=1, le=100, description="返回结果数量")
+    include_photos: bool = Field(default=False, description="是否包含图片块在检索结果中")
 
 
 class SearchResultItem(BaseModel):
     """单个检索结果"""
 
-    chunk_id: str = Field(description="文本块ID")
-    component_id: str = Field(description="组件ID")
+    component_id: str = Field(description="组件ID（统一主键）")
     document_id: str = Field(description="文档ID")
-    text_content: str = Field(description="文本内容")
+    text_content: str = Field(description="文本内容或图片描述")
     similarity_score: float = Field(description="相似度分数 (0-1)")
+    component_type: str = Field(default="chunk", description="组件类型（chunk或photo）")
 
 
 class SearchResponse(BaseModel):
