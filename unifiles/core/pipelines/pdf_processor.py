@@ -532,8 +532,16 @@ class PDFProcessingPipeline:
         config: Optional[Dict[str, Any]] = None,
     ):
         if config is None:
-            from unifiles.core.config.legacy_compat import build_legacy_config
-            config = build_legacy_config()
+            # Use new settings system
+            from unifiles.config import settings
+            config = {
+                'minio': {
+                    'endpoint': settings.minio.endpoint,
+                    'access_key': settings.minio.access_key,
+                    'secret_key': settings.minio.secret_key,
+                    'secure': settings.minio.secure,
+                }
+            }
         self.config = config
         self.ocr_provider = ocr_provider or SimplePDFReader()  # 默认使用简单PDF读取器
         self.downloader = FileDownloader(config)

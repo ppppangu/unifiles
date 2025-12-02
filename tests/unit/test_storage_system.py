@@ -7,7 +7,7 @@ import json
 
 import pytest
 
-from unifiles.core.config.models import (
+from unifiles.types.core.storage import (
     LocalConnection,
     MinIOConnection,
     ProviderType,

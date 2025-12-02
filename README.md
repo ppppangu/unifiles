@@ -1,184 +1,174 @@
-# Unifiles
+<p align="center">
+  <img src="docs/assets/logo.svg" alt="Unifiles" width="120" />
+</p>
 
-简洁、可扩展的文件处理与知识库服务平台。
+<h1 align="center">Unifiles</h1>
 
-[![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
-[![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
+<p align="center">
+  <strong>LLM 应用层的文档处理基础设施</strong>
+</p>
 
-## 🚀 特性
+<p align="center">
+  <a href="https://opensource.org/licenses/Apache-2.0"><img src="https://img.shields.io/badge/License-Apache%202.0-blue.svg" alt="License"></a>
+  <a href="https://www.python.org/downloads/"><img src="https://img.shields.io/badge/python-3.11+-blue.svg" alt="Python 3.11+"></a>
+  <a href="https://github.com/ppppangu/Unifiles/actions"><img src="https://github.com/ppppangu/Unifiles/workflows/CI/badge.svg" alt="CI"></a>
+</p>
 
-- **📁 文件管理**: 支持多种文件格式上传（PDF, Word, PPT, 图片等）
-- **🔍 内容提取**: OCR 文本提取、格式转换、Markdown 标准化
-- **📚 知识库**: 向量化语义检索、灵活的分块策略
-- **⚡ 高性能**: 异步 I/O、连接池管理、Redis 缓存
-- **🔒 安全**: API Key 认证、数据加密、多租户隔离
-- **📊 可观测**: OpenTelemetry 追踪、结构化日志
+<p align="center">
+  <a href="https://unifiles.dev">文档</a> •
+  <a href="https://unifiles.dev/quickstart">快速开始</a> •
+  <a href="https://unifiles.dev/api-reference">API 参考</a> •
+  <a href="https://unifiles.dev/self-hosting">自部署</a>
+</p>
 
-## 📖 文档
+---
 
-- **[在线文档](https://unifiles.dev/docs)** - 完整的用户文档
-- **[快速开始](https://unifiles.dev/docs/quickstart)** - 5分钟上手
-- **[API 参考](https://unifiles.dev/docs/api-reference)** - API 调用文档
+Unifiles 是一个自托管的文档处理平台，为 AI 应用提供**文件存储**、**内容提取**和**知识库管理**的完整解决方案。
 
-## 🏗️ 架构设计
+## 核心特性
 
-如果你想深入了解 Unifiles 的内部实现：
+- **三层解耦架构** - 文件存储、内容提取、知识库完全独立，灵活组合
+- **Markdown 即真相** - 统一的 Markdown 输出，消除格式碎片化
+- **命名空间化 SDK** - 类 Stripe 的 API 设计，简洁直观
+- **完全自托管** - 数据完全由你控制，支持 Docker/Kubernetes
 
-- **[架构设计文档](ARCHITECTURE.md)** - 系统架构、三层设计、数据库Schema
-- **[贡献指南](CONTRIBUTING.md)** - 如何参与开发
-
-## 🛠️ 快速开始
-
-### 前置要求
-
-- Python 3.11+
-- PostgreSQL 15+ (with pgvector)
-- Redis 7+
-- MinIO (或兼容 S3 的对象存储)
-
-### 安装
+## 快速体验
 
 ```bash
-# 克隆仓库
+pip install unifiles
+```
+
+```python
+from unifiles import UnifilesClient
+
+client = UnifilesClient(api_key="sk_...")
+
+# 上传文件
+file = client.files.upload("document.pdf")
+
+# 提取内容为 Markdown
+extraction = client.extractions.create(file_id=file.id)
+extraction.wait()
+print(extraction.markdown)
+
+# 创建知识库并搜索
+kb = client.knowledge_bases.create(name="my-docs")
+client.knowledge_bases.documents.create(kb_id=kb.id, file_id=file.id)
+
+results = client.knowledge_bases.search(kb_id=kb.id, query="关键内容")
+```
+
+## 三层架构
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│  Layer 3: 知识库   │  语义搜索、向量索引、RAG 就绪          │
+├─────────────────────────────────────────────────────────────┤
+│  Layer 2: 内容提取 │  OCR、格式转换、Markdown 标准化        │
+├─────────────────────────────────────────────────────────────┤
+│  Layer 1: 文件存储 │  上传、元数据、去重、访问控制          │
+└─────────────────────────────────────────────────────────────┘
+```
+
+每一层独立运作，你可以：
+- 只用 Layer 1 做文件存储
+- 用 Layer 1 + 2 做文档提取
+- 用完整三层构建 RAG 应用
+
+## 自部署
+
+### Docker Compose (推荐)
+
+```bash
 git clone https://github.com/ppppangu/Unifiles.git
 cd Unifiles
 
-# 安装依赖（推荐使用 uv）
+cp .env.example .env
+# 编辑 .env 配置
+
+docker-compose up -d
+```
+
+### 从源码运行
+
+```bash
+# 安装依赖
 uv sync
 
-# 或使用 pip
-pip install -e .
-```
+# 启动 API 服务
+uv run uvicorn unifiles.server.main:app --port 8088 --reload
 
-### 配置
-
-```bash
-# 复制示例配置
-cp .env.example .env
-
-# 编辑配置文件
-vim .env
-```
-
-### 启动服务
-
-```bash
-# 启动 API 服务器
-uv run uvicorn unifiles.server.main:app --host 0.0.0.0 --port 8088 --reload
-
-# 启动 Worker（另一个终端）
+# 启动后台 Worker
 uv run python -m unifiles.workers.upload_worker
 uv run python -m unifiles.workers.extraction_worker
 ```
 
-### 使用 Docker
+详细部署指南请参考 [自部署文档](https://unifiles.dev/self-hosting)。
 
-```bash
-# 启动所有服务
-docker-compose up -d
+## 技术栈
 
-# 查看日志
-docker-compose logs -f
+| 组件 | 技术 |
+|------|------|
+| API 框架 | FastAPI |
+| 数据库 | PostgreSQL + pgvector |
+| 缓存/队列 | Redis |
+| 对象存储 | MinIO / S3 |
+| 嵌入模型 | OpenAI / 自定义 |
+
+## 文档
+
+| 文档 | 说明 |
+|------|------|
+| [快速开始](https://unifiles.dev/quickstart) | 5 分钟上手 |
+| [了解 Unifiles](https://unifiles.dev/what-is-unifiles) | 核心概念和设计理念 |
+| [使用 API](https://unifiles.dev/using-the-api) | API 使用指南 |
+| [Cookbook](https://unifiles.dev/cookbook) | 渐进式教程和代码示例 |
+| [API 参考](https://unifiles.dev/api-reference) | 完整 API 文档 |
+| [技术深潜](https://unifiles.dev/under-the-hood) | 架构和内部实现 |
+| [自部署](https://unifiles.dev/self-hosting) | 部署和运维指南 |
+
+## 项目结构
+
+```
+unifiles/
+├── unifiles/
+│   ├── server/       # FastAPI 应用层
+│   ├── client/       # Python 客户端库
+│   ├── core/         # 核心业务逻辑
+│   └── workers/      # 后台任务处理
+├── docs/             # 文档源文件
+├── tests/            # 测试套件
+├── scripts/          # 开发脚本
+└── examples/         # 使用示例
 ```
 
-## 🧪 开发
-
-### 运行测试
+## 开发
 
 ```bash
-# 运行所有测试
+# 运行测试
 uv run pytest
 
-# 运行特定测试
-uv run pytest tests/integration/
-
-# 查看覆盖率
-uv run pytest --cov=unifiles
-```
-
-### 代码质量
-
-```bash
-# 格式化代码
+# 代码格式化
 uv run python scripts/dev/format.py
 
 # 代码检查
-uv run python scripts/check/lint.py
-
-# 类型检查
-uv run python scripts/check/type_check.py
-
-# 运行所有检查
 uv run python scripts/check/validate_all.py
+
+# 构建文档
+uv run mkdocs serve
 ```
 
-### 清理
+## 贡献
 
-```bash
-# 预览清理内容
-python scripts/dev/clean.py
+我们欢迎各种形式的贡献！请查看 [贡献指南](docs/CONTRIBUTING.md)。
 
-# 执行清理
-python scripts/dev/clean.py --apply
+## 许可证
 
-# 包含 .venv 等重项
-python scripts/dev/clean.py --apply --all
-```
+[Apache License 2.0](LICENSE)
 
-## 📂 项目结构
+## 链接
 
-```
-unifiles/                  # 主包（发布到 PyPI）
-├── unifiles/              # 核心代码
-│   ├── server/           # SaaS 服务端（FastAPI 应用层）
-│   ├── client/           # Python 客户端库
-│   ├── core/             # 共享核心业务逻辑
-│   ├── workers/          # 后台任务处理
-│   ├── types/            # 类型定义（聚合层）
-│   └── config/           # 配置管理
-├── tests/                # 测试套件
-├── scripts/              # 开发与运维脚本
-├── docs/                 # 用户文档（MkDocs）
-├── examples/             # 使用示例
-├── ARCHITECTURE.md       # 架构设计文档
-├── CONTRIBUTING.md       # 贡献指南
-└── README.md             # 本文件
-```
-
-**使用场景**:
-- **SaaS 服务**: 从 `unifiles.server` 导入
-- **客户端库**: 从 `unifiles.client` 导入
-- **自部署**: 从 `unifiles.server` + `unifiles.core` 导入
-- **直接 API 调用**: 从 `unifiles.core.services` 导入
-
-## 🤝 贡献
-
-我们欢迎各种形式的贡献！查看 [CONTRIBUTING.md](CONTRIBUTING.md) 了解如何参与。
-
-### 贡献者
-
-感谢所有为 Unifiles 做出贡献的开发者！
-
-## 📄 许可证
-
-本项目采用 [Apache License 2.0](LICENSE)。
-
-## 🔗 链接
-
-- **文档**: https://unifiles.dev/docs
-- **GitHub**: https://github.com/ppppangu/Unifiles
-- **Issues**: https://github.com/ppppangu/Unifiles/issues
-
-## 💬 支持
-
-如果遇到问题或有建议：
-
-1. 查看[在线文档](https://unifiles.dev/docs)
-2. 搜索[已有 Issues](https://github.com/ppppangu/Unifiles/issues)
-3. 提交新的 Issue
-
----
-
-<div align="center">
-  Made with ❤️ by the Unifiles Team
-</div>
+- [文档](https://unifiles.dev)
+- [GitHub](https://github.com/ppppangu/Unifiles)
+- [Issues](https://github.com/ppppangu/Unifiles/issues)
+- [Discussions](https://github.com/ppppangu/Unifiles/discussions)
