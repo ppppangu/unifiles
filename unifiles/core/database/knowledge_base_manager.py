@@ -12,6 +12,7 @@ from datetime import datetime
 from typing import Optional
 
 from unifiles.core.logging import get_logger
+
 logger = get_logger()
 
 from .base_manager import BaseDBManager
@@ -1015,7 +1016,7 @@ class KnowledgeBaseDBManager(BaseDBManager):
     # ==================== 向量检索操作 ====================
 
     async def search_knowledge_base_vector(
-        self, 
+        self,
         kb_id: str,
         query_embedding: list[float],
         top_k: int = 10,
@@ -1125,9 +1126,7 @@ class KnowledgeBaseDBManager(BaseDBManager):
                 return search_results
 
             except Exception as e:
-                logger.error(
-                    f"Error performing vector search on KB {kb_id}: {e}"
-                )
+                logger.error(f"Error performing vector search on KB {kb_id}: {e}")
                 raise
 
 

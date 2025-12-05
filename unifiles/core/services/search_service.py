@@ -6,6 +6,7 @@
 from typing import Any, Dict, List, Optional
 
 from unifiles.core.logging import get_logger
+
 logger = get_logger()
 
 from ..database import unified_kb_db_manager
@@ -76,7 +77,10 @@ class SearchService:
             # 4. 执行向量检索
             logger.debug("Performing vector search in database...")
             results = await self.kb_manager.search_knowledge_base_vector(
-                kb_id=kb_id, query_embedding=query_embedding, top_k=top_k, include_photos=include_photos
+                kb_id=kb_id,
+                query_embedding=query_embedding,
+                top_k=top_k,
+                include_photos=include_photos,
             )
 
             logger.info(

@@ -1,7 +1,9 @@
 from typing import Any, Dict, Optional
 
 from fastapi import HTTPException, Request
+
 from unifiles.core.logging import get_logger
+
 logger = get_logger()
 
 
@@ -133,7 +135,9 @@ class DatabaseSecurityEnforcer:
         return cleaned_value.strip()
 
     @staticmethod
-    def validate_schema_access(schema_name: str, allowed_schemas: Optional[list] = None) -> bool:
+    def validate_schema_access(
+        schema_name: str, allowed_schemas: Optional[list] = None
+    ) -> bool:
         """
         验证数据库模式访问权限
 
@@ -150,7 +154,9 @@ class DatabaseSecurityEnforcer:
         return schema_name in allowed_schemas
 
     @staticmethod
-    def audit_log(operation: str, table: str, user_id: str, details: Optional[dict] = None):
+    def audit_log(
+        operation: str, table: str, user_id: str, details: Optional[dict] = None
+    ):
         """
         记录数据库操作审计日志
 
@@ -208,7 +214,11 @@ class SecureDatabaseManager:
                 raise
 
     async def execute_secure_query(
-        self, query: str, *args, user_id: Optional[str] = None, operation: Optional[str] = None
+        self,
+        query: str,
+        *args,
+        user_id: Optional[str] = None,
+        operation: Optional[str] = None,
     ):
         """执行安全的数据库查询"""
         # 审计日志

@@ -21,7 +21,9 @@ class PageInfo(BaseModel):
     h: float = Field(description="the height of page")
 
 
-def to_rgb(image: Image.Image, background_color: tuple = (255, 255, 255)) -> Image.Image:
+def to_rgb(
+    image: Image.Image, background_color: tuple = (255, 255, 255)
+) -> Image.Image:
     """
     Convert image to RGB, handling RGBA by applying background color.
 
@@ -64,7 +66,11 @@ def align_to_factor(image: Image.Image, factor: int = 8) -> Image.Image:
     new_width = (width // factor) * factor
     new_height = (height // factor) * factor
 
-    if new_width > 0 and new_height > 0 and (new_width != width or new_height != height):
+    if (
+        new_width > 0
+        and new_height > 0
+        and (new_width != width or new_height != height)
+    ):
         return image.crop((0, 0, new_width, new_height))
 
     return image

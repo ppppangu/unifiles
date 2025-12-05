@@ -10,10 +10,10 @@ from typing import Optional
 def detect_content_type(filename: str) -> Optional[str]:
     """
     Detect the content type (MIME type) of a file based on its filename extension.
-    
+
     Args:
         filename: The filename to analyze
-        
+
     Returns:
         The MIME type string, or None if it cannot be determined
     """
@@ -32,14 +32,14 @@ def detect_content_type(filename: str) -> Optional[str]:
     if content_type is None:
         # Define some common mappings for unsupported extensions
         extension_mappings = {
-            '.docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-            '.xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-            '.pptx': 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
-            '.odt': 'application/vnd.oasis.opendocument.text',
-            '.ods': 'application/vnd.oasis.opendocument.spreadsheet',
-            '.odp': 'application/vnd.oasis.opendocument.presentation',
-            '.ipynb': 'application/json',
-            '.md': 'text/markdown',
+            ".docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            ".xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            ".pptx": "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+            ".odt": "application/vnd.oasis.opendocument.text",
+            ".ods": "application/vnd.oasis.opendocument.spreadsheet",
+            ".odp": "application/vnd.oasis.opendocument.presentation",
+            ".ipynb": "application/json",
+            ".md": "text/markdown",
         }
 
         content_type = extension_mappings.get(extension)

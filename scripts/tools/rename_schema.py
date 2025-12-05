@@ -17,6 +17,7 @@ Rename schema references from unifiles to unifiles across the project.
 Usage:
   python scripts/tools/rename_schema.py --root . --include-md --include-py
 """
+
 from __future__ import annotations
 
 import argparse
@@ -46,7 +47,12 @@ RE_DOUBLE_QUOTED_SCHEMA = re.compile(r'(?i)"unifiles"')
 RE_BARE_SCHEMA_WORD = re.compile(r"(?i)\bunifiles\b")
 
 DEFAULT_EXTS = {
-    ".sql", ".psql", ".sql.j2", ".jinja2", ".j2", ".tpl",
+    ".sql",
+    ".psql",
+    ".sql.j2",
+    ".jinja2",
+    ".j2",
+    ".tpl",
 }
 MD_EXTS = {".md", ".markdown"}
 CODE_EXTS = {".py"}
@@ -72,7 +78,11 @@ def should_process_file(path: Path, allow_md: bool, allow_code: bool) -> bool:
 def iter_files(root: Path, allow_md: bool, allow_code: bool) -> Iterable[Path]:
     for dirpath, dirnames, filenames in os.walk(root):
         # prune skip dirs
-        dirnames[:] = [d for d in dirnames if d not in SKIP_DIR_NAMES and not d.startswith("backup_schema_rename_")]
+        dirnames[:] = [
+            d
+            for d in dirnames
+            if d not in SKIP_DIR_NAMES and not d.startswith("backup_schema_rename_")
+        ]
         for fn in filenames:
             p = Path(dirpath) / fn
             if should_process_file(p, allow_md, allow_code):
@@ -81,10 +91,12 @@ def iter_files(root: Path, allow_md: bool, allow_code: bool) -> Iterable[Path]:
 
 def replace_search_path(match: re.Match) -> str:
     prefix, list_part, suffix = match.group(1), match.group(2), match.group(3)
+
     def sub_item(m: re.Match) -> str:
         # Preserve original spacing and quoting
         pre_ws, quote, post_ws, comma_opt, tail_ws = m.groups()
         return f"{pre_ws}{quote}unifiles{quote}{post_ws}{comma_opt}{tail_ws}"
+
     new_list = RE_SCHEMA_ITEM.sub(sub_item, list_part)
     return f"{prefix}{new_list}{suffix}"
 
@@ -101,13 +113,14 @@ def apply_rewrites(text: str) -> Tuple[str, int]:
 
     # Order matters: from most specific to more general
     subn(RE_QUALIFIER_QUOTED, '"unifiles".')
-    subn(RE_QUALIFIER_UNQUOTED, 'unifiles.')
+    subn(RE_QUALIFIER_UNQUOTED, "unifiles.")
 
     # SCHEMA keyword contexts
     def repl_on_schema(m: re.Match) -> str:
         kw = m.group(1)
         quote = m.group(2) or ""
         return f"{kw} {quote}unifiles{quote}"
+
     subn(RE_ON_SCHEMA, repl_on_schema)
 
     # search_path lists
@@ -123,7 +136,9 @@ def apply_rewrites(text: str) -> Tuple[str, int]:
     return text, count
 
 
-def process_file(src: Path, backup_root: Path, allow_bare_word: bool) -> Tuple[bool, int]:
+def process_file(
+    src: Path, backup_root: Path, allow_bare_word: bool
+) -> Tuple[bool, int]:
     raw = src.read_text(encoding="utf-8", errors="ignore")
     new, n_changes = apply_rewrites(raw)
 
@@ -145,11 +160,25 @@ def process_file(src: Path, backup_root: Path, allow_bare_word: bool) -> Tuple[b
 
 
 def main() -> int:
-    ap = argparse.ArgumentParser(description="Rename schema references from unifiles to unifiles")
-    ap.add_argument("--root", default=Path.cwd(), type=Path, help="Root directory to process")
-    ap.add_argument("--include-md", action="store_true", help="Also process markdown and docs")
-    ap.add_argument("--include-py", action="store_true", help="Also process Python files (dynamic SQL)")
-    ap.add_argument("--allow-bare", action="store_true", help="Allow replacing bare word 'unifiles' to 'unifiles' as fallback")
+    ap = argparse.ArgumentParser(
+        description="Rename schema references from unifiles to unifiles"
+    )
+    ap.add_argument(
+        "--root", default=Path.cwd(), type=Path, help="Root directory to process"
+    )
+    ap.add_argument(
+        "--include-md", action="store_true", help="Also process markdown and docs"
+    )
+    ap.add_argument(
+        "--include-py",
+        action="store_true",
+        help="Also process Python files (dynamic SQL)",
+    )
+    ap.add_argument(
+        "--allow-bare",
+        action="store_true",
+        help="Allow replacing bare word 'unifiles' to 'unifiles' as fallback",
+    )
     args = ap.parse_args()
 
     root: Path = args.root.resolve()
@@ -182,4 +211,3 @@ def main() -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
-

@@ -2,6 +2,7 @@
 Celery 应用实例
 初始化 Celery 应用并配置 RabbitMQ 连接
 """
+
 from celery import Celery
 
 from unifiles.core.celery.config import CeleryConfig

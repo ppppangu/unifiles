@@ -6,7 +6,6 @@
 from typing import List, Optional
 
 from fastapi import APIRouter, HTTPException
-from unifiles.core.logging import get_logger
 
 from unifiles.app.schemas import (
     AccessKeyCreateRequest,
@@ -20,6 +19,7 @@ from unifiles.app.schemas import (
 )
 from unifiles.core.database import unified_db_manager
 from unifiles.core.database.models import UserModel
+from unifiles.core.logging import get_logger
 
 logger = get_logger()
 

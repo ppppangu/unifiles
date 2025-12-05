@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from unifiles.core.logging import get_logger
+
 logger = get_logger()
 
 from ..database import unified_kb_db_manager, unified_user_db_manager

@@ -70,9 +70,8 @@ class FileExtractRequest(BaseModel):
     )
     parse_image_content: bool = Field(
         default=False,
-        description="是否解析图像内容到full_markdown(仅对支持的OCR提供商有效,如selfhosted)"
+        description="是否解析图像内容到full_markdown(仅对支持的OCR提供商有效,如selfhosted)",
     )
-
 
 
 class ExtractedContent(BaseModel):
@@ -185,7 +184,9 @@ class SearchRequest(BaseModel):
 
     query: str = Field(..., min_length=1, description="检索查询文本")
     top_k: int = Field(default=10, ge=1, le=100, description="返回结果数量")
-    include_photos: bool = Field(default=False, description="是否包含图片块在检索结果中")
+    include_photos: bool = Field(
+        default=False, description="是否包含图片块在检索结果中"
+    )
 
 
 class SearchResultItem(BaseModel):
@@ -252,7 +253,7 @@ class UserInfo(BaseModel):
     user_role: str = Field(description="用户角色")
     knowledge_ids: List[str] = Field(description="知识库ID列表")
     user_settings: Dict[str, Any] = Field(description="用户设置")
-    created_at: str = Field(description="创建时间")
+    created_at: Optional[str] = Field(default=None, description="创建时间")
     updated_at: Optional[str] = Field(default=None, description="更新时间")
     last_login_at: Optional[str] = Field(default=None, description="最后登录时间")
 
@@ -329,15 +330,15 @@ class TaskStatusResponse(BaseModel):
         description="任务状态: pending|queued|processing|completed|failed|cancelled|timeout"
     )
     progress_percent: int = Field(description="进度百分比（0-100）")
-    progress_message: Optional[str] = Field(
-        default=None, description="当前阶段描述"
-    )
+    progress_message: Optional[str] = Field(default=None, description="当前阶段描述")
     entity_type: Optional[str] = Field(default=None, description="实体类型")
     entity_id: Optional[str] = Field(default=None, description="实体ID")
     created_at: str = Field(description="任务创建时间")
     started_at: Optional[str] = Field(default=None, description="任务开始时间")
     completed_at: Optional[str] = Field(default=None, description="任务完成时间")
-    error_message: Optional[str] = Field(default=None, description="错误消息（如果失败）")
+    error_message: Optional[str] = Field(
+        default=None, description="错误消息（如果失败）"
+    )
     retry_count: Optional[int] = Field(default=0, description="已重试次数")
     max_retries: Optional[int] = Field(default=3, description="最大重试次数")
 

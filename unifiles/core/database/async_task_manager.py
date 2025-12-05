@@ -2,6 +2,7 @@
 异步任务数据库管理器
 管理 async_tasks 表的 CRUD 操作
 """
+
 import json
 import uuid
 from datetime import datetime
@@ -130,7 +131,9 @@ class AsyncTaskManager(BaseDBManager):
             WHERE id = $3
         """
 
-        result = await self.execute_query(query, progress_percent, progress_message, task_id)
+        result = await self.execute_query(
+            query, progress_percent, progress_message, task_id
+        )
         return result and "UPDATE" in result
 
     async def mark_task_completed(

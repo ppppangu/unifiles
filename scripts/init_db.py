@@ -51,54 +51,55 @@ async def execute_sql_file(conn: asyncpg.Connection, sql_file: Path):
 
 async def check_and_create_database(db_config: dict) -> bool:
     """检查数据库是否存在，如果不存在则创建"""
-    print(f"\n" + "=" * 60)
+    print("\n" + "=" * 60)
     print("  步骤 0: 检查数据库是否存在")
     print("=" * 60)
-    
-    target_db = db_config['database']
-    
+
+    target_db = db_config["database"]
+
     # 先连接到 postgres 数据库来检查和创建目标数据库
     admin_dsn = f"postgresql://{db_config['user']}:{db_config['password']}@{db_config['host']}:{db_config['port']}/postgres"
-    
+
     try:
         admin_conn = await asyncpg.connect(admin_dsn)
-        
+
         # 检查数据库是否存在
         db_exists = await admin_conn.fetchval(
-            "SELECT EXISTS(SELECT 1 FROM pg_database WHERE datname = $1)",
-            target_db
+            "SELECT EXISTS(SELECT 1 FROM pg_database WHERE datname = $1)", target_db
         )
-        
+
         if db_exists:
             print(f"  ✅ 数据库 '{target_db}' 已存在")
             await admin_conn.close()
             return True
-        else:
-            print(f"  ⚠️  数据库 '{target_db}' 不存在，正在创建...")
-            
-            # 创建数据库
+        print(f"  ⚠️  数据库 '{target_db}' 不存在，正在创建...")
+
+        # 创建数据库
+        try:
+            await admin_conn.execute(f'CREATE DATABASE "{target_db}"')
+            print(f"  ✅ 数据库 '{target_db}' 创建成功")
+
+            # 授予用户权限（如果需要）
             try:
-                await admin_conn.execute(f'CREATE DATABASE "{target_db}"')
-                print(f"  ✅ 数据库 '{target_db}' 创建成功")
-                
-                # 授予用户权限（如果需要）
-                try:
-                    await admin_conn.execute(f'GRANT ALL PRIVILEGES ON DATABASE "{target_db}" TO {db_config["user"]}')
-                    print(f"  ✅ 权限授予成功")
-                except Exception as e:
-                    print(f"  ⚠️  权限授予失败: {e}")
-                    
+                await admin_conn.execute(
+                    f'GRANT ALL PRIVILEGES ON DATABASE "{target_db}" TO {db_config["user"]}'
+                )
+                print("  ✅ 权限授予成功")
             except Exception as e:
-                print(f"  ❌ 数据库创建失败: {e}")
-                await admin_conn.close()
-                return False
-            
+                print(f"  ⚠️  权限授予失败: {e}")
+
+        except Exception as e:
+            print(f"  ❌ 数据库创建失败: {e}")
             await admin_conn.close()
-            return True
-            
+            return False
+
+        await admin_conn.close()
+        return True
+
     except Exception as e:
         print(f"  ❌ 数据库检查失败: {e}")
         return False
+
 
 async def init_database(drop_existing: bool = False):
     """初始化数据库"""
@@ -108,8 +109,8 @@ async def init_database(drop_existing: bool = False):
 
     # 构建连接字符串
     db_config = read_pg_config()
-    
-    print(f"\n📡 连接信息:")
+
+    print("\n📡 连接信息:")
     print(f"  Host: {db_config['host']}:{db_config['port']}")
     print(f"  Database: {db_config['database']}")
     print(f"  User: {db_config['user']}")
@@ -118,23 +119,23 @@ async def init_database(drop_existing: bool = False):
     # 首先检查并创建数据库（如果需要）
     db_check_result = await check_and_create_database(db_config)
     if not db_check_result:
-        print(f"\n❌ 数据库准备失败，程序退出")
+        print("\n❌ 数据库准备失败，程序退出")
         sys.exit(1)
-    
+
     # 构建目标数据库的连接字符串
     target_dsn = f"postgresql://{db_config['user']}:{db_config['password']}@{db_config['host']}:{db_config['port']}/{db_config['database']}"
 
     # 连接目标数据库
     try:
         conn = await asyncpg.connect(target_dsn)
-        print(f"\n✅ 目标数据库连接成功")
+        print("\n✅ 目标数据库连接成功")
     except Exception as e:
         print(f"\n❌ 目标数据库连接失败: {e}")
-        print(f"\n请检查：")
-        print(f"  1. PostgreSQL 服务是否启动")
-        print(f"  2. 数据库配置是否正确（.env 文件）")
-        print(f"  3. 用户名和密码是否正确")
-        print(f"  4. 数据库是否已创建")
+        print("\n请检查：")
+        print("  1. PostgreSQL 服务是否启动")
+        print("  2. 数据库配置是否正确（.env 文件）")
+        print("  3. 用户名和密码是否正确")
+        print("  4. 数据库是否已创建")
         sys.exit(1)
 
     try:
@@ -142,10 +143,10 @@ async def init_database(drop_existing: bool = False):
 
         # 步骤 1: 删除现有结构（如果指定）
         if drop_existing:
-            print(f"\n" + "=" * 60)
+            print("\n" + "=" * 60)
             print("  步骤 1: 删除现有数据库结构")
             print("=" * 60)
-            print(f"\n⚠️  警告: 即将删除所有表和数据！")
+            print("\n⚠️  警告: 即将删除所有表和数据！")
 
             drop_file = sql_dir / "000-drop-all.sql"
             if drop_file.exists():
@@ -154,7 +155,7 @@ async def init_database(drop_existing: bool = False):
                 print(f"  ⚠️  未找到删除脚本: {drop_file}")
 
         # 步骤 2: 按顺序执行 SQL 脚本
-        print(f"\n" + "=" * 60)
+        print("\n" + "=" * 60)
         print("  步骤 2: 创建数据库结构")
         print("=" * 60)
 
@@ -165,7 +166,7 @@ async def init_database(drop_existing: bool = False):
         sql_files = [f for f in sql_files if not f.name.startswith("000-")]
 
         if not sql_files:
-            print(f"\n❌ 未找到 SQL 脚本文件")
+            print("\n❌ 未找到 SQL 脚本文件")
             print(f"   请检查目录: {sql_dir}")
             sys.exit(1)
 
@@ -175,7 +176,7 @@ async def init_database(drop_existing: bool = False):
             await execute_sql_file(conn, sql_file)
 
         # 步骤 3: 验证
-        print(f"\n" + "=" * 60)
+        print("\n" + "=" * 60)
         print("  步骤 3: 验证数据库结构")
         print("=" * 60)
 
@@ -198,7 +199,7 @@ async def init_database(drop_existing: bool = False):
             WHERE extname IN ('vector', 'uuid-ossp')
             """
         )
-        print(f"  ✅ PostgreSQL 扩展:")
+        print("  ✅ PostgreSQL 扩展:")
         for ext in extensions:
             print(f"     - {ext['extname']} (v{ext['extversion']})")
 
@@ -212,16 +213,16 @@ async def init_database(drop_existing: bool = False):
             """
         )
         if schema_exists:
-            print(f"  ✅ Schema 'unifiles' 已创建")
+            print("  ✅ Schema 'unifiles' 已创建")
         else:
-            print(f"  ❌ Schema 'unifiles' 未找到")
+            print("  ❌ Schema 'unifiles' 未找到")
 
-        print(f"\n" + "=" * 60)
+        print("\n" + "=" * 60)
         print("  🎉 数据库初始化完成！")
         print("=" * 60)
 
     except Exception as e:
-        print(f"\n❌ 数据库初始化失败:")
+        print("\n❌ 数据库初始化失败:")
         print(f"   {e}")
         import traceback
 
@@ -229,7 +230,7 @@ async def init_database(drop_existing: bool = False):
         sys.exit(1)
     finally:
         await conn.close()
-        print(f"\n📡 数据库连接已关闭")
+        print("\n📡 数据库连接已关闭")
 
 
 def main():

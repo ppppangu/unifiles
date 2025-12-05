@@ -9,7 +9,7 @@ from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 from loguru import logger
 from openai import AsyncOpenAI, OpenAI
 
-from ..base import OCROutput, BaseOCRProvider
+from ..base import BaseOCRProvider, OCROutput
 from ..config.selfhosted import SelfHostedConfig
 from ..utils.parser import load_images_from_pdf, to_rgb
 
@@ -94,10 +94,10 @@ class SelfHostedOCRProvider(BaseOCRProvider):
     def _get_image_description_sync(self, image) -> str:
         """
         Send a cropped image to LLM to get its description.
-        
+
         Args:
             image: PIL Image object (cropped image/table)
-            
+
         Returns:
             str: Description of the image from LLM, or empty string if failed
         """
@@ -107,7 +107,7 @@ class SelfHostedOCRProvider(BaseOCRProvider):
             if not base64_image:
                 logger.warning("Failed to encode image for description")
                 return ""
-            
+
             # Create a specific prompt for image description
             description_prompt = (
                 "请简要描述这张图片的内容。"
@@ -116,7 +116,7 @@ class SelfHostedOCRProvider(BaseOCRProvider):
                 "如果是普通图片，请描述图片的主要内容。"
                 "用中文回答，控制在100字以内。"
             )
-            
+
             messages = [
                 {
                     "role": "user",
@@ -131,11 +131,11 @@ class SelfHostedOCRProvider(BaseOCRProvider):
                     ],
                 }
             ]
-            
+
             # Send request to get description
             description = self._send_request(messages)
             return description.strip() if description else ""
-            
+
         except Exception as e:
             logger.error(f"Failed to get image description: {e!s}")
             return ""
@@ -262,10 +262,10 @@ class SelfHostedOCRProvider(BaseOCRProvider):
     async def _get_image_description_async(self, image) -> str:
         """
         Async version: Send a cropped image to LLM to get its description.
-        
+
         Args:
             image: PIL Image object (cropped image/table)
-            
+
         Returns:
             str: Description of the image from LLM, or empty string if failed
         """
@@ -275,7 +275,7 @@ class SelfHostedOCRProvider(BaseOCRProvider):
             if not base64_image:
                 logger.warning("Failed to encode image for description")
                 return ""
-            
+
             # Create a specific prompt for image description
             description_prompt = (
                 "请简要描述这张图片的内容。"
@@ -284,7 +284,7 @@ class SelfHostedOCRProvider(BaseOCRProvider):
                 "如果是普通图片，请描述图片的主要内容。"
                 "用中文回答，控制在100字以内。"
             )
-            
+
             messages = [
                 {
                     "role": "user",
@@ -299,11 +299,11 @@ class SelfHostedOCRProvider(BaseOCRProvider):
                     ],
                 }
             ]
-            
+
             # Send async request to get description
             description = await self._send_request_async(messages)
             return description.strip() if description else ""
-            
+
         except Exception as e:
             logger.error(f"Failed to get image description (async): {e!s}")
             return ""
@@ -607,7 +607,9 @@ class SelfHostedOCRProvider(BaseOCRProvider):
                     if parse_image_content:
                         # 二次调用LLM获取图像描述，并用描述替换category
                         try:
-                            image_description = self._get_image_description_sync(img_crop)
+                            image_description = self._get_image_description_sync(
+                                img_crop
+                            )
                             if image_description:
                                 # 使用LLM返回的描述作为alt text
                                 alt_text = image_description
@@ -623,10 +625,10 @@ class SelfHostedOCRProvider(BaseOCRProvider):
                     else:
                         # 默认使用category作为alt text
                         alt_text = category
-                    
+
                     # 生成markdown图片引用
                     out_parts.append(f"\n![{alt_text}]({filename})\n")
-                    
+
                     index += 1
                 else:
                     text = el.get("text", "")

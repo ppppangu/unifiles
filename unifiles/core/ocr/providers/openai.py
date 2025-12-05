@@ -6,7 +6,7 @@ from typing import Any, Callable, List, Optional, Tuple, Union
 from loguru import logger
 from openai import AsyncOpenAI, OpenAI
 
-from ..base import OCROutput, BaseOCRProvider
+from ..base import BaseOCRProvider, OCROutput
 from ..config.openai import OpenAIConfig
 
 

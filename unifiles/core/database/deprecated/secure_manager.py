@@ -3,7 +3,9 @@ from datetime import datetime
 from typing import Any, Dict, List, Optional
 
 import asyncpg
+
 from unifiles.core.logging import get_logger
+
 logger = get_logger()
 
 from unifiles.core.config.env_config import read_pg_config
@@ -17,7 +19,11 @@ class SecureFileDBManager:
         """初始化安全数据库管理器"""
         self.pg_config = read_pg_config()
         # 过滤掉 asyncpg.connect() 不支持的参数
-        self.pg_config = {k: v for k, v in self.pg_config.items() if k in ['host', 'port', 'user', 'password', 'database']}
+        self.pg_config = {
+            k: v
+            for k, v in self.pg_config.items()
+            if k in ["host", "port", "user", "password", "database"]
+        }
         self.security_enforcer = DatabaseSecurityEnforcer()
         self._connection_pool = None
         self._schema_name = "unifiles"  # 从配置中读取
@@ -51,7 +57,11 @@ class SecureFileDBManager:
                 raise
 
     async def execute_secure_query(
-        self, query: str, *args, user_id: Optional[str] = None, operation: Optional[str] = None
+        self,
+        query: str,
+        *args,
+        user_id: Optional[str] = None,
+        operation: Optional[str] = None,
     ) -> Any:
         """执行安全的数据库查询"""
         # 审计日志
@@ -64,7 +74,11 @@ class SecureFileDBManager:
             return await conn.execute(query, *args)
 
     async def fetch_one_secure(
-        self, query: str, *args, user_id: Optional[str] = None, operation: Optional[str] = None
+        self,
+        query: str,
+        *args,
+        user_id: Optional[str] = None,
+        operation: Optional[str] = None,
     ) -> Optional[Dict]:
         """安全获取单条记录"""
         if user_id and operation:
@@ -77,7 +91,11 @@ class SecureFileDBManager:
             return dict(result) if result else None
 
     async def fetch_many_secure(
-        self, query: str, *args, user_id: Optional[str] = None, operation: Optional[str] = None
+        self,
+        query: str,
+        *args,
+        user_id: Optional[str] = None,
+        operation: Optional[str] = None,
     ) -> List[Dict]:
         """安全获取多条记录"""
         if user_id and operation:

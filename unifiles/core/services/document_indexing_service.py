@@ -8,15 +8,24 @@ from datetime import datetime
 from typing import Any, Dict, List, Optional
 
 from unifiles.core.logging import get_logger
+
 logger = get_logger()
+
+import re
+
+import jieba
 
 from ..config.env_config import read_config
 from ..database import extraction_db_manager, unified_kb_db_manager
-from ..database.models import ChunkModel, ComponentModel, ComponentType, DocumentModel, PhotoModel
+from ..database.models import (
+    ChunkModel,
+    ComponentModel,
+    ComponentType,
+    DocumentModel,
+    PhotoModel,
+)
 from .chunking_service import get_chunking_service
 from .embedding_service import get_embedding_service
-import re
-import jieba
 
 
 class DocumentIndexingService:
@@ -203,7 +212,11 @@ class DocumentIndexingService:
             )
 
             # === Step 9: 记录处理日志 ===
-            log_action = "re-index_to_knowledge_base" if is_reindexing else "index_to_knowledge_base"
+            log_action = (
+                "re-index_to_knowledge_base"
+                if is_reindexing
+                else "index_to_knowledge_base"
+            )
             log_message = (
                 f"Successfully re-indexed document to KB {kb_id} (replaced {old_document_id})"
                 if is_reindexing
@@ -270,8 +283,11 @@ class DocumentIndexingService:
                     log_type="error",
                     log_level="error",
                     process_stage="document_indexing",
-                    message=f"Document indexing failed: {str(e)}",
-                    error_details={"error_type": type(e).__name__, "error_message": str(e)},
+                    message=f"Document indexing failed: {e!s}",
+                    error_details={
+                        "error_type": type(e).__name__,
+                        "error_message": str(e),
+                    },
                     input_params={
                         "extraction_id": extraction_id,
                         "kb_id": kb_id,
@@ -443,7 +459,9 @@ class DocumentIndexingService:
                 component_index=chunk["index"],
                 content=image_description or image_path,
                 embedding=embedding,
-                search_keywords=self._generate_keywords(image_description or image_path),
+                search_keywords=self._generate_keywords(
+                    image_description or image_path
+                ),
             )
             await self.kb_manager.create_component(component)
 
@@ -485,19 +503,19 @@ class DocumentIndexingService:
         """
         if not text:
             return []
-        
+
         # Use jieba for word segmentation
         words = jieba.lcut(text.lower())
-        
+
         # Filter out short words (length < 2) and non-word characters
         # We keep words that have at least 2 characters and contain at least one alphanumeric/Chinese char
         keywords = [
-            w for w in words 
-            if len(w) >= 2 and re.search(r"[\w\u4e00-\u9fff]", w)
+            w for w in words if len(w) >= 2 and re.search(r"[\w\u4e00-\u9fff]", w)
         ]
-        
+
         # Remove duplicates while preserving order
         return list(dict.fromkeys(keywords))
+
 
 # 默认文档索引服务实例
 _default_document_indexing_service: Optional[DocumentIndexingService] = None

@@ -7,13 +7,14 @@ from pathlib import Path
 from typing import Any, Dict, Optional
 
 import httpx
-from unifiles.core.logging import get_logger
 from tenacity import (
     retry,
     retry_if_exception_type,
     stop_after_attempt,
     wait_exponential,
 )
+
+from unifiles.core.logging import get_logger
 
 from ..config.env_config import read_config
 from ..utils.file_utils import detect_content_type
@@ -189,7 +190,7 @@ class PDFConverter:
                 return None
 
             # 从URL中正确提取文件名（去除查询参数）
-            from urllib.parse import urlparse, unquote
+            from urllib.parse import unquote, urlparse
 
             parsed_url = urlparse(file_url)
             # 获取URL路径的最后一部分作为文件名

@@ -19,6 +19,7 @@ logger = get_logger()
 from unifiles.app.schemas import (
     KnowledgeBaseCreateRequest,
     KnowledgeBaseCreateResponse,
+    KnowledgeBaseDocumentsResponse,
     KnowledgeBaseInfo,
     KnowledgeBaseListResponse,
     ProcessDocumentRequest,
@@ -28,16 +29,16 @@ from unifiles.app.schemas import (
     SearchResponse,
     SearchResultItem,
     StandardResponse,
-    KnowledgeBaseDocumentsResponse,
 )
 from unifiles.core.database import (
-    UnifiedKnowledgeBaseDBManager,
+    extraction_db_manager,
     unified_kb_db_manager,
     unified_user_db_manager,
 )
-from unifiles.core.database import extraction_db_manager
 from unifiles.core.database.models import KnowledgeBaseModel
-from unifiles.core.services.document_indexing_service import get_document_indexing_service
+from unifiles.core.services.document_indexing_service import (
+    get_document_indexing_service,
+)
 
 router = APIRouter(prefix="/knowledge-bases", tags=["Knowledge Bases"])
 
@@ -72,16 +73,14 @@ async def create_knowledge_base(
     """创建新的知识库"""
     try:
         user_id = request.state.user_id
-        client_ip = getattr(request.state, 'client_ip', 'unknown')
+        client_ip = getattr(request.state, "client_ip", "unknown")
         logger.info(f"POST /knowledge-bases request from user: {user_id}")
         logger.debug(f"Create request payload: {create_request.dict()}")
         logger.debug(f"Request state: user_id={user_id}, client_ip={client_ip}")
 
         kb_name = create_request.name.strip()
         if not kb_name:
-            raise HTTPException(
-                status_code=400, detail="Knowledge base name is empty"
-            )
+            raise HTTPException(status_code=400, detail="Knowledge base name is empty")
 
         # Ensure user exists before creating knowledge base
         logger.debug(f"Ensuring user {user_id} exists in database")
@@ -97,7 +96,9 @@ async def create_knowledge_base(
             name=kb_name,
             description=create_request.description or "",
         )
-        logger.debug(f"KnowledgeBaseModel created: id={kb_model.id}, name={kb_model.name}, user_id={kb_model.user_id}")
+        logger.debug(
+            f"KnowledgeBaseModel created: id={kb_model.id}, name={kb_model.name}, user_id={kb_model.user_id}"
+        )
 
         logger.debug(f"Calling database create_knowledge_base for {kb_id}")
         created_kb = await unified_kb_db_manager.create_knowledge_base(kb_model)
@@ -121,14 +122,18 @@ async def create_knowledge_base(
         )
     except (asyncpg.PostgresError, OSError) as e:
         logger.exception(f"Database error creating knowledge base: {e}")
-        logger.debug(f"KB model that failed: id={kb_id if 'kb_id' in locals() else 'not_generated'}, user_id={user_id}")
+        logger.debug(
+            f"KB model that failed: id={kb_id if 'kb_id' in locals() else 'not_generated'}, user_id={user_id}"
+        )
         raise HTTPException(
             status_code=503,
             detail="Database unavailable while creating knowledge base",
         )
     except Exception as e:
         logger.exception(f"Unexpected error creating knowledge base: {e}")
-        logger.debug(f"Request context: user_id={user_id}, kb_name={kb_name if 'kb_name' in locals() else 'not_set'}")
+        logger.debug(
+            f"Request context: user_id={user_id}, kb_name={kb_name if 'kb_name' in locals() else 'not_set'}"
+        )
         raise HTTPException(
             status_code=500, detail=f"Knowledge base creation failed: {e!s}"
         )
@@ -152,9 +157,7 @@ async def get_knowledge_bases(
             user_id=user_id, limit=limit, offset=offset
         )
 
-        kb_list: List[KnowledgeBaseInfo] = [
-            _model_to_info(m) for m in kb_models
-        ]
+        kb_list: List[KnowledgeBaseInfo] = [_model_to_info(m) for m in kb_models]
 
         has_more = (offset + len(kb_list)) < total_count
 
@@ -345,9 +348,7 @@ async def index_extracted_content_to_knowledge_base(
         raise HTTPException(status_code=403, detail=str(e))
     except Exception as e:
         logger.exception(f"Unexpected error indexing document to KB {kb_id}")
-        raise HTTPException(
-            status_code=500, detail=f"Document indexing failed: {e!s}"
-        )
+        raise HTTPException(status_code=500, detail=f"Document indexing failed: {e!s}")
 
 
 @router.get("/{kb_id}/documents", response_model=KnowledgeBaseDocumentsResponse)
@@ -397,9 +398,10 @@ async def get_knowledge_base_documents(
         documents: List[ProcessedDocument] = []
         for m in doc_models:
             # created_at 可能为 None，使用当前时间字符串作为回退
+            created_at_value = getattr(m, "created_at", None)
             created_at = (
-                m.created_at.isoformat()
-                if getattr(m, "created_at", None)
+                created_at_value.isoformat()
+                if created_at_value is not None
                 else datetime.now().isoformat()
             )
             documents.append(
@@ -513,10 +515,10 @@ async def search_knowledge_base(
 
         search_service = get_search_service()
         results = await search_service.search(
-            kb_id=kb_id, 
-            query=search_request.query, 
+            kb_id=kb_id,
+            query=search_request.query,
             top_k=search_request.top_k,
-            include_photos=search_request.include_photos
+            include_photos=search_request.include_photos,
         )
 
         # 3. 格式化响应（仅对外暴露 component_id）

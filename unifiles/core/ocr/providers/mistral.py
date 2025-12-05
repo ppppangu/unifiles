@@ -1,6 +1,5 @@
 import asyncio
 import base64
-import os
 import time
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple, Union
@@ -8,7 +7,7 @@ from typing import Any, Dict, List, Optional, Tuple, Union
 from loguru import logger
 from mistralai import Mistral
 
-from ..base import OCROutput, BaseOCRProvider
+from ..base import BaseOCRProvider, OCROutput
 from ..config.mistral import MistralConfig
 
 
@@ -192,15 +191,19 @@ class MistralOCRProvider(BaseOCRProvider):
                         filename = f"img-{i}.jpeg"
 
                         # === 优化：只收集字节数据，不保存文件 ===
-                        info_list.append({
-                            "page": 0,  # Mistral doesn't provide page info in this structure
-                            "index": i,
-                            "filename": filename,
-                            "bytes": img_data,  # Store bytes instead of path
-                            "extension": "jpeg",
-                            "size_bytes": len(img_data),
-                        })
-                        logger.debug(f"[Mistral OCR] Processed image {i}: {len(img_data)} bytes")
+                        info_list.append(
+                            {
+                                "page": 0,  # Mistral doesn't provide page info in this structure
+                                "index": i,
+                                "filename": filename,
+                                "bytes": img_data,  # Store bytes instead of path
+                                "extension": "jpeg",
+                                "size_bytes": len(img_data),
+                            }
+                        )
+                        logger.debug(
+                            f"[Mistral OCR] Processed image {i}: {len(img_data)} bytes"
+                        )
                     except Exception as e:
                         logger.error(f"[Mistral OCR] Error processing image {i}: {e!s}")
                 return info_list
@@ -208,7 +211,9 @@ class MistralOCRProvider(BaseOCRProvider):
             images_info = await asyncio.to_thread(_process_images)
 
             # Optionally save markdown
-            await self.asave_to_markdown(text, file_path.parent / f"{file_path.stem}.md")
+            await self.asave_to_markdown(
+                text, file_path.parent / f"{file_path.stem}.md"
+            )
 
             logger.info("=" * 80)
             logger.success("[Mistral OCR] Processing completed successfully!")

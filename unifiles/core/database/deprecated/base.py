@@ -2,7 +2,9 @@ from abc import ABC
 from typing import Any, Dict, List, Optional
 
 import asyncpg
+
 from unifiles.core.logging import get_logger
+
 logger = get_logger()
 
 from unifiles.core.config.env_config import read_pg_config
@@ -17,7 +19,11 @@ class DatabaseManager(ABC):
     async def get_connection(self) -> asyncpg.Connection:
         """获取数据库连接"""
         # Filter out 'address' and 'active' keys - asyncpg only wants host, port, user, password, database
-        conn_params = {k: v for k, v in self.pg_config.items() if k in ['host', 'port', 'user', 'password', 'database']}
+        conn_params = {
+            k: v
+            for k, v in self.pg_config.items()
+            if k in ["host", "port", "user", "password", "database"]
+        }
         return await asyncpg.connect(**conn_params)
 
     async def execute_query(self, query: str, *args) -> Any:
@@ -189,7 +195,9 @@ class FileDBManager(DatabaseManager):
                 param_count += 1
 
         if update_fields:
-            query = f"UPDATE unifiles.files SET {', '.join(update_fields)} WHERE id = $1"
+            query = (
+                f"UPDATE unifiles.files SET {', '.join(update_fields)} WHERE id = $1"
+            )
             await self.execute_query(query, file_id, *values)
             logger.info(f"Updated file access info for {file_id}: {kwargs}")
 

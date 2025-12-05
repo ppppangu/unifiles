@@ -6,8 +6,8 @@
 from abc import ABC
 from typing import Any, Dict, List, Optional
 
-import asyncpg
 from unifiles.core.logging import get_logger
+
 logger = get_logger()
 
 from .connection import get_connection_pool

@@ -20,7 +20,14 @@ async def _connect() -> asyncpg.Connection:
     )
 
 
-async def ensure_user(conn: asyncpg.Connection, user_id: str, username: Optional[str], display_name: Optional[str], role: str, status: str) -> None:
+async def ensure_user(
+    conn: asyncpg.Connection,
+    user_id: str,
+    username: Optional[str],
+    display_name: Optional[str],
+    role: str,
+    status: str,
+) -> None:
     await conn.execute(
         """
         INSERT INTO unifiles.users (id, username, display_name, user_role, user_status)
@@ -132,8 +139,14 @@ async def run(args: argparse.Namespace) -> None:
             status=args.status,
         )
 
-        scopes = [s.strip() for s in (args.scopes or "read,write").split(",") if s.strip()]
-        allowed_ips = [ip.strip() for ip in args.allowed_ips.split(",")] if args.allowed_ips else None
+        scopes = [
+            s.strip() for s in (args.scopes or "read,write").split(",") if s.strip()
+        ]
+        allowed_ips = (
+            [ip.strip() for ip in args.allowed_ips.split(",")]
+            if args.allowed_ips
+            else None
+        )
 
         expires_at: Optional[datetime]
         if args.never_expires:
@@ -162,7 +175,9 @@ async def run(args: argparse.Namespace) -> None:
                 allowed_ips=allowed_ips,
             )
             if not result.get("success"):
-                raise RuntimeError(result.get("message") or "create_access_key returned failure")
+                raise RuntimeError(
+                    result.get("message") or "create_access_key returned failure"
+                )
         except Exception:
             result = await create_key_via_insert(
                 conn,
@@ -173,14 +188,20 @@ async def run(args: argparse.Namespace) -> None:
                 expires_at=expires_at,
             )
 
-        print(json.dumps({
-            "success": True,
-            "user_id": args.user_id,
-            "key_id": result.get("key_id"),
-            "access_key": result.get("access_key"),
-            "expires_at": result.get("expires_at"),
-            "message": result.get("message", "Access key created successfully"),
-        }, ensure_ascii=False, indent=2))
+        print(
+            json.dumps(
+                {
+                    "success": True,
+                    "user_id": args.user_id,
+                    "key_id": result.get("key_id"),
+                    "access_key": result.get("access_key"),
+                    "expires_at": result.get("expires_at"),
+                    "message": result.get("message", "Access key created successfully"),
+                },
+                ensure_ascii=False,
+                indent=2,
+            )
+        )
     finally:
         await conn.close()
 
@@ -192,14 +213,37 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--user-id", required=True, help="User ID (TEXT primary key)")
     p.add_argument("--username", default=None, help="Optional username")
     p.add_argument("--display-name", default=None, help="Optional display name")
-    p.add_argument("--role", default="user", choices=["admin", "user", "readonly"], help="User role")
-    p.add_argument("--status", default="active", choices=["active", "inactive", "suspended", "deleted"], help="User status")
+    p.add_argument(
+        "--role",
+        default="user",
+        choices=["admin", "user", "readonly"],
+        help="User role",
+    )
+    p.add_argument(
+        "--status",
+        default="active",
+        choices=["active", "inactive", "suspended", "deleted"],
+        help="User status",
+    )
 
     p.add_argument("--key-name", default="default-key", help="API key name/label")
-    p.add_argument("--key-description", default="CLI created key", help="API key description")
-    p.add_argument("--scopes", default="read,write", help="Comma-separated scopes, e.g. 'read,write'")
-    p.add_argument("--expires-days", type=int, default=None, help="Days until expiry (default 30). Use --never-expires to disable")
-    p.add_argument("--never-expires", action="store_true", help="Create a non-expiring key")
+    p.add_argument(
+        "--key-description", default="CLI created key", help="API key description"
+    )
+    p.add_argument(
+        "--scopes",
+        default="read,write",
+        help="Comma-separated scopes, e.g. 'read,write'",
+    )
+    p.add_argument(
+        "--expires-days",
+        type=int,
+        default=None,
+        help="Days until expiry (default 30). Use --never-expires to disable",
+    )
+    p.add_argument(
+        "--never-expires", action="store_true", help="Create a non-expiring key"
+    )
 
     p.add_argument("--max-requests-per-hour", type=int, default=1000)
     p.add_argument("--max-requests-per-day", type=int, default=10000)
@@ -211,7 +255,9 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--disable-share-files", action="store_true")
     p.add_argument("--disable-export-data", action="store_true")
 
-    p.add_argument("--allowed-ips", default=None, help="Comma-separated IP allowlist (optional)")
+    p.add_argument(
+        "--allowed-ips", default=None, help="Comma-separated IP allowlist (optional)"
+    )
     return p
 
 

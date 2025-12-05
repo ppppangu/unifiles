@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from unifiles.core.logging import get_logger
+
 logger = get_logger()
 
 try:
@@ -180,9 +181,12 @@ class EnvironmentConfig:
                 config["endpoint"] = address
                 # Extract host for backward compatibility
                 from urllib.parse import urlparse
+
                 parsed = urlparse(address)
                 config["host"] = parsed.netloc
-                config["port"] = parsed.port or (443 if parsed.scheme == "https" else 80)
+                config["port"] = parsed.port or (
+                    443 if parsed.scheme == "https" else 80
+                )
                 config["secure"] = parsed.scheme == "https"
             elif ":" in address:
                 # Traditional host:port format
@@ -210,8 +214,12 @@ class EnvironmentConfig:
     def get_storage_config(self) -> Dict[str, Any]:
         """获取存储配置"""
         return {
-            "default_storage_id": self.get_env_value("UNIFILES_STORAGE_DEFAULT_ID", "default-minio"),
-            "default_fallback_strategy": self.get_env_value("UNIFILES_STORAGE_DEFAULT_FALLBACK", "fail_fast")  # or "use_first_active"
+            "default_storage_id": self.get_env_value(
+                "UNIFILES_STORAGE_DEFAULT_ID", "default-minio"
+            ),
+            "default_fallback_strategy": self.get_env_value(
+                "UNIFILES_STORAGE_DEFAULT_FALLBACK", "fail_fast"
+            ),  # or "use_first_active"
         }
 
     def get_convert_servers(self) -> List[Dict[str, Any]]:

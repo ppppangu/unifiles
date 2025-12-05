@@ -71,7 +71,13 @@ class UnifiedDatabaseManager:
     ):
         """添加文件记录（代理到文件管理器）"""
         return await self._file_manager.add_file_record(
-            file_id, user_id, filename, file_size, content_type, storage_path, storage_config_id
+            file_id,
+            user_id,
+            filename,
+            file_size,
+            content_type,
+            storage_path,
+            storage_config_id,
         )
 
     async def get_file_record(self, file_id: str, user_id: str = None):
@@ -117,7 +123,9 @@ class UnifiedDatabaseManager:
         """获取知识库（代理到知识库管理器）"""
         return await self._kb_manager.get_knowledge_base(kb_id)
 
-    async def list_knowledge_bases(self, user_id: str, limit: int = 50, offset: int = 0):
+    async def list_knowledge_bases(
+        self, user_id: str, limit: int = 50, offset: int = 0
+    ):
         """列出用户知识库（代理到知识库管理器），返回 (items, total_count)"""
         return await self._kb_manager.list_knowledge_bases(user_id, limit, offset)
 

@@ -7,7 +7,9 @@ from contextlib import asynccontextmanager
 from typing import Optional
 
 import asyncpg
+
 from unifiles.core.logging import get_logger
+
 logger = get_logger()
 
 from unifiles.core.config.env_config import read_pg_config

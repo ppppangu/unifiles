@@ -2,6 +2,7 @@
 Celery 配置模块
 从环境变量读取 RabbitMQ 和 Celery 相关配置
 """
+
 from typing import Any, Dict
 
 from unifiles.core.config.env_config import EnvironmentConfig

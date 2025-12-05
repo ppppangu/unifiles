@@ -2,6 +2,7 @@
 Celery 任务定义
 定义所有异步任务，包括文件提取、分块、嵌入等
 """
+
 import asyncio
 import traceback
 from typing import Any, Dict, Optional
@@ -129,7 +130,10 @@ def process_file_extraction_task(
 
             # 执行提取
             result = await processor.process_file_by_id(
-                file_id=file_id, user_id=user_id, mode=mode, parse_image_content=parse_image_content
+                file_id=file_id,
+                user_id=user_id,
+                mode=mode,
+                parse_image_content=parse_image_content,
             )
 
             # 更新进度
@@ -185,16 +189,15 @@ def process_file_extraction_task(
                 )
                 # Celery 会自动重试
                 raise
-            else:
-                # 已达到最大重试次数，标记为失败
-                await async_task_manager.mark_task_failed(
-                    task_id=task_db_id,
-                    error_message=error_msg,
-                    error_code="EXTRACTION_FAILED",
-                    error_details={"file_id": file_id, "mode": mode},
-                    stack_trace=stack_trace,
-                )
-                raise
+            # 已达到最大重试次数，标记为失败
+            await async_task_manager.mark_task_failed(
+                task_id=task_db_id,
+                error_message=error_msg,
+                error_code="EXTRACTION_FAILED",
+                error_details={"file_id": file_id, "mode": mode},
+                stack_trace=stack_trace,
+            )
+            raise
 
     # 运行异步函数（使用共享的事件循环）
     try:

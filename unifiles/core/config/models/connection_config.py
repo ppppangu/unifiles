@@ -11,6 +11,7 @@ from typing import Any, Dict, Literal, Optional, Union
 
 class ProviderType(str, Enum):
     """Storage provider types"""
+
     LOCAL = "local"
     MINIO = "minio"
     S3 = "s3"
@@ -36,7 +37,7 @@ class BaseConnection(ABC):
 
     @classmethod
     @abstractmethod
-    def from_dict(cls, data: Dict[str, Any]) -> 'BaseConnection':
+    def from_dict(cls, data: Dict[str, Any]) -> "BaseConnection":
         """Create connection instance from dictionary"""
         pass
 
@@ -56,6 +57,7 @@ class LocalConnection(BaseConnection):
 
         # Ensure path is absolute for security
         from pathlib import Path
+
         path = Path(self.base_path)
         if not path.is_absolute():
             raise ValueError("Local storage base_path must be absolute")
@@ -65,15 +67,15 @@ class LocalConnection(BaseConnection):
         return {
             "provider": self.provider.value,
             "base_path": self.base_path,
-            "create_if_missing": self.create_if_missing
+            "create_if_missing": self.create_if_missing,
         }
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> 'LocalConnection':
+    def from_dict(cls, data: Dict[str, Any]) -> "LocalConnection":
         """Create from dictionary"""
         return cls(
             base_path=data.get("base_path", ""),
-            create_if_missing=data.get("create_if_missing", True)
+            create_if_missing=data.get("create_if_missing", True),
         )
 
 
@@ -99,12 +101,15 @@ class MinIOConnection(BaseConnection):
                 missing_fields.append(field_name)
 
         if missing_fields:
-            raise ValueError(f"MinIO connection missing required fields: {', '.join(missing_fields)}")
+            raise ValueError(
+                f"MinIO connection missing required fields: {', '.join(missing_fields)}"
+            )
 
         # Validate endpoint format (remove protocol if present)
-        if self.endpoint and '://' in self.endpoint:
+        if self.endpoint and "://" in self.endpoint:
             # Extract hostname:port from full URL
             from urllib.parse import urlparse
+
             parsed = urlparse(self.endpoint)
             if parsed.netloc:
                 self.endpoint = parsed.netloc
@@ -118,11 +123,11 @@ class MinIOConnection(BaseConnection):
             "secret_key": self.secret_key,
             "bucket_name": self.bucket_name,
             "region": self.region,
-            "secure": self.secure
+            "secure": self.secure,
         }
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> 'MinIOConnection':
+    def from_dict(cls, data: Dict[str, Any]) -> "MinIOConnection":
         """Create from dictionary"""
         return cls(
             endpoint=data.get("endpoint", ""),
@@ -130,7 +135,7 @@ class MinIOConnection(BaseConnection):
             secret_key=data.get("secret_key", ""),
             bucket_name=data.get("bucket_name", ""),
             region=data.get("region", "us-east-1"),
-            secure=data.get("secure", True)
+            secure=data.get("secure", True),
         )
 
 
@@ -155,7 +160,9 @@ class S3Connection(BaseConnection):
                 missing_fields.append(field_name)
 
         if missing_fields:
-            raise ValueError(f"S3 connection missing required fields: {', '.join(missing_fields)}")
+            raise ValueError(
+                f"S3 connection missing required fields: {', '.join(missing_fields)}"
+            )
 
     def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary"""
@@ -164,21 +171,21 @@ class S3Connection(BaseConnection):
             "access_key": self.access_key,
             "secret_key": self.secret_key,
             "bucket_name": self.bucket_name,
-            "region": self.region
+            "region": self.region,
         }
         if self.endpoint:
             result["endpoint"] = self.endpoint
         return result
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> 'S3Connection':
+    def from_dict(cls, data: Dict[str, Any]) -> "S3Connection":
         """Create from dictionary"""
         return cls(
             access_key=data.get("access_key", ""),
             secret_key=data.get("secret_key", ""),
             bucket_name=data.get("bucket_name", ""),
             region=data.get("region", "us-east-1"),
-            endpoint=data.get("endpoint")
+            endpoint=data.get("endpoint"),
         )
 
 
@@ -202,14 +209,16 @@ class AzureConnection(BaseConnection):
             raise ValueError("Azure connection requires container_name")
 
         if not self.account_key and not self.sas_token:
-            raise ValueError("Azure connection requires either account_key or sas_token")
+            raise ValueError(
+                "Azure connection requires either account_key or sas_token"
+            )
 
     def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary"""
         result = {
             "provider": self.provider.value,
             "account_name": self.account_name,
-            "container_name": self.container_name
+            "container_name": self.container_name,
         }
         if self.account_key:
             result["account_key"] = self.account_key
@@ -218,13 +227,13 @@ class AzureConnection(BaseConnection):
         return result
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> 'AzureConnection':
+    def from_dict(cls, data: Dict[str, Any]) -> "AzureConnection":
         """Create from dictionary"""
         return cls(
             account_name=data.get("account_name", ""),
             container_name=data.get("container_name", ""),
             account_key=data.get("account_key"),
-            sas_token=data.get("sas_token")
+            sas_token=data.get("sas_token"),
         )
 
 
@@ -245,14 +254,13 @@ class GCSConnection(BaseConnection):
             raise ValueError("GCS connection requires bucket_name")
 
         if not self.credentials_json_path and not self.service_account_key_json:
-            raise ValueError("GCS connection requires either credentials_json_path or service_account_key_json")
+            raise ValueError(
+                "GCS connection requires either credentials_json_path or service_account_key_json"
+            )
 
     def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary"""
-        result = {
-            "provider": self.provider.value,
-            "bucket_name": self.bucket_name
-        }
+        result = {"provider": self.provider.value, "bucket_name": self.bucket_name}
         if self.credentials_json_path:
             result["credentials_json_path"] = self.credentials_json_path
         if self.service_account_key_json:
@@ -262,36 +270,32 @@ class GCSConnection(BaseConnection):
         return result
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> 'GCSConnection':
+    def from_dict(cls, data: Dict[str, Any]) -> "GCSConnection":
         """Create from dictionary"""
         return cls(
             bucket_name=data.get("bucket_name", ""),
             credentials_json_path=data.get("credentials_json_path"),
             service_account_key_json=data.get("service_account_key_json"),
-            project_id=data.get("project_id")
+            project_id=data.get("project_id"),
         )
 
 
 # Discriminated union type for all connection types
 ConnectionConfig = Union[
-    LocalConnection,
-    MinIOConnection,
-    S3Connection,
-    AzureConnection,
-    GCSConnection
+    LocalConnection, MinIOConnection, S3Connection, AzureConnection, GCSConnection
 ]
 
 
 def create_connection_from_dict(data: Dict[str, Any]) -> ConnectionConfig:
     """
     Factory function to create appropriate connection instance from dictionary
-    
+
     Args:
         data: Dictionary containing connection configuration
-        
+
     Returns:
         Appropriate connection instance
-        
+
     Raises:
         ValueError: If provider type is unsupported or data is invalid
     """
@@ -301,8 +305,10 @@ def create_connection_from_dict(data: Dict[str, Any]) -> ConnectionConfig:
     try:
         provider = ProviderType(provider_str)
     except ValueError:
-        available_providers = ', '.join([p.value for p in ProviderType])
-        raise ValueError(f"Unsupported provider: '{provider_str}'. Available: {available_providers}")
+        available_providers = ", ".join([p.value for p in ProviderType])
+        raise ValueError(
+            f"Unsupported provider: '{provider_str}'. Available: {available_providers}"
+        )
 
     # Create appropriate connection instance
     connection_classes = {
@@ -310,7 +316,7 @@ def create_connection_from_dict(data: Dict[str, Any]) -> ConnectionConfig:
         ProviderType.MINIO: MinIOConnection,
         ProviderType.S3: S3Connection,
         ProviderType.AZURE: AzureConnection,
-        ProviderType.GCS: GCSConnection
+        ProviderType.GCS: GCSConnection,
     }
 
     connection_class = connection_classes.get(provider)

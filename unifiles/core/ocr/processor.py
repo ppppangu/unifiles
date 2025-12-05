@@ -1,8 +1,8 @@
 import asyncio
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Dict, List, Optional, Tuple, Union
 
-from .base import OCROutput, BaseOCRProvider
+from .base import BaseOCRProvider, OCROutput
 from .factory import OCRProviderFactory
 
 

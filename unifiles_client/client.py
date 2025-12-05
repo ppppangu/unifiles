@@ -307,7 +307,7 @@ class Document:
         Returns:
             - 当 wait=False 时：返回任务提交结果（task_id/status）
             - 当 wait=True 时：返回任务结果，包含 extracted_content
-            
+
         Raises:
             ValueError: 当 parse_image_content=True 但 mode 不是 selfhosted 时
         """
@@ -318,7 +318,7 @@ class Document:
                 f"当前 mode='{mode}'。"
                 f"请使用 mode='selfhosted' 或设置 parse_image_content=False"
             )
-        
+
         data = {
             "mode": mode,
             "parse_image_content": parse_image_content,
@@ -467,7 +467,9 @@ class KnowledgeBase:
         except UnifilesError:
             return False
 
-    def search(self, query: str, top_k: int = 10, include_photos: bool = False) -> List[SearchResult]:
+    def search(
+        self, query: str, top_k: int = 10, include_photos: bool = False
+    ) -> List[SearchResult]:
         """
         在知识库中进行向量检索
 

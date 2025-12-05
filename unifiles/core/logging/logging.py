@@ -44,6 +44,11 @@ class BaseLogger(ABC):
         """记录严重错误级别日志"""
         pass
 
+    @abstractmethod
+    def exception(self, message: str, extra: Optional[Dict[str, Any]] = None) -> None:
+        """记录异常信息（包含堆栈跟踪）"""
+        pass
+
 
 class LoguruLogger(BaseLogger):
     """基于 Loguru 的文件日志实现"""
@@ -65,7 +70,7 @@ class LoguruLogger(BaseLogger):
         self.compression = compression
         self.level = level
         self._console_handler_id = None  # 控制台handler ID
-        self._file_handler_id = None     # 文件handler ID
+        self._file_handler_id = None  # 文件handler ID
         super().__init__(service_name)
 
     def _setup(self) -> None:
@@ -190,6 +195,10 @@ class PostgreSQLLogger(BaseLogger):
 
     def critical(self, message: str, extra: Optional[Dict[str, Any]] = None) -> None:
         # TODO: 实现数据库日志记录
+        pass
+
+    def exception(self, message: str, extra: Optional[Dict[str, Any]] = None) -> None:
+        # TODO: 实现数据库异常日志记录
         pass
 
 

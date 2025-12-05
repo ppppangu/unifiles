@@ -7,6 +7,7 @@ from datetime import datetime
 from typing import Any, Dict, List, Optional
 
 from unifiles.core.logging import get_logger
+
 logger = get_logger()
 
 from .base_manager import BaseDBManager
@@ -343,9 +344,7 @@ class FileDBManager(BaseDBManager):
                 WHERE id = $1 AND status != 'deleted'
             """
 
-            result = await self.fetch_one(
-                query, file_id, operation="file_access_info"
-            )
+            result = await self.fetch_one(query, file_id, operation="file_access_info")
 
             return result
 

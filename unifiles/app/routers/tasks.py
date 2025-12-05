@@ -2,8 +2,9 @@
 异步任务管理路由器
 提供任务状态查询、结果获取、任务取消等功能
 """
+
 import json
-from typing import List, Optional
+from typing import Optional
 
 from fastapi import APIRouter, HTTPException, Query, Request
 from fastapi import Path as FastAPIPath
@@ -44,8 +45,6 @@ async def get_task_status(
     """
     user_id = request.state.user_id
 
-    
-
     try:
         # 获取任务详情
         task = await async_task_manager.get_task_by_id(task_id)
@@ -69,7 +68,9 @@ async def get_task_status(
             entity_type=task.get("entity_type"),
             entity_id=task.get("entity_id"),
             created_at=task["created_at"].isoformat(),
-            started_at=task["started_at"].isoformat() if task.get("started_at") else None,
+            started_at=task["started_at"].isoformat()
+            if task.get("started_at")
+            else None,
             completed_at=(
                 task["completed_at"].isoformat() if task.get("completed_at") else None
             ),
@@ -82,9 +83,7 @@ async def get_task_status(
         raise
     except Exception as e:
         logger.exception(f"Failed to get task status for {task_id}")
-        raise HTTPException(
-            status_code=500, detail=f"Failed to get task status: {e!s}"
-        )
+        raise HTTPException(status_code=500, detail=f"Failed to get task status: {e!s}")
 
 
 @router.get("/{task_id}/result", response_model=TaskResultResponse)
@@ -300,7 +299,9 @@ async def list_user_tasks(
                     entity_id=task.get("entity_id"),
                     created_at=task["created_at"].isoformat(),
                     started_at=(
-                        task["started_at"].isoformat() if task.get("started_at") else None
+                        task["started_at"].isoformat()
+                        if task.get("started_at")
+                        else None
                     ),
                     completed_at=(
                         task["completed_at"].isoformat()

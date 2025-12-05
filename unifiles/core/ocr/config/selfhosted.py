@@ -25,19 +25,33 @@ class SelfHostedConfig(BaseConfig):
         self.model = self._get_env_var("UNIFILES_SERVICE_OCR_SELFHOSTED_MODEL", "")
         self.prompt = self._get_env_var("UNIFILES_SERVICE_OCR_SELFHOSTED_PROMPT", "")
         if self.prompt:
-            with open(self.prompt, "r", encoding="utf-8") as f:
+            with open(self.prompt, encoding="utf-8") as f:
                 self.prompt = f.read()
 
-        self.temperature = float(self._get_env_var("UNIFILES_SERVICE_OCR_SELFHOSTED_TEMPERATURE", "0.7"))
-        self.max_tokens = int(self._get_env_var("UNIFILES_SERVICE_OCR_SELFHOSTED_MAX_TOKENS", "2048"))
+        self.temperature = float(
+            self._get_env_var("UNIFILES_SERVICE_OCR_SELFHOSTED_TEMPERATURE", "0.7")
+        )
+        self.max_tokens = int(
+            self._get_env_var("UNIFILES_SERVICE_OCR_SELFHOSTED_MAX_TOKENS", "2048")
+        )
 
         self.api_key = self._get_env_var("UNIFILES_SERVICE_OCR_SELFHOSTED_API_KEY", "")
         # Async processing configuration
-        self.max_concurrency = int(self._get_env_var("UNIFILES_SERVICE_OCR_SELFHOSTED_MAX_CONCURRENCY", "20"))
-        self.max_retries = int(self._get_env_var("UNIFILES_SERVICE_OCR_SELFHOSTED_MAX_RETRIES", "2"))
-        self.request_timeout = float(self._get_env_var("UNIFILES_SERVICE_OCR_SELFHOSTED_REQUEST_TIMEOUT", "120.0"))
+        self.max_concurrency = int(
+            self._get_env_var("UNIFILES_SERVICE_OCR_SELFHOSTED_MAX_CONCURRENCY", "20")
+        )
+        self.max_retries = int(
+            self._get_env_var("UNIFILES_SERVICE_OCR_SELFHOSTED_MAX_RETRIES", "2")
+        )
+        self.request_timeout = float(
+            self._get_env_var(
+                "UNIFILES_SERVICE_OCR_SELFHOSTED_REQUEST_TIMEOUT", "120.0"
+            )
+        )
         # Parse failure dump configuration
-        self.dump_parse_fail = self._get_env_var("UNIFILES_SERVICE_OCR_SELFHOSTED_DUMP_PARSE_FAIL", "false").lower() in (
+        self.dump_parse_fail = self._get_env_var(
+            "UNIFILES_SERVICE_OCR_SELFHOSTED_DUMP_PARSE_FAIL", "false"
+        ).lower() in (
             "1",
             "true",
             "yes",

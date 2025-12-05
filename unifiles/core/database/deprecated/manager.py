@@ -4,14 +4,16 @@
 """
 
 import json
-from datetime import datetime
 from typing import Any, Dict, Optional
 
 import asyncpg
+
 from unifiles.core.logging import get_logger
+
 logger = get_logger()
 
 from unifiles.core.config.env_config import read_pg_config
+
 from ..models import (
     ChunkModel,
     DocumentModel,
@@ -20,7 +22,6 @@ from ..models import (
     FileStatus,
     KnowledgeBaseModel,
     PhotoModel,
-    ProcessingStage,
     ProcessingStatus,
     UserModel,
 )
@@ -36,14 +37,22 @@ class DatabaseManager:
     async def get_connection(self) -> asyncpg.Connection:
         """获取数据库连接"""
         # Filter out 'address' and 'active' keys - asyncpg only wants host, port, user, password, database
-        conn_params = {k: v for k, v in self.pg_config.items() if k in ['host', 'port', 'user', 'password', 'database']}
+        conn_params = {
+            k: v
+            for k, v in self.pg_config.items()
+            if k in ["host", "port", "user", "password", "database"]
+        }
         return await asyncpg.connect(**conn_params)
 
     async def create_pool(self) -> asyncpg.Pool:
         """创建连接池"""
         if self._pool is None:
             # Filter out 'address' and 'active' keys - asyncpg only wants host, port, user, password, database
-            conn_params = {k: v for k, v in self.pg_config.items() if k in ['host', 'port', 'user', 'password', 'database']}
+            conn_params = {
+                k: v
+                for k, v in self.pg_config.items()
+                if k in ["host", "port", "user", "password", "database"]
+            }
             self._pool = await asyncpg.create_pool(**conn_params)
         return self._pool
 

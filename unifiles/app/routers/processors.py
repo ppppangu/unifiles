@@ -1,19 +1,16 @@
-from datetime import datetime
-
 from fastapi import APIRouter, HTTPException, Request
 from fastapi import Path as FastAPIPath
+
 from unifiles.core.logging import get_logger
+
 logger = get_logger()
 
 from unifiles.app.schemas import (
-    ExtractedContent,
     FileExtractRequest,
-    FileExtractResponse,
     TaskSubmitResponse,
 )
-from unifiles.core.services.document_processor import get_document_processor
-from unifiles.core.database import async_task_manager, unified_file_db_manager
 from unifiles.core.celery.tasks import process_file_extraction_task
+from unifiles.core.database import async_task_manager, unified_file_db_manager
 
 # Note: The prefix is /files, but these are processing actions.
 # A different prefix like /processors/{file_id} could be a future refactor.
@@ -85,13 +82,17 @@ async def extract_file_content(
 
         # 提交 Celery 任务
         celery_task = process_file_extraction_task.apply_async(
-            args=[file_id, user_id, task_id, extract_request.mode, extract_request.parse_image_content],
+            args=[
+                file_id,
+                user_id,
+                task_id,
+                extract_request.mode,
+                extract_request.parse_image_content,
+            ],
             task_id=task_id,  # 使用数据库任务ID作为Celery任务ID
         )
 
-        logger.info(
-            f"Submitted Celery task: {celery_task.id} for file {file_id}"
-        )
+        logger.info(f"Submitted Celery task: {celery_task.id} for file {file_id}")
 
         # 更新任务状态为 queued
         await async_task_manager.update_task_status(

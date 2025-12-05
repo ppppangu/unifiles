@@ -16,9 +16,10 @@ from dataclasses import dataclass
 from datetime import timedelta
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional
+from urllib.parse import quote
 
 from unifiles.core.logging import get_logger
-from urllib.parse import quote
+
 logger = get_logger()
 from minio import Minio
 from minio.error import S3Error
@@ -73,7 +74,7 @@ class DatabaseBootstrapper:
             logger.info(
                 f"[DB] Bootstrapper initialized (host={self._pg_config.get('host')}, "
                 f"port={self._pg_config.get('port')}, db={self._pg_config.get('database')}, "
-                f"sql_dir={str(self._sql_dir)})"
+                f"sql_dir={self._sql_dir!s})"
             )
         except Exception:
             pass
@@ -307,7 +308,7 @@ class LocalStorageBackend(BaseStorageBackend):
 
     def _prepare_directory(self) -> None:
         logger.info(
-            f"[LocalStorage] Preparing directory (path={str(self._base_path)}, "
+            f"[LocalStorage] Preparing directory (path={self._base_path!s}, "
             f"create_if_missing={self._connection.create_if_missing})"
         )
         if self._connection.create_if_missing:
@@ -618,7 +619,7 @@ class Storage:
         self._db_bootstrapper = DatabaseBootstrapper()
         self._project_root = Path(__file__).resolve().parents[3]
         logger.info(
-            f"[Storage] Orchestrator created (project_root={str(self._project_root)})"
+            f"[Storage] Orchestrator created (project_root={self._project_root!s})"
         )
 
     async def initialize(self) -> None:

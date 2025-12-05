@@ -10,7 +10,6 @@ Unifiles v1 API - RESTful Architecture
 """
 
 from contextlib import asynccontextmanager
-from pathlib import Path
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -23,7 +22,14 @@ from unifiles.app.middlewares import (
 )
 
 # 导入API路由
-from unifiles.app.routers import knowledge_bases, manager, processors, tasks, unifiles, users
+from unifiles.app.routers import (
+    knowledge_bases,
+    manager,
+    processors,
+    tasks,
+    unifiles,
+    users,
+)
 from unifiles.app.schemas import StandardResponse
 
 # 导入核心工具
