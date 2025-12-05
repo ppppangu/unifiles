@@ -2,6 +2,7 @@ from datetime import datetime
 
 from fastapi import (
     APIRouter,
+    Depends,
     HTTPException,
     Request,
 )
@@ -12,14 +13,21 @@ logger = get_logger()
 
 from unifiles.app.routers.unifiles import (
     StandardResponse,
+    get_user_context,
 )
 
 router = APIRouter(prefix="/manager", tags=["Manager"])
 
 
 @router.get("/system/status", response_model=StandardResponse)
-async def get_system_status(request: Request):
+async def get_system_status(
+    request: Request, user_context: dict = Depends(get_user_context)
+):
     """获取系统状态信息（管理员专用）"""
+    # SECURITY FIX: Add authentication and admin role validation (outside try block to avoid HTTP 500 conversion)
+    if user_context.get("user_role") != "admin":
+        raise HTTPException(status_code=403, detail="Admin role required")
+
     try:
         # TODO: 实现系统状态检查逻辑
         # - 数据库连接状态

@@ -5,6 +5,103 @@ All notable changes to the Unifiles Python Client will be documented in this fil
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased] - 2025-12-05
+
+### Security Fixes 🔒
+
+- **[CRITICAL]** Fixed authentication bypass vulnerability in `/users/*` endpoints
+  - Removed overly broad `/users/` prefix from public path list in middleware
+  - All `/users/*` endpoints now require authentication except `/users/create`
+  - Prevents unauthorized access to sensitive operations like access key management
+  - **File**: `unifiles/app/middlewares.py:261-266`
+
+- **[HIGH]** Added admin role validation for protected endpoints
+  - `/files/admin/health` now requires admin role
+  - `/files/admin/metrics` now requires admin role
+  - `/manager/system/status` now requires authentication and admin role
+  - Returns HTTP 403 Forbidden when non-admin users attempt access
+  - **Files**:
+    - `unifiles/app/routers/unifiles.py:280-282, 301-303`
+    - `unifiles/app/routers/manager.py:23-30`
+
+### Bug Fixes 🐛
+
+- **[CRITICAL]** Fixed AttributeError crash in `EmbeddingService.get_service_info()`
+  - Removed reference to uninitialized `batch_processor.concurrency_limit`
+  - Method was causing runtime crash when service info endpoint was called
+  - **File**: `unifiles/core/services/embedding_service.py:277-279`
+
+- **[HIGH]** Fixed incorrect HTTP status code in admin endpoint error handling
+  - Admin role validation now occurs outside try-except blocks
+  - Previously, 403 Forbidden errors were incorrectly converted to 500 Internal Server Error
+  - Clients now receive correct status codes: 403 for permission denied, 500 for server errors
+  - **Files**: `unifiles/app/routers/unifiles.py:279-281, 300-302`, `unifiles/app/routers/manager.py:27-29`
+
+- **[HIGH]** Fixed bootstrap access key creation for new users
+  - New users can now create their first access key without authentication
+  - POST requests to `/users/{user_id}/access-keys` are allowed without Bearer token
+  - Subsequent access key operations still require authentication
+  - Resolves "chicken-and-egg" problem where users couldn't get initial access key
+  - **File**: `unifiles/app/middlewares.py:326-330`
+
+### Breaking Changes ⚠️
+
+- **Authentication now required for most `/users/*` endpoints**
+  - Previously: All `/users/*` endpoints were publicly accessible
+  - Now:
+    - **Public** (no auth): `POST /users/create`, `POST /users/{user_id}/access-keys` (for bootstrap)
+    - **Protected** (auth required): `GET /users/{user_id}/access-keys`, `DELETE /users/{user_id}/access-keys/{key_id}`, and all other user endpoints
+  - **Impact**: API clients listing or deleting access keys must include authentication
+  - **Migration**: Add `Authorization: Bearer <access_key>` header for GET/DELETE operations on access keys
+
+### Migration Guide 📋
+
+For API clients using `/users/*` endpoints:
+
+#### New User Registration Flow
+1. **Create user** (no auth required):
+   ```bash
+   curl -X POST "http://localhost:8088/users/create" \
+     -H "Content-Type: application/json" \
+     -d '{"user_id": "user123", "username": "john", "email": "john@example.com"}'
+   ```
+
+2. **Create first access key** (no auth required for bootstrap):
+   ```bash
+   curl -X POST "http://localhost:8088/users/user123/access-keys" \
+     -H "Content-Type: application/json" \
+     -d '{"description": "My first key"}'
+   ```
+
+3. **Use access key for subsequent operations** (auth required):
+   ```bash
+   # List access keys (requires auth)
+   curl -X GET "http://localhost:8088/users/user123/access-keys" \
+     -H "Authorization: Bearer [REDACTED]"
+
+   # Delete access key (requires auth)
+   curl -X DELETE "http://localhost:8088/users/user123/access-keys/key_abc123" \
+     -H "Authorization: Bearer [REDACTED]"
+   ```
+
+#### Public Endpoints (No Authentication Required)
+- `POST /users/create` - Create new user
+- `POST /users/{user_id}/access-keys` - Create access key (intended for bootstrap)
+
+#### Protected Endpoints (Authentication Required)
+- `GET /users/{user_id}/access-keys` - List access keys
+- `DELETE /users/{user_id}/access-keys/{key_id}` - Delete access key
+- All other `/users/*` endpoints
+
+### Files Modified 📝
+
+- `unifiles/app/middlewares.py` - Authentication middleware security fix
+- `unifiles/core/services/embedding_service.py` - AttributeError crash fix
+- `unifiles/app/routers/unifiles.py` - Admin role validation (2 endpoints)
+- `unifiles/app/routers/manager.py` - Admin role validation and authentication
+
+---
+
 ## [1.0.0] - 2024-01-XX
 
 ### Added

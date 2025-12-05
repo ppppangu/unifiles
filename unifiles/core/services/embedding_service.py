@@ -274,7 +274,8 @@ class EmbeddingService:
         return {
             "provider": self.provider.get_provider_name(),
             "embedding_dimension": self.provider.get_embedding_dimension(),
-            "concurrency_limit": self.batch_processor.concurrency_limit,
+            # BUGFIX: Removed batch_processor.concurrency_limit - batch_processor is not initialized
+            # This was causing AttributeError when endpoint was called
             "supported_types": ["text", "image"],
         }
 

@@ -276,9 +276,11 @@ async def get_storage_health(
     file_service: FileService = Depends(get_file_service),
 ):
     """获取存储后端健康状态（管理员功能）"""
-    try:
-        # 这里可以添加管理员权限验证
+    # SECURITY FIX: Add admin role validation (outside try block to avoid HTTP 500 conversion)
+    if user_context.get("user_role") != "admin":
+        raise HTTPException(status_code=403, detail="Admin role required")
 
+    try:
         health_info = await file_service.get_storage_health()
         return health_info
 
@@ -295,9 +297,11 @@ async def get_storage_metrics(
     file_service: FileService = Depends(get_file_service),
 ):
     """获取存储指标（管理员功能）"""
-    try:
-        # 这里可以添加管理员权限验证
+    # SECURITY FIX: Add admin role validation (outside try block to avoid HTTP 500 conversion)
+    if user_context.get("user_role") != "admin":
+        raise HTTPException(status_code=403, detail="Admin role required")
 
+    try:
         metrics = await file_service.get_storage_metrics()
         return metrics
 

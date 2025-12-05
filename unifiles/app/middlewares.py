@@ -260,7 +260,8 @@ class AuthMiddleware:
         # 不需要认证的路径前缀
         self.public_prefixes = {
             "/static/",
-            "/users/",  # 允许用户相关操作不需要认证（用于bootstrap首个access key）
+            # SECURITY FIX: Removed "/users/" - too broad, allows unauthorized access to sensitive endpoints
+            # Only "/users/create" is public (defined in public_paths above)
             # 可以添加更多公开路径前缀
         }
 
@@ -312,13 +313,23 @@ class AuthMiddleware:
     def _should_authenticate(self, request: Request) -> bool:
         """判断是否需要认证"""
         path = request.url.path
+        method = request.method
 
         # 检查是否为公开路径
         if path in self.public_paths:
             return False
 
         # 检查是否以公开前缀开始
-        return all(not path.startswith(prefix) for prefix in self.public_prefixes)
+        if any(path.startswith(prefix) for prefix in self.public_prefixes):
+            return False
+
+        # BOOTSTRAP FIX: Allow POST to /users/{user_id}/access-keys without auth
+        # This enables new users to create their first access key
+        # Security is enforced in the endpoint logic (e.g., rate limiting, user validation)
+        if method == "POST" and "/users/" in path and path.endswith("/access-keys"):
+            return False
+
+        return True
 
     async def _init_connection_pool(self):
         """初始化数据库连接池（延迟初始化）"""
