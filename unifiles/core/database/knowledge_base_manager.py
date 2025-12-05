@@ -7,7 +7,6 @@
 - 组件抽象层使用表 unifiles.components，子类表 unifiles.chunks / unifiles.photos
 """
 
-import json
 from datetime import datetime
 from typing import Optional
 
@@ -16,13 +15,18 @@ from unifiles.core.logging import get_logger
 logger = get_logger()
 
 from .base_manager import BaseDBManager
+from .helpers import (
+    parse_db_result_count,
+    parse_json_field,
+    parse_string_list,
+    safe_int,
+    to_json_string,
+)
 from .models import (
     ChunkModel,
     ComponentModel,
     DocumentModel,
-    FileModel,
     FileProcessingLogModel,
-    FileStatus,
     KnowledgeBaseModel,
     PhotoModel,
     ProcessingStatus,
@@ -80,30 +84,12 @@ class KnowledgeBaseDBManager(BaseDBManager):
                 )
 
                 if result:
-                    raw_document_ids = result.get("document_ids")
-                    if raw_document_ids is None:
-                        document_ids: list[str] = []
-                    elif isinstance(raw_document_ids, list):
-                        document_ids = raw_document_ids
-                    elif isinstance(raw_document_ids, str):
-                        try:
-                            parsed = json.loads(raw_document_ids)
-                            document_ids = parsed if isinstance(parsed, list) else []
-                        except Exception:
-                            document_ids = []
-                    else:
-                        # Fallback: best-effort conversion
-                        try:
-                            document_ids = list(raw_document_ids)
-                        except Exception:
-                            document_ids = []
-
                     return KnowledgeBaseModel(
                         id=result["id"],
                         user_id=result["user_id"],
                         name=result["name"],
                         description=result["description"] or "",
-                        document_ids=document_ids,
+                        document_ids=parse_string_list(result.get("document_ids")),
                         created_at=result["created_at"],
                         updated_at=result["updated_at"],
                     )
@@ -144,46 +130,22 @@ class KnowledgeBaseDBManager(BaseDBManager):
             user_id,
         )
 
-        # 映射为模型（仅填充当前API所需字段，其他留默认）
-        items: list[KnowledgeBaseModel] = []
-        for r in rows:
-            raw_document_ids = r.get("document_ids")
-            if raw_document_ids is None:
-                document_ids: list[str] = []
-            elif isinstance(raw_document_ids, list):
-                document_ids = raw_document_ids
-            elif isinstance(raw_document_ids, str):
-                try:
-                    parsed = json.loads(raw_document_ids)
-                    document_ids = parsed if isinstance(parsed, list) else []
-                except Exception:
-                    document_ids = []
-            else:
-                try:
-                    document_ids = list(raw_document_ids)
-                except Exception:
-                    document_ids = []
-
-            items.append(
-                KnowledgeBaseModel(
-                    id=r["id"],
-                    user_id=r["user_id"],
-                    name=r["name"],
-                    description=r.get("description") or "",
-                    document_count=r.get("document_count", 0),
-                    document_ids=document_ids,
-                    created_at=r.get("created_at"),
-                    updated_at=r.get("updated_at"),
-                )
+        # 映射为模型
+        items: list[KnowledgeBaseModel] = [
+            KnowledgeBaseModel(
+                id=r["id"],
+                user_id=r["user_id"],
+                name=r["name"],
+                description=r.get("description") or "",
+                document_count=r.get("document_count", 0),
+                document_ids=parse_string_list(r.get("document_ids")),
+                created_at=r.get("created_at"),
+                updated_at=r.get("updated_at"),
             )
+            for r in rows
+        ]
 
-        # fetch_value 可能返回 Decimal/Int，统一为 int
-        try:
-            total_count = int(total_count or 0)
-        except Exception:
-            total_count = 0
-
-        return items, total_count
+        return items, safe_int(total_count)
 
     async def ensure_knowledge_base_exists(
         self, kb_id: str, user_id: str, name: Optional[str] = None
@@ -210,13 +172,13 @@ class KnowledgeBaseDBManager(BaseDBManager):
         async with await self.get_connection() as conn:
             try:
                 async with conn.transaction():
-                    # Normalize JSON fields to strings for safe binding; DB will cast to jsonb
-                    _chunking = getattr(doc_model, "chunking_strategy", None)
-                    if isinstance(_chunking, (dict, list)):
-                        _chunking = json.dumps(_chunking)
-                    _custom_cfg = getattr(doc_model, "custom_config", {})
-                    if isinstance(_custom_cfg, (dict, list)):
-                        _custom_cfg = json.dumps(_custom_cfg)
+                    # Normalize JSON fields to strings for safe binding
+                    _chunking = to_json_string(
+                        getattr(doc_model, "chunking_strategy", None)
+                    )
+                    _custom_cfg = to_json_string(
+                        getattr(doc_model, "custom_config", {})
+                    )
 
                     await conn.execute(
                         """
@@ -270,20 +232,6 @@ class KnowledgeBaseDBManager(BaseDBManager):
                 )
 
                 if result:
-                    chunking_val = result.get("chunking_strategy")
-                    custom_cfg_val = result.get("custom_config") or {}
-                    # Be tolerant: if DB returns TEXT, try to parse JSON
-                    if isinstance(chunking_val, str):
-                        try:
-                            chunking_val = json.loads(chunking_val)
-                        except Exception:
-                            pass
-                    if isinstance(custom_cfg_val, str):
-                        try:
-                            custom_cfg_val = json.loads(custom_cfg_val)
-                        except Exception:
-                            custom_cfg_val = {}
-
                     return DocumentModel(
                         id=result["id"],
                         knowledge_base_id=result["knowledge_base_id"],
@@ -291,8 +239,10 @@ class KnowledgeBaseDBManager(BaseDBManager):
                         title=result.get("title"),
                         display_name=result.get("display_name"),
                         description=result.get("description") or "",
-                        chunking_strategy=chunking_val,
-                        custom_config=custom_cfg_val,
+                        chunking_strategy=parse_json_field(
+                            result.get("chunking_strategy")
+                        ),
+                        custom_config=parse_json_field(result.get("custom_config")),
                         access_level=result.get("access_level", "inherited"),
                         hierarchy_path=str(result.get("hierarchy_path", "root")),
                         created_at=result.get("created_at"),
@@ -334,20 +284,6 @@ class KnowledgeBaseDBManager(BaseDBManager):
                 )
 
                 if result:
-                    chunking_val = result.get("chunking_strategy")
-                    custom_cfg_val = result.get("custom_config") or {}
-                    # Be tolerant: if DB returns TEXT, try to parse JSON
-                    if isinstance(chunking_val, str):
-                        try:
-                            chunking_val = json.loads(chunking_val)
-                        except Exception:
-                            pass
-                    if isinstance(custom_cfg_val, str):
-                        try:
-                            custom_cfg_val = json.loads(custom_cfg_val)
-                        except Exception:
-                            custom_cfg_val = {}
-
                     return DocumentModel(
                         id=result["id"],
                         knowledge_base_id=result["knowledge_base_id"],
@@ -355,8 +291,10 @@ class KnowledgeBaseDBManager(BaseDBManager):
                         title=result.get("title"),
                         display_name=result.get("display_name"),
                         description=result.get("description") or "",
-                        chunking_strategy=chunking_val,
-                        custom_config=custom_cfg_val,
+                        chunking_strategy=parse_json_field(
+                            result.get("chunking_strategy")
+                        ),
+                        custom_config=parse_json_field(result.get("custom_config")),
                         access_level=result.get("access_level", "inherited"),
                         hierarchy_path=str(result.get("hierarchy_path", "root")),
                         created_at=result.get("created_at"),
@@ -401,55 +339,35 @@ class KnowledgeBaseDBManager(BaseDBManager):
             kb_id,
         )
 
-        items: list[DocumentModel] = []
-        for r in rows:
-            chunking_val = r.get("chunking_strategy")
-            custom_cfg_val = r.get("custom_config") or {}
-            # Be tolerant: if DB returns TEXT, try to parse JSON
-            if isinstance(chunking_val, str):
-                try:
-                    chunking_val = json.loads(chunking_val)
-                except Exception:
-                    pass
-            if isinstance(custom_cfg_val, str):
-                try:
-                    custom_cfg_val = json.loads(custom_cfg_val)
-                except Exception:
-                    custom_cfg_val = {}
-
-            items.append(
-                DocumentModel(
-                    id=r["id"],
-                    knowledge_base_id=r["knowledge_base_id"],
-                    extracted_document_id=r["extracted_document_id"],
-                    title=r.get("title"),
-                    display_name=r.get("display_name"),
-                    description=r.get("description") or "",
-                    chunking_strategy=chunking_val,
-                    custom_config=custom_cfg_val,
-                    access_level=r.get("access_level", "inherited"),
-                    hierarchy_path=str(r.get("hierarchy_path", "root")),
-                    processing_status=r.get("processing_status", "pending"),
-                    indexing_status=r.get("indexing_status", "pending"),
-                    component_count=r.get("component_count", 0),
-                    chunk_count=r.get("chunk_count", 0),
-                    photo_count=r.get("photo_count", 0),
-                    total_chars=r.get("total_chars", 0),
-                    total_tokens=r.get("total_tokens", 0),
-                    created_at=r.get("created_at"),
-                    processed_at=r.get("processed_at"),
-                    indexed_at=r.get("indexed_at"),
-                    updated_at=r.get("updated_at"),
-                    last_accessed_at=r.get("last_accessed_at"),
-                )
+        items: list[DocumentModel] = [
+            DocumentModel(
+                id=r["id"],
+                knowledge_base_id=r["knowledge_base_id"],
+                extracted_document_id=r["extracted_document_id"],
+                title=r.get("title"),
+                display_name=r.get("display_name"),
+                description=r.get("description") or "",
+                chunking_strategy=parse_json_field(r.get("chunking_strategy")),
+                custom_config=parse_json_field(r.get("custom_config")),
+                access_level=r.get("access_level", "inherited"),
+                hierarchy_path=str(r.get("hierarchy_path", "root")),
+                processing_status=r.get("processing_status", "pending"),
+                indexing_status=r.get("indexing_status", "pending"),
+                component_count=r.get("component_count", 0),
+                chunk_count=r.get("chunk_count", 0),
+                photo_count=r.get("photo_count", 0),
+                total_chars=r.get("total_chars", 0),
+                total_tokens=r.get("total_tokens", 0),
+                created_at=r.get("created_at"),
+                processed_at=r.get("processed_at"),
+                indexed_at=r.get("indexed_at"),
+                updated_at=r.get("updated_at"),
+                last_accessed_at=r.get("last_accessed_at"),
             )
+            for r in rows
+        ]
 
-        try:
-            total_count = int(total_count or 0)
-        except Exception:
-            total_count = 0
-
-        return items, total_count
+        return items, safe_int(total_count)
 
     async def ensure_document_exists(
         self,
@@ -530,7 +448,7 @@ class KnowledgeBaseDBManager(BaseDBManager):
                         doc_id,
                     )
 
-                    rows_deleted = int(result.split()[-1]) if result else 0
+                    rows_deleted = parse_db_result_count(result)
 
                     if rows_deleted == 0:
                         logger.warning(f"No document found to delete: {doc_id}")
@@ -577,7 +495,7 @@ class KnowledgeBaseDBManager(BaseDBManager):
                         raw_file_url,
                     )
 
-                    rows = int(result.split()[-1]) if result else 0
+                    rows = parse_db_result_count(result)
                     if rows == 0:
                         logger.warning(
                             f"No document updated for URLs; document may not exist: {doc_id}"
@@ -667,7 +585,7 @@ class KnowledgeBaseDBManager(BaseDBManager):
 
                 async with conn.transaction():
                     result = await conn.execute(query, *values)
-                    rows = int(result.split()[-1]) if result else 0
+                    rows = parse_db_result_count(result)
 
                     if rows == 0:
                         logger.warning(
@@ -724,7 +642,7 @@ class KnowledgeBaseDBManager(BaseDBManager):
                         datetime.now(),
                     )
 
-                    rows = int(result.split()[-1]) if result else 0
+                    rows = parse_db_result_count(result)
                     if rows == 0:
                         logger.warning(
                             f"No knowledge base updated; KB may not exist: {kb_id}"
@@ -769,7 +687,7 @@ class KnowledgeBaseDBManager(BaseDBManager):
                         kb_id,
                     )
 
-                    rows_deleted = int(result.split()[-1]) if result else 0
+                    rows_deleted = parse_db_result_count(result)
 
                     if rows_deleted == 0:
                         logger.warning(f"No knowledge base found to delete: {kb_id}")
@@ -780,77 +698,6 @@ class KnowledgeBaseDBManager(BaseDBManager):
 
             except Exception as e:
                 logger.error(f"Error deleting knowledge base {kb_id}: {e}")
-                raise
-
-    # ==================== 文件操作 ====================
-
-    async def create_file_record(self, file_model: FileModel) -> FileModel:
-        """创建文件记录"""
-        async with await self.get_connection() as conn:
-            try:
-                async with conn.transaction():
-                    await conn.execute(
-                        """
-                        INSERT INTO unifiles.files (
-                            id, user_id, bytes, filename, mime_type,
-                            storage_path, storage_config_id, status, metadata
-                        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-                        """,
-                        file_model.id,
-                        file_model.user_id,
-                        file_model.bytes,
-                        file_model.filename,
-                        file_model.mime_type,
-                        getattr(file_model, "storage_path", ""),
-                        getattr(file_model, "storage_config_id", None),
-                        file_model.status.value,
-                        json.dumps(file_model.metadata or {}),
-                    )
-
-                    # 获取创建的文件信息
-                    result = await conn.fetchrow(
-                        "SELECT * FROM unifiles.files WHERE id = $1", file_model.id
-                    )
-
-                    if result:
-                        file_model.created_at = result["created_at"]
-
-                    logger.info(f"File record created: {file_model.id}")
-                    return file_model
-
-            except Exception as e:
-                logger.error(f"Error creating file record {file_model.id}: {e}")
-                raise
-
-    async def get_file_record(self, file_id: str) -> Optional[FileModel]:
-        """获取文件记录（与文件表结构对齐）"""
-        async with await self.get_connection() as conn:
-            try:
-                result = await conn.fetchrow(
-                    """
-                    SELECT id, user_id, filename, bytes, mime_type, storage_path,
-                           status, metadata, created_at
-                    FROM unifiles.files WHERE id = $1
-                    """,
-                    file_id,
-                )
-
-                if result:
-                    return FileModel(
-                        id=result["id"],
-                        user_id=result["user_id"],
-                        filename=result["filename"],
-                        bytes=result["bytes"],
-                        mime_type=result.get("mime_type"),
-                        storage_path=result.get("storage_path", ""),
-                        status=FileStatus(result.get("status", "active")),
-                        metadata=json.loads(result.get("metadata") or "{}"),
-                        created_at=result["created_at"],
-                    )
-                return None
-
-            except Exception as e:
-                logger.error(f"Error getting file record {file_id}: {e}")
                 raise
 
     # ==================== 文本块操作 ====================

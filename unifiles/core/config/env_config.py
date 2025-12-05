@@ -10,7 +10,13 @@ from typing import Any, Dict, List, Optional
 
 from unifiles.core.logging import get_logger
 
-logger = get_logger()
+
+def _get_logger():
+    """延迟获取 logger，避免在模块 import 时过早初始化"""
+    return get_logger()
+
+
+# 注意: 不在模块级别调用 _get_logger()，而是在需要时动态调用
 
 try:
     from dotenv import load_dotenv
@@ -45,14 +51,14 @@ class EnvironmentConfig:
             return
 
         if load_dotenv is None:
-            logger.warning("python-dotenv not installed, .env file will not be loaded")
+            _get_logger().warning("python-dotenv not installed, .env file will not be loaded")
             return
 
         if self.env_file_path.exists():
             load_dotenv(self.env_file_path)
-            logger.info(f"Loaded environment variables from {self.env_file_path}")
+            _get_logger().info(f"Loaded environment variables from {self.env_file_path}")
         else:
-            logger.info(
+            _get_logger().info(
                 f".env file not found at {self.env_file_path}, using environment variables only"
             )
 
@@ -91,7 +97,7 @@ class EnvironmentConfig:
                 return float(value)
             return cast_type(value)
         except (ValueError, TypeError) as e:
-            logger.warning(
+            _get_logger().warning(
                 f"Failed to convert {key}={value} to {cast_type.__name__}: {e}"
             )
             return default
@@ -404,7 +410,7 @@ def convert_to_internal_minio_url(url: str) -> str:
 
         return url
     except Exception as e:
-        logger.warning(f"Failed to convert MinIO URL: {e}")
+        _get_logger().warning(f"Failed to convert MinIO URL: {e}")
         return url
 
 

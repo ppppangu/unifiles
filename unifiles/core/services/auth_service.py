@@ -4,6 +4,11 @@ from typing import Any, Dict, List, Optional, Tuple
 import asyncpg
 from fastapi import HTTPException, Request
 
+from unifiles.core.database import (
+    close_connection_pool,
+    get_connection_pool,
+    initialize_connection_pool,
+)
 from unifiles.core.logging import get_logger
 
 logger = get_logger()
@@ -23,7 +28,13 @@ class AuthService:
         """
         self.pg_config = pg_config
         self.security_enforcer = DatabaseSecurityEnforcer()
-        self._connection_pool = None
+        self._db_pool = None
+
+    async def _get_pool(self) -> asyncpg.Pool:
+        """获取共享数据库连接池（全局单例）"""
+        if self._db_pool is None:
+            self._db_pool = await get_connection_pool()
+        return self._db_pool
 
     async def init_connection_pool(self, min_size: int = 5, max_size: int = 20):
         """
@@ -33,14 +44,12 @@ class AuthService:
             min_size: 最小连接数
             max_size: 最大连接数
         """
-        if not self._connection_pool:
+        if not self._db_pool:
             try:
-                self._connection_pool = await asyncpg.create_pool(
-                    **self.pg_config,
-                    min_size=min_size,
-                    max_size=max_size,
-                    command_timeout=30,
+                await initialize_connection_pool(
+                    min_size=min_size, max_size=max_size, command_timeout=30
                 )
+                self._db_pool = await get_connection_pool()
                 logger.info("Auth service connection pool initialized")
             except Exception as e:
                 logger.error(f"Failed to initialize connection pool: {e}")
@@ -63,11 +72,9 @@ class AuthService:
             return False, None
 
         try:
-            # 确保连接池已初始化
-            if not self._connection_pool:
-                await self.init_connection_pool()
+            pool = await self._get_pool()
 
-            async with self._connection_pool.acquire() as conn:
+            async with pool.acquire() as conn:
                 # 查询令牌信息
                 query = """
                     SELECT u.id, u.username, at.expires_at, at.is_active, at.last_used_at,
@@ -147,10 +154,9 @@ class AuthService:
                 else None
             )
 
-            if not self._connection_pool:
-                await self.init_connection_pool()
+            pool = await self._get_pool()
 
-            async with self._connection_pool.acquire() as conn:
+            async with pool.acquire() as conn:
                 # 插入新令牌
                 query = """
                     INSERT INTO unifiles.access_tokens
@@ -209,10 +215,9 @@ class AuthService:
             是否撤销成功
         """
         try:
-            if not self._connection_pool:
-                await self.init_connection_pool()
+            pool = await self._get_pool()
 
-            async with self._connection_pool.acquire() as conn:
+            async with pool.acquire() as conn:
                 # 如果提供了user_id，验证令牌所有权
                 if user_id:
                     verify_query = """
@@ -248,10 +253,9 @@ class AuthService:
             令牌列表
         """
         try:
-            if not self._connection_pool:
-                await self.init_connection_pool()
+            pool = await self._get_pool()
 
-            async with self._connection_pool.acquire() as conn:
+            async with pool.acquire() as conn:
                 query = """
                     SELECT id, description, created_at, expires_at, last_used_at,
                            usage_count, is_active
@@ -296,10 +300,9 @@ class AuthService:
             清理的令牌数量
         """
         try:
-            if not self._connection_pool:
-                await self.init_connection_pool()
+            pool = await self._get_pool()
 
-            async with self._connection_pool.acquire() as conn:
+            async with pool.acquire() as conn:
                 query = """
                     UPDATE unifiles.access_tokens
                     SET is_active = false
@@ -375,7 +378,7 @@ class AuthService:
 
     async def close_connection_pool(self):
         """关闭连接池"""
-        if self._connection_pool:
-            await self._connection_pool.close()
-            self._connection_pool = None
+        if self._db_pool:
+            await close_connection_pool()
+            self._db_pool = None
             logger.info("Auth service connection pool closed")

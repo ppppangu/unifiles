@@ -34,6 +34,10 @@ from unifiles.app.schemas import StandardResponse
 
 # 导入核心工具
 from unifiles.core.config.env_config import mk_need_path
+from unifiles.core.database import (
+    close_connection_pool,
+    initialize_connection_pool,
+)
 from unifiles.core.logging import cleanup_logger, get_logger, init_logger
 from unifiles.core.storage import get_initialized_storage
 
@@ -43,15 +47,19 @@ async def lifespan(app: FastAPI):
     """应用生命周期管理"""
     # 启动时执行
     try:
-        # 初始化日志系统（优先从环境变量读取配置）
+        # 1. 初始化日志系统（优先从环境变量读取配置）
         # UNIFILES_SERVICE_NAME, UNIFILES_API_LOG_LEVEL, UNIFILES_API_LOG_DIR, etc.
         init_logger(logger_type="loguru")
         app_logger = get_logger()
 
-        # 创建必要的目录
+        # 2. 创建必要的目录
         mk_need_path()
 
-        # 初始化存储系统
+        # 3. 初始化数据库连接池（必须在存储系统之前，因为存储初始化会用到连接池）
+        await initialize_connection_pool()
+        app_logger.info("Database connection pool initialized")
+
+        # 4. 初始化存储系统（需要使用数据库连接池检查 schema）
         await get_initialized_storage()
         app_logger.info("Storage system initialized")
 
@@ -61,13 +69,19 @@ async def lifespan(app: FastAPI):
         app_logger.exception(
             f"Startup initialization failed: {e!s}", {"error_type": "startup_error"}
         )
-        # Allow startup to continue
+        # 初始化失败时直接中断启动，确保服务不会在不完整状态下运行
+        raise RuntimeError(f"Startup initialization failed: {e!s}") from e
 
     yield
 
     # 关闭时执行
     app_logger = get_logger()
     app_logger.info("Unifiles v1 shutting down")
+    try:
+        await close_connection_pool()
+        app_logger.info("Database connection pool closed")
+    except Exception as e:
+        app_logger.warning(f"Failed to close connection pool cleanly: {e!s}")
     cleanup_logger()
 
 

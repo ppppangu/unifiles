@@ -1,4 +1,10 @@
-# New unified managers (recommended)
+"""
+数据库模块
+提供数据库管理器、模型和连接池
+"""
+
+# Connection pool
+# Managers
 from .async_task_manager import AsyncTaskManager, async_task_manager
 from .connection import (
     DatabaseConnectionPool,
@@ -6,24 +12,18 @@ from .connection import (
     get_connection_pool,
     initialize_connection_pool,
 )
+from .extraction_manager import ExtractionDBManager, extraction_db_manager
+from .file_manager import FileDBManager, unified_file_db_manager
 
-# Legacy managers (deprecated, for backward compatibility)
-from .deprecated.base import DatabaseManager as LegacyDatabaseManager
-from .deprecated.base import FileDBManager as LegacyFileDBManager
-from .deprecated.base import file_db_manager as legacy_file_db_manager
-from .deprecated.manager import DatabaseManager as LegacyFullDatabaseManager
-from .deprecated.secure_manager import SecureFileDBManager as LegacySecureFileDBManager
-from .deprecated.secure_manager import (
-    secure_file_db_manager as legacy_secure_file_db_manager,
+# Helpers
+from .helpers import (
+    parse_db_result_count,
+    parse_json_field,
+    parse_string_list,
+    safe_int,
+    to_json_string,
 )
-from .extraction_manager import ExtractionDBManager as UnifiedExtractionDBManager
-from .extraction_manager import extraction_db_manager
-from .file_manager import FileDBManager as UnifiedFileDBManager
-from .file_manager import unified_file_db_manager
-from .knowledge_base_manager import (
-    KnowledgeBaseDBManager as UnifiedKnowledgeBaseDBManager,
-)
-from .knowledge_base_manager import unified_kb_db_manager
+from .knowledge_base_manager import KnowledgeBaseDBManager, unified_kb_db_manager
 
 # Models
 from .models import (
@@ -42,8 +42,7 @@ from .models import (
     UserModel,
 )
 from .unified_manager import UnifiedDatabaseManager, unified_db_manager
-from .user_manager import UserDBManager as UnifiedUserDBManager
-from .user_manager import unified_user_db_manager
+from .user_manager import UserDBManager, unified_user_db_manager
 
 # Validation utilities
 from .validation import (
@@ -53,46 +52,25 @@ from .validation import (
     validate_user_id_in_minio,
 )
 
-# Backward compatibility aliases (point to new unified managers)
-DatabaseManager = LegacyFullDatabaseManager  # For knowledge_bases.py
-FileDBManager = UnifiedFileDBManager  # Use new unified manager
-file_db_manager = unified_file_db_manager  # Use new unified manager
-SecureFileDBManager = (
-    UnifiedFileDBManager  # Use new unified manager (has all security features)
-)
-secure_file_db_manager = unified_file_db_manager  # Use new unified manager
-
 __all__ = [
-    # New unified managers (RECOMMENDED)
-    "UnifiedDatabaseManager",
-    "unified_db_manager",
-    "UnifiedFileDBManager",
-    "unified_file_db_manager",
-    "UnifiedKnowledgeBaseDBManager",
-    "unified_kb_db_manager",
-    "UnifiedUserDBManager",
-    "unified_user_db_manager",
-    "UnifiedExtractionDBManager",
-    "extraction_db_manager",
-    "AsyncTaskManager",
-    "async_task_manager",
     # Connection pool
     "DatabaseConnectionPool",
     "get_connection_pool",
     "initialize_connection_pool",
     "close_connection_pool",
-    # Backward compatibility (DEPRECATED)
-    "DatabaseManager",
+    # Managers
+    "UnifiedDatabaseManager",
+    "unified_db_manager",
     "FileDBManager",
-    "SecureFileDBManager",
-    "file_db_manager",
-    "secure_file_db_manager",
-    "LegacyDatabaseManager",
-    "LegacyFileDBManager",
-    "LegacySecureFileDBManager",
-    "LegacyFullDatabaseManager",
-    "legacy_file_db_manager",
-    "legacy_secure_file_db_manager",
+    "unified_file_db_manager",
+    "KnowledgeBaseDBManager",
+    "unified_kb_db_manager",
+    "UserDBManager",
+    "unified_user_db_manager",
+    "ExtractionDBManager",
+    "extraction_db_manager",
+    "AsyncTaskManager",
+    "async_task_manager",
     # Models
     "ChunkModel",
     "ComponentModel",
@@ -112,4 +90,10 @@ __all__ = [
     "validate_storage_connection",
     "validate_user_id",
     "validate_user_id_in_minio",
+    # Helpers
+    "parse_db_result_count",
+    "parse_json_field",
+    "parse_string_list",
+    "safe_int",
+    "to_json_string",
 ]

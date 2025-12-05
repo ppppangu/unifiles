@@ -418,9 +418,9 @@ def require_file_ownership(func):
             raise HTTPException(status_code=400, detail="Missing request or file_id")
 
         # 验证文件所有权
-        from unifiles.core.database import file_db_manager
+        from unifiles.core.database import unified_file_db_manager
 
-        file_record = await file_db_manager.get_file_record(file_id)
+        file_record = await unified_file_db_manager.get_file_record(file_id)
         if not file_record:
             raise HTTPException(status_code=404, detail="File not found")
 

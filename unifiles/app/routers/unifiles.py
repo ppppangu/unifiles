@@ -18,7 +18,7 @@ from unifiles.app.schemas import (
     StandardResponse,
     SupportedFileTypes,
 )
-from unifiles.core.database import secure_file_db_manager
+from unifiles.core.database import unified_file_db_manager
 from unifiles.core.logging import get_logger
 from unifiles.core.services import AuthService, FileService
 from unifiles.core.storage import get_initialized_storage
@@ -30,7 +30,7 @@ logger = get_logger()
 async def get_file_service() -> FileService:
     """获取文件服务实例"""
     storage = await get_initialized_storage()
-    return FileService(storage, secure_file_db_manager)
+    return FileService(storage, unified_file_db_manager)
 
 
 def get_auth_service() -> AuthService:
@@ -320,7 +320,7 @@ async def get_user_storage_stats(user_context: dict = Depends(get_user_context))
         logger.info(f"GET /files/user/stats request from user: {user_id}")
 
         # 获取用户存储统计
-        stats = await secure_file_db_manager.get_storage_statistics(user_id)
+        stats = await unified_file_db_manager.get_storage_statistics(user_id)
 
         return {
             "success": True,

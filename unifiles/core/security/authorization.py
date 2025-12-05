@@ -28,10 +28,10 @@ class FileAccessControl:
         Raises:
             HTTPException: 权限验证失败时抛出
         """
-        from unifiles.core.database import file_db_manager
+        from unifiles.core.database import unified_file_db_manager
 
         # 获取文件记录
-        file_record = await file_db_manager.get_file_record(file_id)
+        file_record = await unified_file_db_manager.get_file_record(file_id)
         if not file_record:
             logger.warning(
                 f"File access denied - file not found: {file_id} by user: {user_id}"
@@ -71,9 +71,9 @@ class FileAccessControl:
         Raises:
             HTTPException: 权限验证失败时抛出
         """
-        from unifiles.core.database import file_db_manager
+        from unifiles.core.database import unified_file_db_manager
 
-        file_record = await file_db_manager.get_file_record(file_id)
+        file_record = await unified_file_db_manager.get_file_record(file_id)
         if not file_record:
             raise HTTPException(status_code=404, detail="File not found")
 
@@ -180,33 +180,33 @@ class DatabaseSecurityEnforcer:
 # 安全的数据库连接管理器
 from contextlib import asynccontextmanager
 
-import asyncpg
+from unifiles.core.database.connection import get_connection_pool
 
 
 class SecureDatabaseManager:
-    """安全的数据库管理器"""
+    """安全的数据库管理器 - 使用全局共享连接池"""
 
-    def __init__(self, db_manager):
+    def __init__(self, db_manager=None):
         self.db_manager = db_manager
-        self._connection_pool = None
+        self._pool = None
+
+    async def _ensure_pool(self):
+        """确保连接池已初始化（使用全局共享连接池）"""
+        if self._pool is None:
+            self._pool = await get_connection_pool()
 
     async def init_pool(self, min_size: int = 5, max_size: int = 20):
-        """初始化连接池"""
-        if not self._connection_pool:
-            self._connection_pool = await asyncpg.create_pool(
-                **self.db_manager.pg_config,
-                min_size=min_size,
-                max_size=max_size,
-                command_timeout=30,
-            )
+        """初始化连接池（向后兼容，实际使用全局连接池）"""
+        # 参数 min_size 和 max_size 已在全局连接池初始化时配置
+        # 此方法保留用于向后兼容
+        await self._ensure_pool()
 
     @asynccontextmanager
     async def get_connection(self):
         """获取安全的数据库连接"""
-        if not self._connection_pool:
-            await self.init_pool()
+        await self._ensure_pool()
 
-        async with self._connection_pool.acquire() as connection:
+        async with self._pool.acquire() as connection:
             try:
                 yield connection
             except Exception as e:
@@ -231,7 +231,7 @@ class SecureDatabaseManager:
             return await conn.execute(query, *args)
 
     async def close_pool(self):
-        """关闭连接池"""
-        if self._connection_pool:
-            await self._connection_pool.close()
-            self._connection_pool = None
+        """关闭连接池（不再需要，由全局连接池统一管理）"""
+        # 全局连接池的关闭由 main.py 的 lifespan 管理
+        # 此方法保留用于向后兼容，但不执行实际操作
+        self._pool = None

@@ -11,14 +11,29 @@ from unifiles.core.logging import get_logger
 logger = get_logger()
 
 from .base_manager import BaseDBManager
+from .helpers import parse_db_result_count
 
 
 class FileDBManager(BaseDBManager):
     """统一的文件数据库管理器 - 整合了安全特性和完整功能"""
 
+    def __init__(self):
+        super().__init__()
+        self._user_manager = None
+
+    @property
+    def user_manager(self):
+        """延迟加载用户管理器以避免循环导入"""
+        if self._user_manager is None:
+            from .user_manager import unified_user_db_manager
+
+            self._user_manager = unified_user_db_manager
+        return self._user_manager
+
     async def ensure_user_exists(self, user_id: str) -> None:
         """
         确保用户在数据库中存在，如果不存在则创建
+        委托给 UserDBManager 处理
 
         Args:
             user_id: 用户ID
@@ -26,33 +41,10 @@ class FileDBManager(BaseDBManager):
         Raises:
             ValueError: 如果user_id无效
         """
-        # 输入验证
         if not user_id or len(user_id.strip()) == 0:
             raise ValueError("Invalid user_id")
 
-        user_id = self.sanitize_input(user_id)
-
-        try:
-            exists = await self.fetch_one(
-                f"SELECT EXISTS(SELECT 1 FROM {self._schema_name}.users WHERE id = $1)",
-                user_id,
-                user_id=user_id,
-                operation="user_check",
-            )
-
-            if not exists or not exists.get("exists"):
-                await self.execute_query(
-                    f"INSERT INTO {self._schema_name}.users (id, created_at) VALUES ($1, $2)",
-                    user_id,
-                    datetime.now(),
-                    user_id=user_id,
-                    operation="user_creation",
-                )
-                logger.info(f"Created new user in database: {user_id}")
-
-        except Exception as e:
-            logger.error(f"Error ensuring user exists: {e}")
-            raise
+        await self.user_manager.ensure_user_exists(user_id)
 
     async def add_file_record(
         self,
@@ -241,7 +233,7 @@ class FileDBManager(BaseDBManager):
                     )
 
             # 检查是否实际更新了记录
-            rows_affected = int(result.split()[-1]) if result else 0
+            rows_affected = parse_db_result_count(result)
 
             if rows_affected == 0:
                 logger.warning(
@@ -295,7 +287,7 @@ class FileDBManager(BaseDBManager):
                             datetime.now(),
                         )
 
-                rows_affected = int(result.split()[-1]) if result else 0
+                rows_affected = parse_db_result_count(result)
 
                 if rows_affected == 0:
                     raise ValueError(f"File not found or access denied: {file_id}")
@@ -399,7 +391,7 @@ class FileDBManager(BaseDBManager):
                     async with conn.transaction():
                         result = await conn.execute(query, *values)
 
-                rows_affected = int(result.split()[-1]) if result else 0
+                rows_affected = parse_db_result_count(result)
 
                 if rows_affected == 0:
                     raise ValueError(f"File not found or access denied: {file_id}")
@@ -481,7 +473,7 @@ class FileDBManager(BaseDBManager):
                         cutoff_date,
                     )
 
-            cleaned_count = int(result.split()[-1]) if result else 0
+            cleaned_count = parse_db_result_count(result)
 
             if cleaned_count > 0:
                 logger.info(f"Cleaned up {cleaned_count} old deleted file records")

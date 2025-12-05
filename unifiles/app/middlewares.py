@@ -10,12 +10,10 @@ import asyncpg
 from fastapi import Request, UploadFile
 from fastapi.responses import JSONResponse
 
+from unifiles.core.database import close_connection_pool, get_connection_pool
 from unifiles.core.logging import get_logger
 
 logger = get_logger()
-
-# 导入数据库配置
-from unifiles.core.config.env_config import read_pg_config
 
 # 导入格式验证器
 from unifiles.core.pipelines.format_validator import FileFormatValidator
@@ -244,8 +242,7 @@ class AuthMiddleware:
 
     def __init__(self, app):
         self.app = app
-        self.pg_config = read_pg_config()
-        self._connection_pool = None
+        self._db_pool = None
 
         # 不需要认证的路径
         self.public_paths = {
@@ -331,35 +328,19 @@ class AuthMiddleware:
 
         return True
 
-    async def _init_connection_pool(self):
-        """初始化数据库连接池（延迟初始化）"""
-        if self._connection_pool is None:
-            try:
-                self._connection_pool = await asyncpg.create_pool(
-                    host=self.pg_config["host"],
-                    port=self.pg_config["port"],
-                    user=self.pg_config["user"],
-                    password=self.pg_config["password"],
-                    database=self.pg_config["database"],
-                    min_size=5,  # 最小连接数
-                    max_size=20,  # 最大连接数
-                    command_timeout=10.0,  # 命令超时10秒
-                    timeout=30.0,  # 连接超时30秒
-                )
-                logger.info("Auth middleware connection pool initialized")
-            except Exception as e:
-                logger.error(f"Failed to initialize connection pool: {e!s}")
-                raise
+    async def _get_connection_pool(self):
+        """获取共享数据库连接池（懒加载，全局单例）"""
+        if self._db_pool is None:
+            self._db_pool = await get_connection_pool()
+        return self._db_pool
 
     async def _validate_token(self, token: str) -> Optional[str]:
         """验证token并返回用户ID"""
         try:
-            # 确保连接池已初始化
-            if self._connection_pool is None:
-                await self._init_connection_pool()
+            pool = await self._get_connection_pool()
 
             # 从连接池获取连接
-            async with self._connection_pool.acquire() as conn:
+            async with pool.acquire() as conn:
                 # 使用简化的验证函数，直接返回user_id
                 user_id = await conn.fetchval(
                     "SELECT validate_access_key_simple($1)", token
@@ -380,9 +361,9 @@ class AuthMiddleware:
 
     async def close_connection_pool(self):
         """关闭连接池"""
-        if self._connection_pool is not None:
-            await self._connection_pool.close()
-            self._connection_pool = None
+        if self._db_pool is not None:
+            await close_connection_pool()
+            self._db_pool = None
             logger.info("Auth middleware connection pool closed")
 
 

@@ -13,7 +13,7 @@ from typing import Any, Dict, Optional
 import aiofiles
 
 from ..config.env_config import read_config
-from ..database import extraction_db_manager, secure_file_db_manager
+from ..database import extraction_db_manager, unified_file_db_manager
 from ..logging import get_logger
 from ..pipelines.format_validator import FormatValidationPipeline
 from ..pipelines.pdf_processor import (
@@ -433,7 +433,7 @@ class DocumentProcessingService:
         """
         try:
             # 从数据库获取文件信息
-            file_record = await secure_file_db_manager.get_file_record(file_id)
+            file_record = await unified_file_db_manager.get_file_record(file_id)
             if not file_record:
                 raise ValueError(f"File not found: {file_id}")
 

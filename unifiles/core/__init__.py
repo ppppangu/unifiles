@@ -14,7 +14,6 @@ from .config.env_config import (
 )
 from .database import (
     ChunkModel,
-    DatabaseManager,
     DocumentModel,
     FileModel,
     FileProcessingLogModel,
@@ -23,6 +22,7 @@ from .database import (
     PhotoModel,
     ProcessingStage,
     ProcessingStatus,
+    UnifiedDatabaseManager,
     UserModel,
 )
 
@@ -51,8 +51,6 @@ __version__ = "1.0.0"
 __all__ = [
     "AuthService",
     "ChunkModel",
-    # 数据库
-    "DatabaseManager",
     "DocumentModel",
     "FileDownloader",
     # 流水线
@@ -73,6 +71,7 @@ __all__ = [
     "ProcessingStatus",
     "SimplePDFReader",
     "TextProcessor",
+    "UnifiedDatabaseManager",
     "UserModel",
     "convert_to_internal_minio_url",
     "detect_content_type",
