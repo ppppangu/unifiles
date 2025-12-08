@@ -10,7 +10,6 @@ from .format_validator import (
 )
 from .pdf_processor import (
     FileDownloader,
-    MineruOCRProvider,
     OCRProvider,
     PDFProcessingPipeline,
     TextProcessor,
@@ -20,7 +19,6 @@ __all__ = [
     "FileDownloader",
     "FileFormatValidator",
     "FormatValidationPipeline",
-    "MineruOCRProvider",
     "OCRProvider",
     "PDFConverter",
     "PDFProcessingPipeline",

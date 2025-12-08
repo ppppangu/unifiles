@@ -40,13 +40,6 @@ class ProcessingFactory:
         except ImportError:
             logger.debug("PDF processor not available")
 
-        try:
-            from .ocr import OCRProcessor
-
-            self.register_processor("ocr", OCRProcessor)
-        except ImportError:
-            logger.debug("OCR processor not available")
-
     def register_processor(self, name: str, processor_class: type):
         """
         注册处理器
