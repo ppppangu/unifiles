@@ -35,7 +35,6 @@ from .pipelines import (
     OCRProvider,
     PDFConverter,
     PDFProcessingPipeline,
-    SimplePDFReader,
     TextProcessor,
 )
 
@@ -69,7 +68,6 @@ __all__ = [
     "PhotoModel",
     "ProcessingStage",
     "ProcessingStatus",
-    "SimplePDFReader",
     "TextProcessor",
     "UnifiedDatabaseManager",
     "UserModel",

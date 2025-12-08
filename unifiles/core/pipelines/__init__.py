@@ -13,7 +13,6 @@ from .pdf_processor import (
     MineruOCRProvider,
     OCRProvider,
     PDFProcessingPipeline,
-    SimplePDFReader,
     TextProcessor,
 )
 
@@ -25,6 +24,5 @@ __all__ = [
     "OCRProvider",
     "PDFConverter",
     "PDFProcessingPipeline",
-    "SimplePDFReader",
     "TextProcessor",
 ]
