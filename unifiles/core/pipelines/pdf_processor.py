@@ -425,6 +425,7 @@ class FileDownloader:
                     headers=headers,
                     follow_redirects=True,
                     verify=False,
+                    trust_env=False,  # 禁用系统代理，避免Windows代理设置导致502错误
                 ) as client:
                     # 先进行HEAD请求检查文件是否存在
                     try:
