@@ -133,6 +133,8 @@ and the SDK also caches the extracted content internally so that `get_content()`
 *   `mistral`: Use a Mistral-based LLM OCR/extraction backend (requires configuration).
 *   `openai`: Use an OpenAI-compatible OCR/extraction backend (requires configuration).
 
+All modes now flow through the same OCR provider factory: `simple` is implemented as a built-in pdfplumber/PyMuPDF provider, so switching modes is just changing the provider name.
+
 #### Image Content Parsing (selfhosted mode only)
 
 When using `selfhosted` mode, you can control whether to generate semantic descriptions for images and tables in the document via the `parse_image_content` parameter:

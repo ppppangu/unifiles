@@ -132,6 +132,8 @@ print(text_content)
 *   `mistral`：使用基于 Mistral 的 LLM OCR/提取后端（需要配置）。
 *   `openai`：使用兼容 OpenAI 的 OCR/提取后端（需要配置）。
 
+所有模式都会经过同一个 OCR 提供者工厂；`simple` 现在是内置的 pdfplumber/PyMuPDF 提供者，只需切换名称即可走同一条流水线。
+
 #### 图像内容解析（仅 selfhosted 模式）
 
 当使用 `selfhosted` 模式时，可以通过 `parse_image_content` 参数控制是否为文档中的图片和表格生成语义化描述：

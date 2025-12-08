@@ -16,13 +16,10 @@ from ..config.env_config import read_config
 from ..database import extraction_db_manager, unified_file_db_manager
 from ..logging import get_logger
 from ..pipelines.format_validator import FormatValidationPipeline
-from ..pipelines.pdf_processor import (
-    GenericOCRAdapter,
-    PDFProcessingPipeline,
-    SimplePDFReader,
-)
+from ..pipelines.pdf_processor import PDFProcessingPipeline
 from ..services.embedding_service import EmbeddingService
 from ..services.storage_service import StorageService
+from ..ocr.factory import OCRProviderFactory
 
 
 def parse_image_assets_from_markdown(markdown: str) -> list[dict[str, Any]]:
@@ -78,19 +75,6 @@ class DocumentProcessingService:
         # 创建临时目录
         self.tmp_dir = Path(__file__).parent / "tmp"
         self.tmp_dir.mkdir(exist_ok=True)
-
-    def set_ocr_provider(self, provider_type: str = "simple"):
-        """设置OCR提供者
-
-        Args:
-            provider_type: OCR提供者类型，"simple"表示使用简单PDF读取器，其他值表示使用对应的OCR提供商
-        """
-        if provider_type == "simple":
-            self.pdf_pipeline.set_ocr_provider(SimplePDFReader())
-        else:
-            self.pdf_pipeline.set_ocr_provider(GenericOCRAdapter(provider_type))
-
-        self.logger.info(f"OCR provider set to: {provider_type}")
 
     async def process_file_from_upload(
         self,
@@ -149,12 +133,6 @@ class DocumentProcessingService:
 
             pdf_url = validation_result["pdf_url"]
             self.logger.info(f"PDF ready for processing: {pdf_url}")
-
-            # 设置OCR提供者
-            if mode == "simple":
-                self.set_ocr_provider("simple")
-            else:
-                self.set_ocr_provider(mode)
 
             # 第二步：PDF处理和内容提取
             self.logger.info("=== Stage 2: PDF processing and content extraction ===")
@@ -287,12 +265,6 @@ class DocumentProcessingService:
             pdf_url = validation_result["pdf_url"]
             self.logger.info(f"PDF ready for processing: {pdf_url}")
 
-            # 设置OCR提供者
-            if mode == "simple":
-                self.set_ocr_provider("simple")
-            else:
-                self.set_ocr_provider(mode)
-
             # 第二步：PDF处理和内容提取
             self.logger.info("=== Stage 2: PDF processing and content extraction ===")
 
@@ -404,7 +376,7 @@ class DocumentProcessingService:
         return {
             "service_name": "DocumentProcessingService",
             "version": "1.0.0",
-            "supported_modes": ["simple", "custom_ocr_provider"],
+            "supported_modes": OCRProviderFactory.get_supported_providers(),
             "format_pipeline": self.format_pipeline.validator.SUPPORTED_FILE_TYPES,
             "pdf_pipeline": self.pdf_pipeline.get_pipeline_info(),
             "embedding_service": self.embedding_service.get_service_info(),
@@ -440,12 +412,6 @@ class DocumentProcessingService:
             # 验证权限
             if file_record["user_id"] != user_id:
                 raise PermissionError("Access denied: file belongs to another user")
-
-            # 设置OCR提供者
-            if mode == "simple":
-                self.set_ocr_provider("simple")
-            else:
-                self.set_ocr_provider(mode)
 
             self.logger.info(f"Processing file by ID: {file_id}, Mode: {mode}")
 

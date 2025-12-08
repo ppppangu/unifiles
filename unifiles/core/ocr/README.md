@@ -1,6 +1,7 @@
 # OCR 模块（面向开发者）
 
 模块提供统一、可扩展的 OCR 抽象，对外统一入口为 `OCRProcessor`，内部通过“抽象基类 + 工厂”解耦供应商；支持本地文件处理、目录并发处理、结果落盘（Markdown 与图片）。当前内置供应商：
+- `simple`（内置 pdfplumber/PyMuPDF，基本文本+图片抽取）
 - `mistral`（Mistral OCR）
 - `selfhosted`（OpenAI 兼容，自部署，单实例）
 - `openai`（OpenAI/GPT-4o 等，单实例）
@@ -22,10 +23,12 @@ ocr/
 ├── processor.py           # OCRProcessor：统一入口 + 目录并发
 ├── config/
 │   ├── base.py            # BaseConfig：加载 .env，定义 validate/getters
+│   ├── simple.py          # SimpleOCRConfig：本地内置 provider，无需凭证
 │   ├── mistral.py         # MistralConfig：MISTRAL_API_KEY/MISTRAL_OCR_MODEL
 │   ├── selfhosted.py      # SelfHostedConfig：单实例，OpenAI 兼容
 │   └── openai.py          # OpenAIConfig：单实例，OpenAI 官方/兼容
 └── providers/
+    ├── simple.py          # SimpleOCRProvider：pdfplumber + PyMuPDF，内置基线
     ├── mistral.py         # MistralOCRProvider：原生异步，对接 mistralai SDK
     ├── selfhosted.py      # SelfHostedOCRProvider：OpenAI 兼容（使用 OpenAI SDK）
     └── openai.py          # OpenAIOCRProvider：OpenAI 官方/兼容（使用 OpenAI SDK）
