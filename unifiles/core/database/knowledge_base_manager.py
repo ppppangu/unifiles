@@ -7,6 +7,7 @@
 - 组件抽象层使用表 unifiles.components，子类表 unifiles.chunks / unifiles.photos
 """
 
+import json
 from datetime import datetime
 from typing import Optional
 

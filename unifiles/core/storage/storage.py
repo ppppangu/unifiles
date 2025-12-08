@@ -1,9 +1,19 @@
 """
 Storage orchestrator and backends.
 
-Provides the `Storage` coordinator used across the application to interact with
-object storage providers while ensuring that the backing PostgreSQL database is
-ready (schema present and baseline objects created).
+本模块提供存储系统的核心功能：
+- DatabaseBootstrapper: 启动时检查数据库 schema 是否存在
+- BaseStorageBackend: 存储后端抽象基类
+- LocalStorageBackend: 本地文件系统存储实现
+- MinioStorageBackend: MinIO/S3 对象存储实现
+- Storage: 存储编排器，管理多个后端并提供统一接口
+
+使用方式：
+    storage = await get_initialized_storage()
+    backend = await storage.get_default_backend()
+    await backend.upload_file("path/to/file.txt", content)
+
+数据库初始化请使用: python scripts/init_db.py
 """
 
 from __future__ import annotations
@@ -15,7 +25,7 @@ import os
 from dataclasses import dataclass
 from datetime import timedelta
 from pathlib import Path
-from typing import Any, Dict, Iterable, List, Optional
+from typing import Any, Dict, List, Optional
 from urllib.parse import quote
 
 from unifiles.core.logging import get_logger
@@ -29,11 +39,8 @@ def _get_logger():
 # 注意: 不在模块级别调用 _get_logger()，而是在需要时动态调用
 from minio import Minio
 from minio.error import S3Error
-from sqlalchemy import create_engine, text
-from sqlalchemy.engine import URL, Engine
-from sqlalchemy.exc import SQLAlchemyError
 
-from unifiles.core.config.env_config import read_minio_config, read_pg_config
+from unifiles.core.config.env_config import read_minio_config
 from unifiles.core.config.models.connection_config import (
     LocalConnection,
     MinIOConnection,
@@ -41,112 +48,56 @@ from unifiles.core.config.models.connection_config import (
 from unifiles.core.config.models.storage_config import ConfigSource, StorageConfig
 
 
+# =============================================================================
+# 异常类
+# =============================================================================
+
 class StorageError(Exception):
-    """Generic storage error."""
+    """存储操作通用异常"""
 
 
 class StorageInitializationError(StorageError):
-    """Raised when storage cannot be initialized."""
+    """存储初始化失败时抛出"""
 
 
 class DatabaseBootstrapper:
-    """Ensures the PostgreSQL database/schema required by the service exists."""
+    """Checks PostgreSQL database/schema readiness at startup.
+    
+    Note: Actual database initialization is handled by `scripts/init_db.py`.
+    This class only performs connectivity and schema existence checks.
+    """
 
-    SQL_FILE_ORDER: Iterable[str] = (
-        "011-create-extensions.sql",
-        "021-create-users.sql",
-        "022-create-access-key-management.sql",
-        "031-create-file-management.sql",
-        "041-create-content-extraction.sql",
-        "051-create-knowledge-base.sql",
-        "061-create-component-abstraction.sql",
-        # "071-create-indexes.sql",
-        "081-create-triggers.sql",
-    )
-
-    REQUIRED_RELATIONS: Iterable[str] = (
-        "unifiles.users",
-        "unifiles.files",
-        "unifiles.documents",
-        "unifiles.knowledge_bases",
-    )
-
-    def __init__(self, sql_dir: Optional[Path] = None):
-        self._pg_config = read_pg_config()
-        self._sql_dir = (
-            sql_dir or Path(__file__).resolve().parents[3] / "scripts" / "sql"
-        )
+    def __init__(self):
         try:
-            _get_logger().info(
-                f"[DB] Bootstrapper initialized (host={self._pg_config.get('host')}, "
-                f"port={self._pg_config.get('port')}, db={self._pg_config.get('database')}, "
-                f"sql_dir={self._sql_dir!s})"
-            )
+            _get_logger().info("[DB] Bootstrapper initialized for schema check")
         except Exception:
             pass
 
-    def _build_engine(self) -> Engine:
-        """Create a SQLAlchemy engine for the configured database."""
-        try:
-            url = URL.create(
-                drivername="postgresql+psycopg",
-                username=self._pg_config.get("user"),
-                password=self._pg_config.get("password"),
-                host=self._pg_config.get("host"),
-                port=int(self._pg_config.get("port", 5432)),
-                database=self._pg_config.get("database", "postgres"),
-            )
-        except Exception as exc:  # pragma: no cover - configuration errors
-            raise StorageInitializationError(
-                f"Invalid PostgreSQL configuration: {exc}"
-            ) from exc
-
-        # 添加连接超时和池配置，加快启动速度
-        _get_logger().info(
-            f"[DB] Creating SQLAlchemy engine (host={self._pg_config.get('host')}, "
-            f"port={self._pg_config.get('port')}, db={self._pg_config.get('database')})"
-        )
-        return create_engine(
-            url,
-            pool_pre_ping=True,
-            connect_args={
-                "connect_timeout": 5,  # 5秒连接超时
-            },
-            pool_size=5,
-            max_overflow=10,
-            pool_timeout=10,  # 10秒池超时
-        )
-
     async def ensure_database_ready(self) -> None:
-        """Ensure the database is reachable and schema exists."""
-        # 使用asyncpg直接测试连接，避免SQLAlchemy连接池问题
-        _get_logger().info("[DB] ensure_database_ready: begin connectivity check via asyncpg")
-        try:
-            import asyncpg
+        """Ensure the database is reachable and schema exists.
+        
+        Uses the global connection pool (initialized in main.py) instead of
+        creating standalone connections, ensuring resource reuse.
+        """
+        from unifiles.core.database import get_connection_pool
 
-            conn = await asyncpg.connect(
-                host=self._pg_config.get("host"),
-                port=int(self._pg_config.get("port", 5432)),
-                user=self._pg_config.get("user"),
-                password=self._pg_config.get("password"),
-                database=self._pg_config.get("database", "postgres"),
-                timeout=5,
-            )
-            _get_logger().info("[DB] asyncpg connected successfully")
-            # 快速检查schema是否存在
-            schema_exists = await conn.fetchval(
-                "SELECT EXISTS(SELECT 1 FROM information_schema.schemata WHERE schema_name = 'unifiles')"
-            )
-            await conn.close()
+        _get_logger().info("[DB] ensure_database_ready: checking schema via global pool")
+        try:
+            pool = await get_connection_pool()
+            
+            async with pool.acquire() as conn:
+                schema_exists = await conn.fetchval(
+                    "SELECT EXISTS(SELECT 1 FROM information_schema.schemata WHERE schema_name = 'unifiles')"
+                )
 
             if schema_exists:
-                _get_logger().info(
-                    "[DB] Schema 'unifiles' exists; skipping bootstrap initialization"
-                )
+                _get_logger().info("[DB] Schema 'unifiles' exists; database ready")
                 return
-            _get_logger().warning("[DB] Schema 'unifiles' not found; may need initialization")
-        # 如果需要，可以在这里调用同步初始化
-        # await asyncio.to_thread(self._ensure_database_ready_sync)
+            
+            _get_logger().warning(
+                "[DB] Schema 'unifiles' not found. "
+                "Please run: python scripts/init_db.py"
+            )
 
         except Exception as exc:
             _get_logger().warning(
@@ -155,99 +106,33 @@ class DatabaseBootstrapper:
             )
             return
 
-    def _ensure_database_ready_sync(self) -> None:
-        _get_logger().info("[DB] _ensure_database_ready_sync: begin")
-        engine = self._build_engine()
-        try:
-            with engine.connect() as conn:
-                conn.execute(text("SELECT 1"))
-                _get_logger().info("[DB] Engine connectivity check OK")
-        except SQLAlchemyError as exc:
-            _get_logger().warning(
-                f"Database connectivity check failed: {exc}. "
-                "Service will continue without database features."
-            )
-            # 不抛出异常，允许服务继续启动（使用本地存储）
-            return
-
-        missing_relations: List[str] = []
-        try:
-            with engine.connect() as conn:
-                missing_relations = self._detect_missing_relations(conn)
-                _get_logger().info(
-                    f"[DB] Missing relations detected: "
-                    f"{', '.join(missing_relations) if missing_relations else '<none>'}"
-                )
-        except SQLAlchemyError as exc:
-            raise StorageInitializationError(
-                f"Failed to inspect database schema: {exc}"
-            ) from exc
-
-        if not missing_relations:
-            _get_logger().info("Database schema already present; skipping bootstrap scripts.")
-            return
-
-        _get_logger().info(
-            f"Database schema incomplete (missing: {', '.join(missing_relations)}). Running bootstrap scripts."
-        )
-
-        try:
-            with engine.begin() as conn:
-                self._run_bootstrap_scripts(conn)
-                _get_logger().info("[DB] Bootstrap SQL scripts executed")
-        except SQLAlchemyError as exc:
-            raise StorageInitializationError(
-                f"Failed to execute bootstrap scripts: {exc}"
-            ) from exc
-
-        _get_logger().info("Database bootstrap scripts executed successfully.")
-
-    def _detect_missing_relations(self, conn) -> List[str]:
-        """Return a list of required relations that are missing."""
-        missing: List[str] = []
-        for relation in self.REQUIRED_RELATIONS:
-            result = conn.execute(text("SELECT to_regclass(:name)"), {"name": relation})
-            if result.scalar() is None:
-                missing.append(relation)
-        return missing
-
-    def _run_bootstrap_scripts(self, conn) -> None:
-        """Execute ordered SQL files to create the schema."""
-        for filename in self.SQL_FILE_ORDER:
-            sql_path = self._sql_dir / filename
-            if not sql_path.exists():
-                _get_logger().warning(f"SQL bootstrap file missing: {sql_path}")
-                continue
-
-            script = sql_path.read_text(encoding="utf-8")
-            # psycopg treats '%' as placeholder marker; escape literal percent signs
-            script = script.replace("%", "%%")
-
-            _get_logger().info(f"Executing bootstrap script: {filename}")
-            conn.exec_driver_sql(script)
-
     async def health_check(self) -> Dict[str, Any]:
         """Return database health information."""
-        return await asyncio.to_thread(self._health_check_sync)
+        from unifiles.core.database import get_connection_pool
 
-    def _health_check_sync(self) -> Dict[str, Any]:
-        engine = self._build_engine()
         try:
-            with engine.connect() as conn:
-                conn.execute(text("SELECT 1"))
-                missing = self._detect_missing_relations(conn)
-        except SQLAlchemyError as exc:
+            pool = await get_connection_pool()
+            async with pool.acquire() as conn:
+                # Check connectivity
+                await conn.fetchval("SELECT 1")
+                # Check schema
+                schema_exists = await conn.fetchval(
+                    "SELECT EXISTS(SELECT 1 FROM information_schema.schemata WHERE schema_name = 'unifiles')"
+                )
+            
+            if schema_exists:
+                return {"status": "healthy"}
+            return {"status": "degraded", "warning": "Schema 'unifiles' not found"}
+        except Exception as exc:
             return {"status": "error", "error": str(exc)}
 
-        status = "healthy" if not missing else "degraded"
-        response: Dict[str, Any] = {"status": status}
-        if missing:
-            response["missing_relations"] = missing
-        return response
 
+# =============================================================================
+# 存储后端基类与实现
+# =============================================================================
 
 class BaseStorageBackend:
-    """Common interface for storage backends."""
+    """存储后端抽象基类，定义统一接口。子类需实现具体的上传/删除/访问逻辑。"""
 
     def __init__(self, config: StorageConfig):
         self.config = config
@@ -299,7 +184,7 @@ class BaseStorageBackend:
 
 
 class LocalStorageBackend(BaseStorageBackend):
-    """Simple filesystem-based storage backend."""
+    """本地文件系统存储后端。文件存储在 base_path 目录下，元数据以 .meta.json 后缀存储。"""
 
     def __init__(self, config: StorageConfig, connection: LocalConnection):
         super().__init__(config)
@@ -439,7 +324,7 @@ class LocalStorageBackend(BaseStorageBackend):
 
 
 class MinioStorageBackend(BaseStorageBackend):
-    """MinIO storage backend implementation."""
+    """MinIO/S3 对象存储后端。支持 presigned URL 和公开 URL 两种访问方式。"""
 
     def __init__(self, config: StorageConfig, connection: MinIOConnection):
         super().__init__(config)
@@ -607,16 +492,27 @@ class MinioStorageBackend(BaseStorageBackend):
         }
 
 
+# =============================================================================
+# 存储编排器
+# =============================================================================
+
 @dataclass
 class StorageState:
-    """Internal state holder for the Storage orchestrator."""
-
+    """Storage 编排器的内部状态"""
     initialized: bool = False
     default_backend_id: str | None = None
 
 
 class Storage:
-    """Storage orchestrator managing available backends and database readiness."""
+    """
+    存储编排器 - 管理多个存储后端，提供统一的存储访问接口。
+    
+    初始化流程 (由 main.py 调用):
+    1. 检查数据库 schema 是否存在
+    2. 加载存储配置 (MinIO + 本地存储)
+    3. 初始化各个存储后端
+    4. 设置默认后端
+    """
 
     def __init__(self):
         self._state = StorageState()
@@ -790,13 +686,15 @@ class Storage:
         )
 
 
-# Global storage singleton -----------------------------------------------------
+# =============================================================================
+# 全局单例访问
+# =============================================================================
 
 _storage_instance: Optional[Storage] = None
 
 
 def get_storage() -> Storage:
-    """Return the global storage orchestrator instance (without initializing)."""
+    """获取 Storage 单例 (不触发初始化)"""
     global _storage_instance
     if _storage_instance is None:
         _storage_instance = Storage()
@@ -804,7 +702,7 @@ def get_storage() -> Storage:
 
 
 async def get_initialized_storage() -> Storage:
-    """Return the storage orchestrator ensuring initialization has run."""
+    """获取已初始化的 Storage 单例 (推荐使用此方法)"""
     _get_logger().info("[Storage] get_initialized_storage(): ensure initialized")
     storage = get_storage()
     await storage.initialize()
