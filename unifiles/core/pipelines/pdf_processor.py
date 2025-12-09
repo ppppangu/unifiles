@@ -88,23 +88,13 @@ class FileDownloader:
                     verify=False,
                     trust_env=False,  # 禁用系统代理，避免Windows代理设置导致502错误
                 ) as client:
-                    # 先进行HEAD请求检查文件是否存在
+                    # 先尝试 HEAD 检查，失败继续 GET
                     try:
-                        logger.info(f"Checking file accessibility: {target_url}")
-                        head_response = await client.head(target_url)
-                        logger.info(
-                            f"HEAD request success: {head_response.status_code}, Content-Length: {head_response.headers.get('content-length', 'unknown')}"
-                        )
-                    except Exception as head_error:
-                        logger.warning(
-                            f"HEAD request failed, continuing with GET: {head_error}"
-                        )
+                        await client.head(target_url)
+                    except Exception:
+                        logger.debug("HEAD request failed, fallback to GET")
 
-                    # 执行GET请求下载文件
-                    logger.info(f"Starting GET request: {target_url}")
                     response = await client.get(target_url)
-
-                    logger.info(f"GET response status: {response.status_code}")
                     response.raise_for_status()
 
                     if not response.content:
@@ -120,25 +110,20 @@ class FileDownloader:
                         await f.write(response.content)
 
                     logger.info(
-                        f"File download successful: {file_path}, size: {len(response.content)} bytes"
+                        f"Download succeeded: {target_url} -> {file_path} ({len(response.content)} bytes)"
                     )
                     return file_path
 
             except httpx.HTTPStatusError as e:
                 logger.error(
-                    f"HTTP status error: {e.response.status_code} - {e.response.reason_phrase}"
+                    f"HTTP error {e.response.status_code} on {target_url}: {e.response.reason_phrase}"
                 )
-                logger.error(f"Response headers: {dict(e.response.headers)}")
-                logger.error(f"Response content: {e.response.text[:500]}...")
-                logger.error(f"Request URL: {target_url}")
                 raise
             except httpx.RequestError as e:
-                logger.error(f"Request error: {e!s}, URL: {target_url}")
-                logger.error(f"Error type: {type(e).__name__}")
+                logger.error(f"Request error on {target_url}: {e!s}")
                 raise
             except Exception as e:
-                logger.error(f"Unexpected download error: {e!s}, URL: {target_url}")
-                logger.error(f"Error type: {type(e).__name__}")
+                logger.error(f"Download failed for {target_url}: {e!s}")
                 raise Exception(f"Download failed: {e!s}")
 
         # 主下载逻辑
@@ -149,12 +134,12 @@ class FileDownloader:
             internal_url = convert_to_internal_minio_url(original_url)
             if internal_url != original_url:
                 logger.warning(
-                    f"First download failed, trying internal URL: {internal_url}"
+                    f"Primary download failed, retrying internal URL: {internal_url}"
                 )
                 try:
                     return await _do_request(internal_url)
                 except Exception as second_error:
-                    logger.error("Internal URL fallback download also failed")
+                    logger.error("Internal URL fallback download failed")
                     raise second_error from first_error
             raise
 
@@ -175,8 +160,6 @@ class TextProcessor:
         self, converted_text: str, results: List[Tuple[int, int, str]]
     ) -> List[Dict[str, Any]]:
         """将结果转换为字典列表"""
-
-        logger.info(f"Converted text: {converted_text}")
 
         results_dict = []
         for index, result in enumerate(results):
@@ -250,20 +233,11 @@ class TextProcessor:
         """
         try:
             # 步骤1：按图片边界切分，同时获取转换后的完整文本
-            logger.info("Processing text content - Step 1: Segment by image boundaries")
             converted_text = await asyncio.to_thread(
                 self._convert_image_paths, text, user_id, knowledge_base_id, document_id
             )
             # 保存未分块的完整Markdown，以供上层用于 full_markdown 持久化
             self._last_full_markdown = converted_text
-            logger.info(
-                "Image segmentation completed",
-                {
-                    "segments": len(converted_text),
-                    "text_length_before": len(text),
-                    "text_length_after": len(converted_text),
-                },
-            )
 
             # 步骤2：不进行任何分块，返回单一整段内容（包含已转换好的图片路径）
             final_segments: List[Dict[str, Any]] = [
@@ -276,8 +250,11 @@ class TextProcessor:
             ]
 
             logger.info(
-                "Text chunking completed",
-                {"segments": len(final_segments)},
+                "Text processed",
+                {
+                    "text_length": len(text),
+                    "segments": len(final_segments),
+                },
             )
             return final_segments
 
@@ -339,16 +316,19 @@ class PDFProcessingPipeline:
             file_uuid = document_id
             local_file_path = self.tmp_dir / f"{file_uuid}.{pdf_url.split('.')[-1]}"
 
-            logger.info("=== Stage 1: Download file ===")
             logger.info(
-                f"Request: user_id={user_id}, file_url={pdf_url}, knowledge_base_id={knowledge_base_id}, mode={mode}"
+                "PDF pipeline started",
+                {
+                    "user_id": user_id,
+                    "kb_id": knowledge_base_id,
+                    "doc_id": document_id,
+                    "mode": mode,
+                },
             )
 
             # 下载文件到本地
             await self.downloader.download_file(pdf_url, str(local_file_path))
-            logger.info(f"File downloaded successfully: {local_file_path}")
-
-            logger.info("=== Stage 2: Extract text ===")
+            logger.info(f"File downloaded: {local_file_path}")
 
             # 根据模式处理PDF（统一走 OCRProviderFactory）
             provider_name = mode or self.default_provider_name or "simple"
@@ -384,7 +364,7 @@ class PDFProcessingPipeline:
                 )
 
             logger.info(
-                f"Text extraction completed, {len(text)} characters, {len(images_info)} images"
+                f"Text extraction completed: {len(text)} chars, {len(images_info)} images"
             )
 
             # 避免将包含 bytes 的大对象写入日志，只输出精简统计信息
@@ -393,7 +373,7 @@ class PDFProcessingPipeline:
                     int(img.get("size_bytes", 0)) for img in images_info
                 )
                 sample_names = [img.get("filename") for img in images_info[:3]]
-                logger.info(
+                logger.debug(
                     "Extracted images summary: count=%d, total_bytes=%d, samples=%s",
                     len(images_info),
                     total_img_bytes,
@@ -401,7 +381,7 @@ class PDFProcessingPipeline:
                 )
             except Exception:
                 # 兜底：即便统计失败，也不要打印原始 images_info 以免日志过大
-                logger.info(f"Extracted images summary: count={len(images_info)}")
+                logger.debug(f"Extracted images summary: count={len(images_info)}")
 
             # === Stage 2.5: Upload extracted images to storage (MinIO) ===
             # Note: OCR providers can return images as bytes (memory) or path (file).
@@ -500,13 +480,12 @@ class PDFProcessingPipeline:
                         images_info
                     )
 
-                # 可选：将图片信息作为额外的元数据返回
-                logger.info(
-                    f"Added {len(images_info)} images metadata to structured content"
+                logger.debug(
+                    f"Added extracted image metadata: {len(images_info)} items"
                 )
 
             logger.info(
-                f"Content structure processing completed, {len(structured_content)} segments"
+                f"Content structuring completed: {len(structured_content)} segments"
             )
 
             return structured_content
@@ -519,7 +498,7 @@ class PDFProcessingPipeline:
             try:
                 if local_file_path.exists():
                     await asyncio.to_thread(local_file_path.unlink, missing_ok=True)
-                    logger.info(f"Temporary file deleted: {local_file_path}")
+                    logger.debug(f"Temporary file deleted: {local_file_path}")
             except Exception as cleanup_error:
                 logger.warning(f"Failed to cleanup temporary file: {cleanup_error}")
 

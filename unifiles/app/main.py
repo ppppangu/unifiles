@@ -23,6 +23,7 @@ from unifiles.app.middlewares import (
 
 # 导入API路由
 from unifiles.app.routers import (
+    chat,
     knowledge_bases,
     manager,
     processors,
@@ -113,6 +114,7 @@ def create_app() -> FastAPI:
     app.add_middleware(FileValidationMiddleware)
 
     # 包含API路由
+    app.include_router(chat.router)
     app.include_router(unifiles.router)
     app.include_router(processors.router)
     app.include_router(tasks.router)
