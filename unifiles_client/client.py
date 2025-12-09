@@ -323,7 +323,7 @@ class Document:
             "mode": mode,
             "parse_image_content": parse_image_content,
         }
-        response = self.client._post(f"/files/{self.file_id}/extract", data=data)
+        response = self.client._post(f"/extractions/{self.file_id}", data=data)
 
         # 记录任务信息
         task_id = response.get("task_id")

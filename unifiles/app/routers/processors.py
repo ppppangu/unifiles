@@ -6,18 +6,20 @@ from unifiles.core.logging import get_logger
 logger = get_logger()
 
 from unifiles.app.schemas import (
+    ExtractedContent,
     FileExtractRequest,
+    FileExtractResponse,
     TaskSubmitResponse,
 )
 from unifiles.core.celery.tasks import process_file_extraction_task
 from unifiles.core.database import async_task_manager, unified_file_db_manager
 
-# Note: The prefix is /files, but these are processing actions.
-# A different prefix like /processors/{file_id} could be a future refactor.
-router = APIRouter(prefix="/files", tags=["Processors"])
+# Content extraction endpoints
+# These endpoints handle document content extraction (Layer 2 of the three-layer architecture)
+router = APIRouter(prefix="/extractions", tags=["Extractions"])
 
 
-@router.post("/{file_id}/extract", response_model=TaskSubmitResponse)
+@router.post("/{file_id}", response_model=TaskSubmitResponse)
 async def extract_file_content(
     request: Request,
     file_id: str = FastAPIPath(..., description="文件ID"),
@@ -116,4 +118,110 @@ async def extract_file_content(
         raise HTTPException(
             status_code=500,
             detail=f"Failed to submit extraction task: {e!s}",
+        )
+
+
+@router.get("/{file_id}", response_model=FileExtractResponse)
+async def get_extracted_content(
+    request: Request,
+    file_id: str = FastAPIPath(..., description="文件ID"),
+) -> FileExtractResponse:
+    """
+    获取文件提取后的全部内容
+
+    该端点返回文件经过提取处理后的完整内容，包括 Markdown 格式的全文。
+    如果文件尚未提取，将返回 404 错误。
+
+    Args:
+        request: FastAPI请求对象（包含user_id）
+        file_id: 文件ID
+
+    Returns:
+        FileExtractResponse: 包含提取内容的响应
+
+    Raises:
+        HTTPException: 404 - 文件不存在或未提取
+        HTTPException: 403 - 权限不足
+        HTTPException: 500 - 服务器错误
+    """
+    from unifiles.core.database import extraction_db_manager
+
+    try:
+        user_id = request.state.user_id
+        logger.info(f"Getting extracted content for file {file_id}, user {user_id}")
+
+        # 验证文件存在且用户有权限访问
+        file_record = await unified_file_db_manager.get_file_record(file_id)
+        if not file_record:
+            raise HTTPException(status_code=404, detail=f"File not found: {file_id}")
+
+        if file_record["user_id"] != user_id:
+            raise HTTPException(
+                status_code=403,
+                detail="Access denied: file belongs to another user",
+            )
+
+        # 获取该文件的提取记录（取最新的一条）
+        extracted_docs = await extraction_db_manager.get_extracted_documents_by_file(
+            file_id=file_id, user_id=user_id
+        )
+
+        if not extracted_docs:
+            raise HTTPException(
+                status_code=404,
+                detail=f"No extracted content found for file: {file_id}. Please extract the file first using POST /{file_id}/extract",
+            )
+
+        # 获取最新的提取记录（按创建时间排序，取第一条）
+        latest_extraction = extracted_docs[0]
+        extraction_id = latest_extraction["id"]
+
+        # 获取完整的提取内容（包含 full_markdown）
+        full_extraction = await extraction_db_manager.get_extracted_document(
+            extraction_id=extraction_id, user_id=user_id
+        )
+
+        if not full_extraction:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Extracted document not found: {extraction_id}",
+            )
+
+        # 构建响应
+        extracted_content = ExtractedContent(
+            file_id=file_id,
+            extraction_id=extraction_id,
+            content_type="markdown",
+            extracted_text=full_extraction.get("full_markdown"),
+            markdown_content=full_extraction.get("full_markdown"),
+            structured_data=None,
+            extraction_metadata={
+                "total_pages": full_extraction.get("total_pages", 0),
+                "total_chars": full_extraction.get("total_chars", 0),
+                "total_assets": full_extraction.get("total_assets", 0),
+                "strategy_name": full_extraction.get("strategy_name"),
+                "strategy_type": full_extraction.get("strategy_type"),
+                "processing_config": full_extraction.get("processing_config"),
+                "performance_metrics": full_extraction.get("performance_metrics"),
+            },
+            extraction_strategy=full_extraction.get("strategy_name"),
+            status=full_extraction.get("extraction_status", "completed"),
+            created_at=full_extraction["created_at"].isoformat(),
+        )
+
+        logger.info(f"Successfully retrieved extracted content for file {file_id}")
+
+        return FileExtractResponse(
+            success=True,
+            message="Extracted content retrieved successfully",
+            extracted_content=extracted_content,
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception(f"Failed to get extracted content for file {file_id}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to get extracted content: {e!s}",
         )

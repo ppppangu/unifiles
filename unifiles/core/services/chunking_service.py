@@ -4,8 +4,9 @@
 """
 
 import re
+from abc import ABC, abstractmethod
 from enum import Enum
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Type
 
 from unifiles.core.logging import get_logger
 
@@ -20,7 +21,35 @@ class ChunkingStrategy(Enum):
     SEMANTIC = "semantic"  # 语义边界分割（句子级别）
 
 
-class MarkdownHierarchicalChunker:
+# 全局分块器注册表
+_CHUNKER_REGISTRY: Dict[str, Type["BaseChunker"]] = {}
+
+
+def register_chunker(strategy_name: str):
+    """注册分块器策略的装饰器"""
+
+    def decorator(cls: Type["BaseChunker"]):
+        _CHUNKER_REGISTRY[strategy_name] = cls
+        return cls
+
+    return decorator
+
+
+class BaseChunker(ABC):
+    """分块器抽象基类"""
+
+    @abstractmethod
+    def __init__(self, **kwargs):
+        pass
+
+    @abstractmethod
+    def chunk(self, text: str) -> List[Dict[str, Any]]:
+        """执行分块逻辑"""
+        pass
+
+
+@register_chunker(ChunkingStrategy.MARKDOWN_HIERARCHICAL.value)
+class MarkdownHierarchicalChunker(BaseChunker):
     """基于Markdown标题层级的分块器"""
 
     def __init__(
@@ -29,6 +58,7 @@ class MarkdownHierarchicalChunker:
         min_chunk_size: int = 50,
         split_on_headers: bool = True,
         preserve_structure: bool = True,
+        **kwargs,
     ):
         self.max_chunk_size = max_chunk_size
         self.min_chunk_size = min_chunk_size
@@ -125,10 +155,11 @@ class MarkdownHierarchicalChunker:
         return chunks
 
 
-class FixedSizeChunker:
+@register_chunker(ChunkingStrategy.FIXED_SIZE.value)
+class FixedSizeChunker(BaseChunker):
     """固定大小分块器"""
 
-    def __init__(self, max_chunk_size: int = 1000, overlap_size: int = 100):
+    def __init__(self, max_chunk_size: int = 1000, overlap_size: int = 100, **kwargs):
         self.max_chunk_size = max_chunk_size
         self.overlap_size = overlap_size
 
@@ -178,7 +209,8 @@ class FixedSizeChunker:
         return chunks
 
 
-class SemanticChunker:
+@register_chunker(ChunkingStrategy.SEMANTIC.value)
+class SemanticChunker(BaseChunker):
     """语义分块器（基于句子边界）"""
 
     def __init__(
@@ -186,6 +218,7 @@ class SemanticChunker:
         max_chunk_size: int = 1000,
         min_chunk_size: int = 50,
         overlap_size: int = 100,
+        **kwargs,
     ):
         self.max_chunk_size = max_chunk_size
         self.min_chunk_size = min_chunk_size
@@ -326,33 +359,25 @@ class ChunkingService:
 
         # 根据策略选择分块器
         text_chunks = []
-        if strategy == ChunkingStrategy.MARKDOWN_HIERARCHICAL.value:
-            chunker = MarkdownHierarchicalChunker(
-                max_chunk_size=max_chunk_size,
-                min_chunk_size=min_chunk_size,
-                split_on_headers=kwargs.get("split_on_headers", True),
-                preserve_structure=kwargs.get("preserve_structure", True),
-            )
-            text_chunks = chunker.chunk(text_only)
-
-        elif strategy == ChunkingStrategy.FIXED_SIZE.value:
-            chunker = FixedSizeChunker(
-                max_chunk_size=max_chunk_size, overlap_size=overlap_size
-            )
-            text_chunks = chunker.chunk(text_only)
-
-        elif strategy == ChunkingStrategy.SEMANTIC.value:
-            chunker = SemanticChunker(
+        
+        chunker_cls = _CHUNKER_REGISTRY.get(strategy)
+        
+        if chunker_cls:
+            # 实例化分块器，传入必要的参数
+            # 使用 kwargs 将所有可能的参数透传给 __init__
+            # 注意：每个 Chunk 的 __init__ 需要能处理多余参数 (通过 **kwargs)
+            chunker = chunker_cls(
                 max_chunk_size=max_chunk_size,
                 min_chunk_size=min_chunk_size,
                 overlap_size=overlap_size,
+                **kwargs,
             )
             text_chunks = chunker.chunk(text_only)
-
         else:
             logger.warning(f"Unknown chunking strategy: {strategy}, using fixed size")
+            # Fallback to FixedSize
             chunker = FixedSizeChunker(
-                max_chunk_size=max_chunk_size, overlap_size=overlap_size
+                max_chunk_size=max_chunk_size, overlap_size=overlap_size, **kwargs
             )
             text_chunks = chunker.chunk(text_only)
 
