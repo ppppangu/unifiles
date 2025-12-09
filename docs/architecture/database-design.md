@@ -84,10 +84,12 @@
 | `bytes`             | `BIGINT`      | `NOT NULL`                   | 文件大小（字节）                        |
 | `file_hash`         | `TEXT`        |                              | 文件内容的哈希值，用于去重              |
 | `storage_config_id` | `TEXT`        | `FK -> storage_configs.id`   | 使用的存储配置                          |
-| `storage_path`      | `TEXT`        | `NOT NULL`                   | 文件在存储中的相对路径                  |
+| `storage_path`      | `TEXT`        | `NOT NULL`                   | 原始文件在存储中的路径                  |
+| `derived_pdf_path`  | `TEXT`        |                              | 转换后PDF在存储中的路径（如有转换）     |
 | `status`            | `TEXT`        | `DEFAULT 'active'`           | 文件状态 (`active`, `error`, `deleted`) |
 | `created_at`        | `TIMESTAMPTZ` | `DEFAULT CURRENT_TIMESTAMP`  | 创建时间                                |
 | `updated_at`        | `TIMESTAMPTZ` | `DEFAULT CURRENT_TIMESTAMP`  | 更新时间                                |
+
 
 ### 第3层：内容提取与异步任务
 

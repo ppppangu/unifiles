@@ -55,6 +55,7 @@ class FileDBManager(BaseDBManager):
         content_type: str,
         storage_path: str,
         storage_config_id: Optional[str] = None,
+        derived_pdf_path: Optional[str] = None,
     ) -> None:
         """
         添加文件记录到数据库（统一版本）
@@ -65,8 +66,9 @@ class FileDBManager(BaseDBManager):
             filename: 文件名
             file_size: 文件大小（字节）
             content_type: MIME类型
-            storage_path: 存储路径
+            storage_path: 原始文件存储路径
             storage_config_id: 存储配置ID（可选）
+            derived_pdf_path: 转换后PDF存储路径（可选）
 
         Raises:
             ValueError: 如果参数无效
@@ -77,6 +79,8 @@ class FileDBManager(BaseDBManager):
             user_id = self.sanitize_input(user_id)
             filename = self.sanitize_input(filename)
             storage_path = self.sanitize_input(storage_path)
+            if derived_pdf_path:
+                derived_pdf_path = self.sanitize_input(derived_pdf_path)
 
             # 验证文件大小
             if file_size < 0 or file_size > 1024 * 1024 * 1024:  # 1GB限制
@@ -92,8 +96,9 @@ class FileDBManager(BaseDBManager):
                         f"""
                         INSERT INTO {self._schema_name}.files (
                             id, user_id, bytes, filename, mime_type,
-                            storage_path, storage_config_id, status, created_at, is_public
-                        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+                            storage_path, storage_config_id, derived_pdf_path,
+                            status, created_at, is_public
+                        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
                         """,
                         file_id,
                         user_id,
@@ -102,10 +107,12 @@ class FileDBManager(BaseDBManager):
                         content_type,
                         storage_path,
                         storage_config_id,
+                        derived_pdf_path,
                         "active",
                         datetime.now(),
                         False,  # 默认私有
                     )
+
 
             # 记录审计日志
             self.security_enforcer.audit_log(

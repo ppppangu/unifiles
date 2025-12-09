@@ -13,17 +13,20 @@ class FileInfo(BaseModel):
     filename: str = Field(description="原始文件名")
     file_size: int = Field(description="文件大小（字节）")
     content_type: str = Field(description="文件类型")
-    public_url: str = Field(description="访问URL（预签名url或持久化公开访问路径）")
-    object_path: str = Field(description="存储路径")
+    public_url: str = Field(description="原始文件访问URL")
+    object_path: str = Field(description="原始文件存储路径")
     is_public: bool = Field(description="是否公开访问")
     created_at: str = Field(description="上传时间")
     # PDF转换相关字段
     original_filename: Optional[str] = Field(
-        default=None, description="转换前的原始文件名"
+        default=None, description="转换前的原始文件名（兼容字段）"
     )
-    is_converted: bool = Field(default=False, description="是否为转换后的文件")
+    is_converted: bool = Field(default=False, description="是否已转换为PDF")
     conversion_status: Optional[str] = Field(
         default=None, description="转换状态: success|failed|skipped"
+    )
+    derived_pdf_url: Optional[str] = Field(
+        default=None, description="派生PDF访问URL（如有转换）"
     )
 
 

@@ -179,43 +179,46 @@ class FileService:
                 public_url=temp_public_url,
             )
 
-            # 如果转换成功，使用转换后的PDF文件
+            # 保留原始文件路径（不再删除）
+            original_storage_path = temp_storage_path
+            original_file_size = validation_result["file_size"]
+            original_mime_type = validation_result["detected_mime_type"]
+            derived_pdf_path = None
+
+            # 如果转换成功，将PDF上传到 derived/ 子目录
             if converted_info["converted"]:
                 logger.info("=" * 80)
                 logger.info("[FILE UPLOAD] ✅ PDF conversion successful!")
-                logger.info(f"[FILE UPLOAD] Original file: {sanitized_filename}")
+                logger.info(f"[FILE UPLOAD] Original file preserved: {sanitized_filename}")
                 logger.info(
-                    f"[FILE UPLOAD] Converted to: {converted_info['pdf_filename']}"
+                    f"[FILE UPLOAD] PDF created: {converted_info['pdf_filename']}"
                 )
-                logger.info(f"[FILE UPLOAD] Original size: {len(file_content)} bytes")
+                logger.info(f"[FILE UPLOAD] Original size: {original_file_size} bytes")
                 logger.info(
                     f"[FILE UPLOAD] PDF size: {len(converted_info['pdf_content'])} bytes"
                 )
                 logger.info("=" * 80)
 
-                # 更新文件内容、大小、类型
-                file_content = converted_info["pdf_content"]
-                file_size = len(file_content)
-                detected_mime_type = "application/pdf"
-                original_filename = sanitized_filename
-                sanitized_filename = converted_info["pdf_filename"]
-
-                # 重新生成存储路径（使用PDF文件名）
-                object_path = FileSecurityValidator.generate_secure_path(
-                    user_id, file_id, sanitized_filename
+                # 构建 PDF 存储路径（derived/ 子目录）
+                pdf_object_path = f"{user_id}/{file_id}/derived/{converted_info['pdf_filename']}"
+                
+                # 上传 PDF 到 derived/ 目录
+                derived_pdf_path = await storage_backend.upload_file(
+                    object_path=pdf_object_path,
+                    content=converted_info["pdf_content"],
+                    content_type="application/pdf",
+                    metadata={
+                        "original_file_id": file_id,
+                        "original_filename": sanitized_filename,
+                        "conversion_source": "auto",
+                    },
                 )
+                logger.info(f"[FILE UPLOAD] Derived PDF uploaded: {derived_pdf_path}")
 
                 # 更新元数据
-                file_metadata["original_filename"] = original_filename
-                file_metadata["sanitized_filename"] = sanitized_filename
                 file_metadata["is_converted"] = True
                 file_metadata["conversion_status"] = "success"
-
-                # 删除临时文件
-                logger.info(
-                    f"[FILE UPLOAD] Deleting temporary file: {temp_storage_path}"
-                )
-                await storage_backend.delete_file(temp_storage_path)
+                file_metadata["derived_pdf_path"] = derived_pdf_path
             else:
                 logger.info("=" * 80)
                 logger.info(
@@ -228,35 +231,23 @@ class FileService:
                     )
                 logger.info("=" * 80)
 
-                # 不需要转换或转换失败，使用已上传的原文件
-                storage_path = temp_storage_path
                 file_metadata["is_converted"] = False
                 file_metadata["conversion_status"] = converted_info["status"]
-                # 跳到步骤9（数据库记录）
 
-            # 8. 上传最终文件到存储（如果转换成功，这里上传的是PDF）
-            if converted_info["converted"]:
-                storage_path = await storage_backend.upload_file(
-                    object_path=object_path,
-                    content=file_content,
-                    content_type=detected_mime_type,
-                    metadata=file_metadata,
-                )
-                logger.info(f"Converted PDF uploaded: {storage_path}")
-
-            # 9. 记录到数据库
-            # 为避免外键不一致导致插入失败，这里不强制写入 storage_config_id，保持为 NULL
+            # 9. 记录到数据库（storage_path 指向原始文件）
             storage_config_id = None
 
             await self.db.add_file_record(
                 file_id=file_id,
                 user_id=user_id,
-                filename=sanitized_filename,
-                file_size=file_size,
-                content_type=detected_mime_type,
-                storage_path=storage_path,
+                filename=sanitized_filename,  # 原始文件名
+                file_size=original_file_size,
+                content_type=original_mime_type,
+                storage_path=original_storage_path,  # 原始文件路径
                 storage_config_id=storage_config_id,
+                derived_pdf_path=derived_pdf_path,  # PDF路径（如有）
             )
+
 
             # 创建处理日志（此时 files 记录已存在，不会违反外键）
             processing_log = FileProcessingLogModel(
@@ -284,31 +275,40 @@ class FileService:
             if is_public:
                 await self.db.update_file_public_status(file_id, True)
 
-            # 10. 生成访问URL
+            # 10. 生成访问URL（原始文件）
             access_type = "public" if is_public else "presigned"
             public_url = storage_backend.get_access_url(
-                object_path=storage_path,
+                object_path=original_storage_path,
                 access_type=access_type,
                 expires_in_hours=24 if not is_public else None,
             )
+
+            # 生成派生PDF的访问URL（如有）
+            derived_pdf_url = None
+            if derived_pdf_path:
+                derived_pdf_url = storage_backend.get_access_url(
+                    object_path=derived_pdf_path,
+                    access_type=access_type,
+                    expires_in_hours=24 if not is_public else None,
+                )
 
             # 11. 构建返回信息
             file_info = FileInfo(
                 file_id=file_id,
                 filename=sanitized_filename,
-                file_size=file_size,
-                content_type=detected_mime_type,
+                file_size=original_file_size,
+                content_type=original_mime_type,
                 public_url=public_url,
-                object_path=storage_path,
+                object_path=original_storage_path,
                 is_public=is_public,
                 created_at=datetime.now().isoformat(),
                 # PDF转换相关字段
-                original_filename=file_metadata.get("original_filename")
-                if file_metadata.get("is_converted")
-                else None,
+                original_filename=None,  # 兼容字段，原始文件名就是 filename
                 is_converted=file_metadata.get("is_converted", False),
                 conversion_status=file_metadata.get("conversion_status"),
+                derived_pdf_url=derived_pdf_url,
             )
+
 
             logger.info(f"File uploaded successfully: {file_id} by user: {user_id}")
 

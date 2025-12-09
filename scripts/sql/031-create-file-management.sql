@@ -75,7 +75,8 @@ CREATE TABLE IF NOT EXISTS unifiles.files (
     
     -- 存储信息（简化存储配置）
     storage_config_id TEXT,                                -- 存储配置ID（关联storage_configs表）
-    storage_path TEXT NOT NULL,                           -- 存储路径（相对于配置的base_path）
+    storage_path TEXT NOT NULL,                           -- 原始文件存储路径（相对于配置的base_path）
+    derived_pdf_path TEXT,                                -- 转换后PDF存储路径（如有）
     
     -- 访问地址（自动生成，不存储在数据库）
     is_public BOOLEAN DEFAULT FALSE,                      -- 是否公网可访问    
