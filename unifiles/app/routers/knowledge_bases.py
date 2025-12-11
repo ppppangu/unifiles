@@ -17,6 +17,8 @@ from unifiles.core.logging import get_logger
 logger = get_logger()
 
 from unifiles.app.schemas import (
+    DocumentDetailInfo,
+    DocumentDetailResponse,
     KnowledgeBaseCreateRequest,
     KnowledgeBaseCreateResponse,
     KnowledgeBaseDocumentsResponse,
@@ -412,6 +414,9 @@ async def get_knowledge_base_documents(
                     chunk_count=m.chunk_count or 0,
                     indexing_status=m.indexing_status,
                     created_at=created_at,
+                    original_filename=getattr(m, "original_filename", None),
+                    file_size=getattr(m, "file_size", None),
+                    file_id=getattr(m, "file_id", None),
                 )
             )
 
@@ -438,6 +443,105 @@ async def get_knowledge_base_documents(
         raise HTTPException(
             status_code=500,
             detail=f"Failed to list knowledge base documents: {e!s}",
+        )
+
+
+@router.get("/{kb_id}/documents/{doc_id}", response_model=DocumentDetailResponse)
+async def get_knowledge_base_document_detail(
+    request: Request,
+    kb_id: str = FastAPIPath(..., description="知识库ID"),
+    doc_id: str = FastAPIPath(..., description="文档ID"),
+):
+    """获取知识库文档详情
+
+    返回文档的完整信息，包括：
+    - 源文件信息（文件名、大小、访问URL）
+    - 解析后的Markdown内容
+    - 索引状态和分块数量
+    - 提取元数据（页数、字符数等）
+    """
+    try:
+        user_id = request.state.user_id
+        logger.info(
+            f"GET /knowledge-bases/{kb_id}/documents/{doc_id} request from user: {user_id}"
+        )
+
+        # 1. 验证知识库存在且用户有权限
+        kb = await unified_kb_db_manager.get_knowledge_base(kb_id)
+        if not kb:
+            logger.warning(f"Knowledge base not found: {kb_id}")
+            raise HTTPException(status_code=404, detail="Knowledge base not found")
+
+        if kb.user_id != user_id:
+            logger.warning(
+                f"Access denied: KB {kb_id} belongs to user {kb.user_id}, "
+                f"requested by {user_id}"
+            )
+            raise HTTPException(
+                status_code=403,
+                detail="Access denied: you do not own this knowledge base",
+            )
+
+        # 2. 获取文档详情（包含文件信息和提取内容）
+        doc_detail = await unified_kb_db_manager.get_document_detail(doc_id, kb_id)
+        if not doc_detail:
+            logger.warning(f"Document not found: {doc_id} in KB {kb_id}")
+            raise HTTPException(status_code=404, detail="Document not found")
+
+        # 3. 构建响应
+        created_at_value = doc_detail.get("created_at")
+        created_at = (
+            created_at_value.isoformat()
+            if created_at_value is not None
+            else datetime.now().isoformat()
+        )
+
+        # 构建提取元数据
+        extraction_metadata = None
+        if doc_detail.get("total_pages") is not None:
+            extraction_metadata = {
+                "total_pages": doc_detail.get("total_pages"),
+                "total_chars": doc_detail.get("total_chars"),
+                "total_assets": doc_detail.get("total_assets"),
+                "extraction_status": doc_detail.get("extraction_status"),
+            }
+
+        document_info = DocumentDetailInfo(
+            document_id=doc_detail["document_id"],
+            extraction_id=doc_detail["extracted_document_id"],
+            knowledge_base_id=doc_detail["knowledge_base_id"],
+            original_filename=doc_detail.get("original_filename"),
+            file_size=doc_detail.get("file_size"),
+            file_id=doc_detail.get("file_id"),
+            file_url=doc_detail.get("file_url"),
+            markdown_content=doc_detail.get("markdown_content"),
+            chunk_count=doc_detail.get("chunk_count") or 0,
+            indexing_status=doc_detail.get("indexing_status") or "pending",
+            created_at=created_at,
+            extraction_metadata=extraction_metadata,
+        )
+
+        logger.info(f"Document detail retrieved successfully: {doc_id}")
+
+        return DocumentDetailResponse(
+            success=True,
+            message="Document detail retrieved successfully",
+            document=document_info,
+        )
+
+    except HTTPException:
+        raise
+    except asyncpg.PostgresError as e:
+        logger.error(f"Database error getting document detail {doc_id}: {e}")
+        raise HTTPException(
+            status_code=503,
+            detail="Database unavailable while getting document detail",
+        )
+    except Exception as e:
+        logger.error(f"Unexpected error getting document detail {doc_id}: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to get document detail: {e!s}",
         )
 
 

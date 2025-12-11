@@ -418,7 +418,8 @@ class DocumentProcessingService:
             # 获取文件URL
             self.logger.info(f"File record: {file_record}")
             file_url = file_record.get("storage_path")
-            self.logger.info(f"File URL obtained: {file_url}")
+            derived_pdf_path = file_record.get("derived_pdf_path")
+            self.logger.info(f"File URL obtained: {file_url}, Derived PDF path: {derived_pdf_path}")
             if not file_url:
                 raise ValueError(f"File URL not available for file: {file_id}")
 
@@ -430,7 +431,14 @@ class DocumentProcessingService:
             minio_config = self.config.get("server_components", {}).get("minio", {})
             minio_address = minio_config.get("address", "localhost:9000")
             bucket_name = minio_config.get("bucket_name", "unifiles-bucket")
-            file_url = f"http://{minio_address}/{bucket_name}/" + file_url
+            # 优先使用转换后的PDF文件
+            if derived_pdf_path:
+                pdf_url = f"http://{minio_address}/{bucket_name}/" + derived_pdf_path
+                self.logger.info(f"Using converted PDF file: {pdf_url}")
+            else:
+                file_url = f"http://{minio_address}/{bucket_name}/" + file_url
+                pdf_url = file_url
+                self.logger.info(f"Using original file: {pdf_url}")
 
             # 格式验证和PDF转换
             # /files上传文件端点现在已经实现了转PDF的功能
@@ -443,7 +451,6 @@ class DocumentProcessingService:
             #     )
 
             # pdf_url = validation_result["pdf_url"]
-            pdf_url = file_url
             self.logger.info(
                 f"user_id {user_id}, document_id {document_id}, pdf_url {pdf_url}"
             )

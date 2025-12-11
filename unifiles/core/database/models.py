@@ -397,6 +397,10 @@ class DocumentModel:
     indexed_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
     last_accessed_at: Optional[datetime] = None
+    # 来自 files 表的 JOIN 查询（非持久化字段）
+    original_filename: Optional[str] = None
+    file_size: Optional[int] = None
+    file_id: Optional[str] = None
 
     def __post_init__(self):
         if self.tags is None:

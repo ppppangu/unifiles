@@ -152,7 +152,7 @@ class FileDBManager(BaseDBManager):
             file_id = self.sanitize_input(file_id)
 
             query = f"""
-                SELECT id, filename, bytes, mime_type, storage_path,
+                SELECT id, filename, bytes, mime_type, storage_path, derived_pdf_path,
                        created_at, user_id, is_public, status, storage_config_id
                 FROM {self._schema_name}.files
                 WHERE id = $1

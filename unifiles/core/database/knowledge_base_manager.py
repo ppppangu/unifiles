@@ -9,7 +9,7 @@
 
 import json
 from datetime import datetime
-from typing import Optional
+from typing import Any, Optional
 
 from unifiles.core.logging import get_logger
 
@@ -315,18 +315,23 @@ class KnowledgeBaseDBManager(BaseDBManager):
     async def list_documents(
         self, kb_id: str, limit: int = 50, offset: int = 0
     ) -> tuple[list[DocumentModel], int]:
-        """列出指定知识库下的文档（分页）并返回总数。"""
+        """列出指定知识库下的文档（分页）并返回总数。
+        
+        通过 JOIN 查询获取原始文件名和文件大小。
+        """
         # 参数校验与清理
         kb_id = self.sanitize_input(kb_id)
         self.validate_pagination(limit, offset)
 
-        # 查询文档列表
+        # 查询文档列表（JOIN 获取原始文件信息）
         rows = await self.fetch_many(
             """
-            SELECT *
-            FROM unifiles.documents
-            WHERE knowledge_base_id = $1
-            ORDER BY created_at DESC
+            SELECT d.*, f.filename as original_filename, f.bytes as file_size, f.id as file_id
+            FROM unifiles.documents d
+            LEFT JOIN unifiles.extracted_documents ed ON d.extracted_document_id = ed.id
+            LEFT JOIN unifiles.files f ON ed.file_id = f.id
+            WHERE d.knowledge_base_id = $1
+            ORDER BY d.created_at DESC
             LIMIT $2 OFFSET $3
             """,
             kb_id,
@@ -364,11 +369,75 @@ class KnowledgeBaseDBManager(BaseDBManager):
                 indexed_at=r.get("indexed_at"),
                 updated_at=r.get("updated_at"),
                 last_accessed_at=r.get("last_accessed_at"),
+                # JOIN 获取的字段
+                original_filename=r.get("original_filename"),
+                file_size=r.get("file_size"),
+                file_id=r.get("file_id"),
             )
             for r in rows
         ]
 
         return items, safe_int(total_count)
+
+    async def get_document_detail(
+        self, doc_id: str, kb_id: str
+    ) -> Optional[dict[str, Any]]:
+        """获取文档详情（包含文件信息和提取内容）
+
+        通过 JOIN 查询获取:
+        - documents 表: 文档基础信息
+        - extracted_documents 表: 提取内容 (full_markdown)
+        - files 表: 原始文件信息 (filename, bytes, public_url)
+
+        Args:
+            doc_id: 文档ID
+            kb_id: 知识库ID
+
+        Returns:
+            包含完整文档信息的字典，如果不存在则返回 None
+        """
+        doc_id = self.sanitize_input(doc_id)
+        kb_id = self.sanitize_input(kb_id)
+
+        query = """
+            SELECT 
+                d.id as document_id,
+                d.knowledge_base_id,
+                d.extracted_document_id,
+                d.indexing_status,
+                d.chunk_count,
+                d.created_at,
+                
+                -- 文件信息
+                f.id as file_id,
+                f.filename as original_filename,
+                f.bytes as file_size,
+                f.public_url as file_url,
+                
+                -- 提取内容
+                ed.full_markdown as markdown_content,
+                ed.total_pages,
+                ed.total_chars,
+                ed.total_assets,
+                ed.extraction_status
+                
+            FROM unifiles.documents d
+            LEFT JOIN unifiles.extracted_documents ed 
+                ON d.extracted_document_id = ed.id
+            LEFT JOIN unifiles.files f 
+                ON ed.file_id = f.id
+            WHERE d.id = $1 AND d.knowledge_base_id = $2
+        """
+
+        try:
+            result = await self.fetch_one(query, doc_id, kb_id)
+            if result:
+                logger.debug(f"Document detail retrieved: {doc_id}")
+            return result
+        except Exception as e:
+            logger.error(f"Error getting document detail {doc_id}: {e}")
+            raise
+
 
     async def ensure_document_exists(
         self,

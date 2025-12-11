@@ -161,6 +161,9 @@ class ProcessedDocument(BaseModel):
     chunk_count: int = Field(description="分块数量")
     indexing_status: str = Field(description="索引状态")
     created_at: str = Field(description="创建时间")
+    original_filename: Optional[str] = Field(default=None, description="原始文件名")
+    file_size: Optional[int] = Field(default=None, description="文件大小(字节)")
+    file_id: Optional[str] = Field(default=None, description="源文件ID，用于获取文件预览URL")
 
 
 class ProcessDocumentResponse(BaseModel):
@@ -179,6 +182,43 @@ class KnowledgeBaseDocumentsResponse(BaseModel):
     documents: List[ProcessedDocument] = Field(description="文档列表")
     total_count: Optional[int] = Field(default=None, description="总文档数量")
     has_more: bool = Field(description="是否有更多数据")
+
+
+class DocumentDetailInfo(BaseModel):
+    """文档详细信息（用于单文档详情接口）"""
+
+    document_id: str = Field(description="文档ID")
+    extraction_id: str = Field(description="提取ID")
+    knowledge_base_id: str = Field(description="知识库ID")
+
+    # 文件信息
+    original_filename: Optional[str] = Field(default=None, description="原始文件名")
+    file_size: Optional[int] = Field(default=None, description="文件大小(字节)")
+    file_id: Optional[str] = Field(default=None, description="源文件ID")
+    file_url: Optional[str] = Field(default=None, description="源文件访问URL")
+
+    # 解析内容
+    markdown_content: Optional[str] = Field(default=None, description="解析后的Markdown内容")
+
+    # 状态信息
+    chunk_count: int = Field(default=0, description="分块数量")
+    indexing_status: str = Field(description="索引状态")
+
+    # 时间戳
+    created_at: str = Field(description="创建时间")
+
+    # 提取元数据（可选）
+    extraction_metadata: Optional[Dict[str, Any]] = Field(
+        default=None, description="提取元信息（页数、字符数等）"
+    )
+
+
+class DocumentDetailResponse(BaseModel):
+    """文档详情响应"""
+
+    success: bool = Field(description="是否成功")
+    message: str = Field(description="响应消息")
+    document: DocumentDetailInfo = Field(description="文档详情")
 
 
 # ========== Knowledge Base Search 检索相关模型 ==========
