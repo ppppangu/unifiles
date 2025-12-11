@@ -1,0 +1,12 @@
+site_name: using-the-api
+docs_dir: .
+
+nav:
+  - index.md
+  - 认证: authentication.md
+  - 文件上传: files-and-uploads.md
+  - 内容提取: content-extraction.md
+  - 知识库: knowledge-bases.md
+  - Webhooks: webhooks.md
+  - 速率限制: rate-limits.md
+  - 错误处理: error-handling.md

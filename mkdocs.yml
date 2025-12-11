@@ -73,90 +73,16 @@ markdown_extensions:
 nav:
   - 首页: index.md
   - 快速开始: quickstart.md
-
-  - 了解 Unifiles:
-      - what-is-unifiles/index.md
-      - 工作原理: what-is-unifiles/how-it-works.md
-      - 设计理念: what-is-unifiles/design-philosophy.md
-      - 方案对比: what-is-unifiles/comparison.md
-
-  - 使用 API:
-      - using-the-api/index.md
-      - 认证: using-the-api/authentication.md
-      - 文件上传: using-the-api/files-and-uploads.md
-      - 内容提取: using-the-api/content-extraction.md
-      - 知识库: using-the-api/knowledge-bases.md
-      - Webhooks: using-the-api/webhooks.md
-      - 速率限制: using-the-api/rate-limits.md
-      - 错误处理: using-the-api/error-handling.md
-
-  - Cookbook:
-      - cookbook/index.md
-      - 基础概念:
-          - 理解输出格式: cookbook/foundational/understanding-output.md
-          - 三层架构入门: cookbook/foundational/three-layers-primer.md
-      - 入门教程:
-          - 第一次上传: cookbook/basics/your-first-upload.md
-          - 提取内容: cookbook/basics/extracting-content.md
-          - 构建知识库: cookbook/basics/building-knowledge-base.md
-      - 进阶技巧:
-          - 分块策略: cookbook/intermediate/chunking-strategies.md
-          - 自定义元数据: cookbook/intermediate/custom-metadata.md
-          - Webhook 集成: cookbook/intermediate/webhook-integration.md
-          - 批量处理: cookbook/intermediate/batch-processing.md
-      - 高级应用:
-          - 多租户设置: cookbook/advanced/multi-tenant-setup.md
-          - 自定义 OCR: cookbook/advanced/custom-ocr-providers.md
-          - 性能调优: cookbook/advanced/performance-tuning.md
-          - RAG 评估: cookbook/advanced/rag-evaluation.md
-
-  - API 参考:
-      - api-reference/index.md
-      - REST API:
-          - 概览: api-reference/rest-api/overview.md
-          - 文件: api-reference/rest-api/files.md
-          - 提取: api-reference/rest-api/extractions.md
-          - 知识库: api-reference/rest-api/knowledge-bases.md
-          - Webhooks: api-reference/rest-api/webhooks.md
-          - API 密钥: api-reference/rest-api/api-keys.md
-          - 使用量: api-reference/rest-api/usage.md
-          - 错误码: api-reference/rest-api/errors.md
-      - Python SDK:
-          - 概览: api-reference/python-sdk/overview.md
-          - UnifilesClient: api-reference/python-sdk/client.md
-          - Files: api-reference/python-sdk/files.md
-          - Extractions: api-reference/python-sdk/extractions.md
-          - Knowledge Bases: api-reference/python-sdk/knowledge-bases.md
-          - 类型定义: api-reference/python-sdk/types.md
-          - 异常处理: api-reference/python-sdk/exceptions.md
-
-  - 集成:
-      - integrations/index.md
-      - LangChain: integrations/langchain.md
-      - 自定义集成: integrations/custom-integration.md
-
-  - 技术深潜:
-      - under-the-hood/index.md
-      - 处理管线: under-the-hood/processing-pipeline.md
-      - 数据库架构: under-the-hood/database-schema.md
-      - 存储架构: under-the-hood/storage-architecture.md
-      - 安全模型: under-the-hood/security-model.md
-      - 开发技巧: under-the-hood/development-tips.md
-
-  - 自部署:
-      - self-hosting/index.md
-      - 系统要求: self-hosting/requirements.md
-      - Docker Compose: self-hosting/docker-compose.md
-      - Kubernetes: self-hosting/kubernetes.md
-      - 配置说明: self-hosting/configuration.md
-      - 数据库设置: self-hosting/database-setup.md
-      - 存储设置: self-hosting/storage-setup.md
-      - 可观测性: self-hosting/observability.md
-      - 备份恢复: self-hosting/backup-restore.md
-      - 升级指南: self-hosting/upgrade.md
-      - 故障排除: self-hosting/troubleshooting.md
+  - 了解 Unifiles: '!include ./docs/online/what-is-unifiles/mkdocs.yml'
+  - 使用 API: '!include ./docs/online/using-the-api/mkdocs.yml'
+  - Cookbook: '!include ./docs/online/cookbook/mkdocs.yml'
+  - API 参考: '!include ./docs/online/api-reference/mkdocs.yml'
+  - 集成: '!include ./docs/online/integrations/mkdocs.yml'
+  - 技术深潜: '!include ./docs/online/under-the-hood/mkdocs.yml'
+  - 自部署: '!include ./docs/online/self-hosting/mkdocs.yml'
 
 plugins:
+  - monorepo
   - search:
       lang:
         - zh

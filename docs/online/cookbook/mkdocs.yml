@@ -1,0 +1,22 @@
+site_name: cookbook
+docs_dir: .
+
+nav:
+  - index.md
+  - 基础概念:
+      - 理解输出格式: foundational/understanding-output.md
+      - 三层架构入门: foundational/three-layers-primer.md
+  - 入门教程:
+      - 第一次上传: basics/your-first-upload.md
+      - 提取内容: basics/extracting-content.md
+      - 构建知识库: basics/building-knowledge-base.md
+  - 进阶技巧:
+      - 分块策略: intermediate/chunking-strategies.md
+      - 自定义元数据: intermediate/custom-metadata.md
+      - Webhook 集成: intermediate/webhook-integration.md
+      - 批量处理: intermediate/batch-processing.md
+  - 高级应用:
+      - 多租户设置: advanced/multi-tenant-setup.md
+      - 自定义 OCR: advanced/custom-ocr-providers.md
+      - 性能调优: advanced/performance-tuning.md
+      - RAG 评估: advanced/rag-evaluation.md
