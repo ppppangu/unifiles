@@ -133,7 +133,7 @@ class SingletonEmbeddingProvider:
             )
 
             async with httpx.AsyncClient(
-                timeout=timeout, limits=limits, http2=False, verify=False
+                timeout=timeout, limits=limits, http2=False, verify=False, trust_env=False
             ) as client:
                 response = await client.post(
                     url, headers=headers, json={"model": name, "input": text}
@@ -205,7 +205,7 @@ class SingletonEmbeddingProvider:
             )
 
             async with httpx.AsyncClient(
-                timeout=timeout, limits=limits, http2=False, verify=False
+                timeout=timeout, limits=limits, http2=False, verify=False, trust_env=False
             ) as client:
                 response = await client.post(url, headers=headers, json=data)
                 response.raise_for_status()

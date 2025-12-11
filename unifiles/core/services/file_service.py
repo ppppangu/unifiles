@@ -120,67 +120,87 @@ class FileService:
             if metadata:
                 file_metadata.update(metadata)
 
-            # 7. PDF转换处理（在上传之前）
-            # 先临时上传文件以获取URL，供转换服务使用
+            # 7. 上传原始文件
             storage_backend = await self.storage.get_default_backend()
 
-            temp_storage_path = await storage_backend.upload_file(
+            original_storage_path = await storage_backend.upload_file(
                 object_path=object_path,
                 content=file_content,
                 content_type=detected_mime_type,
                 metadata=file_metadata,
             )
 
-            # 生成临时访问URL - 使用 public 类型，因为 MinIO 配置为 public
-            temp_public_url = storage_backend.get_access_url(
-                object_path=temp_storage_path,
-                access_type="public",
-                expires_in_hours=None,  # public URL 不需要过期时间
-            )
-
-            converted_info = await self._convert_to_pdf_if_needed(
-                file_content=file_content,
-                filename=sanitized_filename,
-                public_url=temp_public_url,
-            )
-
-            # 保留原始文件路径（不再删除）
-            original_storage_path = temp_storage_path
+            # 8. 判断是否需要 PDF 转换，如需则异步处理
             original_file_size = validation_result["file_size"]
             original_mime_type = validation_result["detected_mime_type"]
             derived_pdf_path = None
+            conversion_task_id = None
 
-            # 如果转换成功，将PDF上传到 derived/ 子目录
-            if converted_info["converted"]:
-                # 构建 PDF 存储路径（derived/ 子目录）
-                pdf_object_path = (
-                    f"{user_id}/{file_id}/derived/{converted_info['pdf_filename']}"
+            # 检查是否需要转换（非 PDF 的可转换文档）
+            needs_conversion = (
+                not sanitized_filename.lower().endswith(".pdf")
+                and self.format_validator.is_document_file(sanitized_filename)
+            )
+
+            if needs_conversion:
+                # 生成访问URL供转换服务使用
+                source_url = storage_backend.get_access_url(
+                    object_path=original_storage_path,
+                    access_type="public",
+                    expires_in_hours=None,
                 )
 
-                # 上传 PDF 到 derived/ 目录
-                derived_pdf_path = await storage_backend.upload_file(
-                    object_path=pdf_object_path,
-                    content=converted_info["pdf_content"],
-                    content_type="application/pdf",
-                    metadata={
-                        "original_file_id": file_id,
-                        "original_filename": sanitized_filename,
-                        "conversion_source": "auto",
+                # 创建异步任务记录
+                from unifiles.core.database import async_task_manager
+
+                conversion_task_id = await async_task_manager.create_task(
+                    task_type="custom",  # 使用 custom 类型
+                    user_id=user_id,
+                    entity_type="file",
+                    entity_id=file_id,
+                    input_params={
+                        "custom_type": "pdf_conversion",
+                        "filename": sanitized_filename,
+                        "source_url": source_url,
+                        "object_path_prefix": f"{user_id}/{file_id}",
                     },
+                    priority=5,
                 )
 
-                # 更新元数据
-                file_metadata["is_converted"] = True
-                file_metadata["conversion_status"] = "success"
-                file_metadata["derived_pdf_path"] = derived_pdf_path
-            else:
-                if "error" in converted_info:
-                    logger.warning(
-                        f"PDF conversion error for {sanitized_filename}: {converted_info['error']}"
-                    )
+                # 提交 Celery 任务
+                from unifiles.core.celery.tasks import convert_to_pdf_task
+
+                celery_result = convert_to_pdf_task.delay(
+                    file_id=file_id,
+                    user_id=user_id,
+                    task_db_id=conversion_task_id,
+                    source_url=source_url,
+                    filename=sanitized_filename,
+                    object_path_prefix=f"{user_id}/{file_id}",
+                )
+
+                # 更新任务的 celery_task_id
+                await async_task_manager.update_task_status(
+                    task_id=conversion_task_id,
+                    status="queued",
+                    progress_message="PDF conversion task queued",
+                )
 
                 file_metadata["is_converted"] = False
-                file_metadata["conversion_status"] = converted_info["status"]
+                file_metadata["conversion_status"] = "pending"
+                file_metadata["conversion_task_id"] = conversion_task_id
+
+                logger.info(
+                    f"PDF conversion task queued for {sanitized_filename}: task_id={conversion_task_id}"
+                )
+            else:
+                # 不需要转换
+                if sanitized_filename.lower().endswith(".pdf"):
+                    file_metadata["is_converted"] = False
+                    file_metadata["conversion_status"] = "skipped"
+                else:
+                    file_metadata["is_converted"] = False
+                    file_metadata["conversion_status"] = "skipped"
 
             # 9. 记录到数据库（storage_path 指向原始文件）
             storage_config_id = None
@@ -193,7 +213,7 @@ class FileService:
                 content_type=original_mime_type,
                 storage_path=original_storage_path,  # 原始文件路径
                 storage_config_id=storage_config_id,
-                derived_pdf_path=derived_pdf_path,  # PDF路径（如有）
+                derived_pdf_path=derived_pdf_path,  # 暂时为 None，异步任务完成后更新
             )
 
             # 创建处理日志（此时 files 记录已存在，不会违反外键）
@@ -250,6 +270,7 @@ class FileService:
                 is_converted=file_metadata.get("is_converted", False),
                 conversion_status=file_metadata.get("conversion_status"),
                 derived_pdf_url=derived_pdf_url,
+                conversion_task_id=conversion_task_id,
             )
 
             logger.info(f"File uploaded successfully: {file_id} by user: {user_id}")
@@ -652,7 +673,7 @@ class FileService:
 
             import httpx
 
-            async with httpx.AsyncClient(timeout=30.0) as client:
+            async with httpx.AsyncClient(timeout=30.0, trust_env=False) as client:
                 response = await client.get(pdf_url)
                 response.raise_for_status()
                 pdf_content = response.content

@@ -23,10 +23,13 @@ class FileInfo(BaseModel):
     )
     is_converted: bool = Field(default=False, description="是否已转换为PDF")
     conversion_status: Optional[str] = Field(
-        default=None, description="转换状态: success|failed|skipped"
+        default=None, description="转换状态: pending|success|failed|skipped"
     )
     derived_pdf_url: Optional[str] = Field(
         default=None, description="派生PDF访问URL（如有转换）"
+    )
+    conversion_task_id: Optional[str] = Field(
+        default=None, description="PDF转换任务ID（可用于轮询状态）"
     )
 
 

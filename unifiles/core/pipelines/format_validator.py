@@ -220,7 +220,7 @@ class PDFConverter:
             convert_url = self.config["convert_format_server"][0]["url"] + "/convert"
             logger.info(f"Conversion service URL: {convert_url}")
 
-            async with httpx.AsyncClient(timeout=60.0) as client:
+            async with httpx.AsyncClient(timeout=60.0, trust_env=False) as client:
                 response = await client.post(convert_url, data={"file_url": file_url})
                 response.raise_for_status()
                 result = response.json()

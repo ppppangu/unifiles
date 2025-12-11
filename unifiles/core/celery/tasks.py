@@ -245,3 +245,189 @@ def test_task(message: str = "Hello from Celery!") -> Dict[str, Any]:
     """
     logger.info(f"Test task executed: {message}")
     return {"success": True, "message": message, "task_id": test_task.request.id}
+
+
+@celery_app.task(
+    bind=True,
+    base=CallbackTask,
+    name="unifiles.core.celery.tasks.convert_to_pdf_task",
+    max_retries=3,
+    default_retry_delay=5,
+    autoretry_for=(Exception,),
+    retry_backoff=True,
+    retry_backoff_max=60,
+    retry_jitter=True,
+)
+def convert_to_pdf_task(
+    self,
+    file_id: str,
+    user_id: str,
+    task_db_id: str,
+    source_url: str,
+    filename: str,
+    object_path_prefix: str,
+) -> Dict[str, Any]:
+    """
+    异步PDF转换任务
+
+    Args:
+        self: Celery task 实例
+        file_id: 文件ID
+        user_id: 用户ID
+        task_db_id: 数据库中的任务ID
+        source_url: 原始文件的访问URL
+        filename: 原始文件名
+        object_path_prefix: 存储路径前缀 (user_id/file_id)
+
+    Returns:
+        转换结果字典
+    """
+    logger.info(f"Starting PDF conversion task for file {file_id}, filename: {filename}")
+
+    async def _update_task_status(status: str, progress: int = 0, message: str = ""):
+        """更新任务状态的辅助函数"""
+        try:
+            await async_task_manager.update_task_status(
+                task_id=task_db_id, status=status, progress_message=message
+            )
+            if progress > 0:
+                await async_task_manager.update_task_progress(
+                    task_id=task_db_id,
+                    progress_percent=progress,
+                    progress_message=message,
+                )
+        except Exception as e:
+            logger.warning(f"Failed to update task status: {e}")
+
+    async def _run_conversion():
+        """执行PDF转换的异步函数"""
+        import httpx
+        from pathlib import Path
+
+        from unifiles.core.pipelines.format_validator import PDFConverter
+        from unifiles.core.storage import get_initialized_storage
+
+        try:
+            # 更新状态为 processing
+            await _update_task_status("processing", 10, "Starting PDF conversion")
+
+            # 获取转换器
+            pdf_converter = PDFConverter()
+
+            # 更新进度
+            await _update_task_status("processing", 20, "Calling conversion service")
+
+            # 调用转换服务
+            pdf_url = await pdf_converter.convert_document_to_pdf(source_url)
+
+            if not pdf_url:
+                error_msg = f"PDF conversion returned empty result for {filename}"
+                logger.error(error_msg)
+                await async_task_manager.mark_task_failed(
+                    task_id=task_db_id,
+                    error_message=error_msg,
+                    error_code="CONVERSION_EMPTY_RESULT",
+                )
+                return {"success": False, "error": error_msg}
+
+            # 更新进度
+            await _update_task_status("processing", 50, "Downloading converted PDF")
+
+            # 下载转换后的PDF
+            async with httpx.AsyncClient(timeout=60.0, trust_env=False) as client:
+                response = await client.get(pdf_url)
+                response.raise_for_status()
+                pdf_content = response.content
+
+            # 更新进度
+            await _update_task_status("processing", 70, "Uploading PDF to storage")
+
+            # 上传到MinIO
+            storage = await get_initialized_storage()
+            storage_backend = await storage.get_default_backend()
+
+            pdf_filename = Path(filename).stem + ".pdf"
+            pdf_object_path = f"{object_path_prefix}/derived/{pdf_filename}"
+
+            await storage_backend.upload_file(
+                object_path=pdf_object_path,
+                content=pdf_content,
+                content_type="application/pdf",
+                metadata={
+                    "original_file_id": file_id,
+                    "original_filename": filename,
+                    "conversion_source": "async_task",
+                },
+            )
+
+            # 更新进度
+            await _update_task_status("processing", 90, "Updating file record")
+
+            # 更新文件记录的 derived_pdf_path
+            from unifiles.core.database import unified_file_db_manager
+
+            await unified_file_db_manager.update_derived_pdf_path(
+                file_id=file_id,
+                derived_pdf_path=pdf_object_path,
+            )
+
+            # 标记任务完成
+            await async_task_manager.mark_task_completed(
+                task_id=task_db_id,
+                result_data={
+                    "file_id": file_id,
+                    "pdf_path": pdf_object_path,
+                    "pdf_filename": pdf_filename,
+                    "pdf_size": len(pdf_content),
+                },
+            )
+
+            logger.info(f"PDF conversion completed for file {file_id}: {pdf_object_path}")
+
+            return {
+                "success": True,
+                "file_id": file_id,
+                "pdf_path": pdf_object_path,
+                "message": "PDF conversion completed",
+            }
+
+        except SoftTimeLimitExceeded:
+            error_msg = f"PDF conversion exceeded time limit for file {file_id}"
+            logger.error(error_msg)
+            await async_task_manager.mark_task_failed(
+                task_id=task_db_id,
+                error_message=error_msg,
+                error_code="TIMEOUT",
+            )
+            raise
+
+        except Exception as e:
+            error_msg = f"PDF conversion failed for file {file_id}: {e!s}"
+            stack_trace = traceback.format_exc()
+            logger.exception(error_msg)
+
+            if self.request.retries < self.max_retries:
+                await async_task_manager.increment_retry_count(task_db_id)
+                await _update_task_status(
+                    "processing",
+                    0,
+                    f"Retrying... ({self.request.retries + 1}/{self.max_retries})",
+                )
+                raise
+
+            await async_task_manager.mark_task_failed(
+                task_id=task_db_id,
+                error_message=error_msg,
+                error_code="CONVERSION_FAILED",
+                error_details={"file_id": file_id, "filename": filename},
+                stack_trace=stack_trace,
+            )
+            raise
+
+    try:
+        result = run_async(_run_conversion())
+        return result
+    except Exception as e:
+        logger.exception(f"PDF conversion task failed: {e}")
+        raise
+

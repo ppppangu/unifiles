@@ -490,6 +490,45 @@ class FileDBManager(BaseDBManager):
             logger.error(f"Error cleaning up deleted files: {e}")
             return 0
 
+    async def update_derived_pdf_path(
+        self, file_id: str, derived_pdf_path: str
+    ) -> bool:
+        """
+        更新文件的转换后PDF路径
+
+        Args:
+            file_id: 文件ID
+            derived_pdf_path: 转换后PDF存储路径
+
+        Returns:
+            是否更新成功
+        """
+        try:
+            file_id = self.sanitize_input(file_id)
+            derived_pdf_path = self.sanitize_input(derived_pdf_path)
+
+            result = await self.execute_query(
+                f"""
+                UPDATE {self._schema_name}.files 
+                SET derived_pdf_path = $2, updated_at = $3
+                WHERE id = $1 AND status != 'deleted'
+                """,
+                file_id,
+                derived_pdf_path,
+                datetime.now(),
+            )
+
+            success = result and "UPDATE 1" in result
+            if success:
+                logger.info(f"Updated derived_pdf_path for file {file_id}")
+            else:
+                logger.warning(f"Failed to update derived_pdf_path for file {file_id}")
+            return success
+
+        except Exception as e:
+            logger.error(f"Error updating derived_pdf_path: {e}")
+            return False
+
 
 # 全局实例
 unified_file_db_manager = FileDBManager()
