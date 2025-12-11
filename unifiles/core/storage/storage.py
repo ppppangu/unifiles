@@ -39,6 +39,12 @@ def _get_logger():
 # 注意: 不在模块级别调用 _get_logger()，而是在需要时动态调用
 from minio import Minio
 from minio.error import S3Error
+from tenacity import (
+    retry,
+    stop_after_attempt,
+    wait_exponential,
+    retry_if_exception_type,
+)
 
 from unifiles.core.config.env_config import read_minio_config
 from unifiles.core.config.models.connection_config import (
@@ -46,6 +52,15 @@ from unifiles.core.config.models.connection_config import (
     MinIOConnection,
 )
 from unifiles.core.config.models.storage_config import ConfigSource, StorageConfig
+
+
+# =============================================================================
+# 上传配置常量
+# =============================================================================
+
+UPLOAD_MAX_RETRIES = 3                    # 最大重试次数
+UPLOAD_RETRY_MIN_WAIT = 1                 # 最小重试等待时间（秒）
+UPLOAD_RETRY_MAX_WAIT = 30                # 最大重试等待时间（秒）
 
 
 # =============================================================================
@@ -374,25 +389,69 @@ class MinioStorageBackend(BaseStorageBackend):
         content_type: str = "application/octet-stream",
         metadata: Optional[Dict[str, Any]] = None,
     ) -> str:
-        data_stream = io.BytesIO(content)
+        """上传文件内容到 MinIO，支持自动重试。
+
+        Args:
+            object_path: 对象存储路径
+            content: 文件内容（字节）
+            content_type: MIME 类型
+            metadata: 可选的用户元数据
+
+        Returns:
+            上传成功后的对象路径
+
+        Raises:
+            S3Error: MinIO 操作失败（重试耗尽后）
+            StorageError: 其他存储错误
+        """
         length = len(content)
 
         # Normalize user metadata to satisfy S3/MinIO ASCII-only requirements
         norm_metadata: Dict[str, str] = self._normalize_metadata(metadata or {})
 
-        def put_object() -> str:
-            self._client.put_object(
-                self._bucket_name,
-                object_path,
-                data_stream,
-                length,
-                content_type=content_type,
-                metadata=norm_metadata,
-            )
-            return object_path
+        @retry(
+            stop=stop_after_attempt(UPLOAD_MAX_RETRIES),
+            wait=wait_exponential(
+                multiplier=1, min=UPLOAD_RETRY_MIN_WAIT, max=UPLOAD_RETRY_MAX_WAIT
+            ),
+            retry=retry_if_exception_type((S3Error, ConnectionError, TimeoutError, OSError)),
+            reraise=True,
+        )
+        def put_object_with_retry() -> str:
+            # 每次重试需要重新创建 BytesIO，因为流的位置会被消费
+            data_stream = io.BytesIO(content)
+            try:
+                self._client.put_object(
+                    self._bucket_name,
+                    object_path,
+                    data_stream,
+                    length,
+                    content_type=content_type,
+                    metadata=norm_metadata,
+                )
+                _get_logger().debug(
+                    f"[MinIO] Upload succeeded: {object_path} ({length} bytes)"
+                )
+                return object_path
+            except S3Error as e:
+                _get_logger().warning(
+                    f"[MinIO] Upload failed for {object_path}, will retry: {e.code} - {e.message}"
+                )
+                raise
+            except (ConnectionError, TimeoutError, OSError) as e:
+                _get_logger().warning(
+                    f"[MinIO] Upload network error for {object_path}, will retry: {e}"
+                )
+                raise
 
-        await asyncio.to_thread(put_object)
-        return object_path
+        try:
+            await asyncio.to_thread(put_object_with_retry)
+            return object_path
+        except Exception as e:
+            _get_logger().error(
+                f"[MinIO] Upload failed after {UPLOAD_MAX_RETRIES} retries: {object_path} - {e}"
+            )
+            raise
 
     async def upload_file_from_path(
         self,
@@ -401,25 +460,71 @@ class MinioStorageBackend(BaseStorageBackend):
         content_type: str = "application/octet-stream",
         metadata: Optional[Dict[str, Any]] = None,
     ) -> str:
+        """从本地文件路径上传到 MinIO，支持自动重试。
+
+        Args:
+            object_path: 对象存储路径
+            local_file_path: 本地文件路径
+            content_type: MIME 类型
+            metadata: 可选的用户元数据
+
+        Returns:
+            上传成功后的对象路径
+
+        Raises:
+            FileNotFoundError: 本地文件不存在
+            S3Error: MinIO 操作失败（重试耗尽后）
+            StorageError: 其他存储错误
+        """
         file_path = Path(local_file_path)
         if not file_path.exists():
             raise FileNotFoundError(f"Local file not found: {local_file_path}")
 
+        file_size = file_path.stat().st_size
+
         # Normalize user metadata to satisfy S3/MinIO ASCII-only requirements
         norm_metadata: Dict[str, str] = self._normalize_metadata(metadata or {})
 
-        def fput_object() -> str:
-            self._client.fput_object(
-                self._bucket_name,
-                object_path,
-                str(file_path),
-                content_type=content_type,
-                metadata=norm_metadata,
-            )
-            return object_path
+        @retry(
+            stop=stop_after_attempt(UPLOAD_MAX_RETRIES),
+            wait=wait_exponential(
+                multiplier=1, min=UPLOAD_RETRY_MIN_WAIT, max=UPLOAD_RETRY_MAX_WAIT
+            ),
+            retry=retry_if_exception_type((S3Error, ConnectionError, TimeoutError, OSError)),
+            reraise=True,
+        )
+        def fput_object_with_retry() -> str:
+            try:
+                self._client.fput_object(
+                    self._bucket_name,
+                    object_path,
+                    str(file_path),
+                    content_type=content_type,
+                    metadata=norm_metadata,
+                )
+                _get_logger().debug(
+                    f"[MinIO] File upload succeeded: {object_path} ({file_size} bytes)"
+                )
+                return object_path
+            except S3Error as e:
+                _get_logger().warning(
+                    f"[MinIO] File upload failed for {object_path}, will retry: {e.code} - {e.message}"
+                )
+                raise
+            except (ConnectionError, TimeoutError, OSError) as e:
+                _get_logger().warning(
+                    f"[MinIO] File upload network error for {object_path}, will retry: {e}"
+                )
+                raise
 
-        await asyncio.to_thread(fput_object)
-        return object_path
+        try:
+            await asyncio.to_thread(fput_object_with_retry)
+            return object_path
+        except Exception as e:
+            _get_logger().error(
+                f"[MinIO] File upload failed after {UPLOAD_MAX_RETRIES} retries: {object_path} - {e}"
+            )
+            raise
 
     def _normalize_metadata(self, meta: Dict[str, Any]) -> Dict[str, str]:
         """Normalize user metadata to ASCII-only strings acceptable by S3/MinIO.
