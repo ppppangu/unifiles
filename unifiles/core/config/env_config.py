@@ -51,12 +51,16 @@ class EnvironmentConfig:
             return
 
         if load_dotenv is None:
-            _get_logger().warning("python-dotenv not installed, .env file will not be loaded")
+            _get_logger().warning(
+                "python-dotenv not installed, .env file will not be loaded"
+            )
             return
 
         if self.env_file_path.exists():
             load_dotenv(self.env_file_path)
-            _get_logger().info(f"Loaded environment variables from {self.env_file_path}")
+            _get_logger().info(
+                f"Loaded environment variables from {self.env_file_path}"
+            )
         else:
             _get_logger().info(
                 f".env file not found at {self.env_file_path}, using environment variables only"
@@ -84,16 +88,16 @@ class EnvironmentConfig:
             return default
 
         # 如果是字符串默认值且环境变量也是字符串，直接返回
-        if cast_type == str:
+        if cast_type is str:
             return value
 
         # 类型转换
         try:
-            if cast_type == bool:
+            if cast_type is bool:
                 return value.lower() in ("true", "1", "yes", "on")
-            if cast_type == int:
+            if cast_type is int:
                 return int(value)
-            if cast_type == float:
+            if cast_type is float:
                 return float(value)
             return cast_type(value)
         except (ValueError, TypeError) as e:

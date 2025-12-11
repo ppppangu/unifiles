@@ -163,7 +163,9 @@ class ProcessedDocument(BaseModel):
     created_at: str = Field(description="创建时间")
     original_filename: Optional[str] = Field(default=None, description="原始文件名")
     file_size: Optional[int] = Field(default=None, description="文件大小(字节)")
-    file_id: Optional[str] = Field(default=None, description="源文件ID，用于获取文件预览URL")
+    file_id: Optional[str] = Field(
+        default=None, description="源文件ID，用于获取文件预览URL"
+    )
 
 
 class ProcessDocumentResponse(BaseModel):
@@ -198,7 +200,9 @@ class DocumentDetailInfo(BaseModel):
     file_url: Optional[str] = Field(default=None, description="源文件访问URL")
 
     # 解析内容
-    markdown_content: Optional[str] = Field(default=None, description="解析后的Markdown内容")
+    markdown_content: Optional[str] = Field(
+        default=None, description="解析后的Markdown内容"
+    )
 
     # 状态信息
     chunk_count: int = Field(default=0, description="分块数量")

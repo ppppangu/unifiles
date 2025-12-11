@@ -52,6 +52,7 @@ from unifiles.core.config.models.storage_config import ConfigSource, StorageConf
 # 异常类
 # =============================================================================
 
+
 class StorageError(Exception):
     """存储操作通用异常"""
 
@@ -62,7 +63,7 @@ class StorageInitializationError(StorageError):
 
 class DatabaseBootstrapper:
     """Checks PostgreSQL database/schema readiness at startup.
-    
+
     Note: Actual database initialization is handled by `scripts/init_db.py`.
     This class only performs connectivity and schema existence checks.
     """
@@ -75,16 +76,18 @@ class DatabaseBootstrapper:
 
     async def ensure_database_ready(self) -> None:
         """Ensure the database is reachable and schema exists.
-        
+
         Uses the global connection pool (initialized in main.py) instead of
         creating standalone connections, ensuring resource reuse.
         """
         from unifiles.core.database import get_connection_pool
 
-        _get_logger().info("[DB] ensure_database_ready: checking schema via global pool")
+        _get_logger().info(
+            "[DB] ensure_database_ready: checking schema via global pool"
+        )
         try:
             pool = await get_connection_pool()
-            
+
             async with pool.acquire() as conn:
                 schema_exists = await conn.fetchval(
                     "SELECT EXISTS(SELECT 1 FROM information_schema.schemata WHERE schema_name = 'unifiles')"
@@ -93,7 +96,7 @@ class DatabaseBootstrapper:
             if schema_exists:
                 _get_logger().info("[DB] Schema 'unifiles' exists; database ready")
                 return
-            
+
             _get_logger().warning(
                 "[DB] Schema 'unifiles' not found. "
                 "Please run: python scripts/init_db.py"
@@ -119,7 +122,7 @@ class DatabaseBootstrapper:
                 schema_exists = await conn.fetchval(
                     "SELECT EXISTS(SELECT 1 FROM information_schema.schemata WHERE schema_name = 'unifiles')"
                 )
-            
+
             if schema_exists:
                 return {"status": "healthy"}
             return {"status": "degraded", "warning": "Schema 'unifiles' not found"}
@@ -130,6 +133,7 @@ class DatabaseBootstrapper:
 # =============================================================================
 # 存储后端基类与实现
 # =============================================================================
+
 
 class BaseStorageBackend:
     """存储后端抽象基类，定义统一接口。子类需实现具体的上传/删除/访问逻辑。"""
@@ -195,7 +199,9 @@ class LocalStorageBackend(BaseStorageBackend):
     async def initialize(self) -> None:  # pragma: no cover - trivial
         _get_logger().info("[LocalStorage] initialize: begin")
         await asyncio.to_thread(self._prepare_directory)
-        _get_logger().info(f"[LocalStorage] initialize: directory ready at {self._base_path}")
+        _get_logger().info(
+            f"[LocalStorage] initialize: directory ready at {self._base_path}"
+        )
 
     def _prepare_directory(self) -> None:
         _get_logger().info(
@@ -342,13 +348,17 @@ class MinioStorageBackend(BaseStorageBackend):
         self._bucket_name = connection.bucket_name
 
     async def initialize(self) -> None:
-        _get_logger().info(f"[MinIO] initialize: begin ensure bucket '{self._bucket_name}'")
+        _get_logger().info(
+            f"[MinIO] initialize: begin ensure bucket '{self._bucket_name}'"
+        )
         await asyncio.to_thread(self._ensure_bucket_exists)
         _get_logger().info(f"[MinIO] initialize: bucket ensured '{self._bucket_name}'")
 
     def _ensure_bucket_exists(self) -> None:
         try:
-            _get_logger().info(f"[MinIO] Checking if bucket exists: {self._bucket_name}")
+            _get_logger().info(
+                f"[MinIO] Checking if bucket exists: {self._bucket_name}"
+            )
             if not self._client.bucket_exists(self._bucket_name):
                 self._client.make_bucket(self._bucket_name)
                 _get_logger().info(f"Created MinIO bucket: {self._bucket_name}")
@@ -445,7 +455,9 @@ class MinioStorageBackend(BaseStorageBackend):
                 self._client.remove_object(self._bucket_name, object_path)
                 return True
             except S3Error as exc:
-                _get_logger().warning(f"Failed to delete MinIO object {object_path}: {exc}")
+                _get_logger().warning(
+                    f"Failed to delete MinIO object {object_path}: {exc}"
+                )
                 return False
 
         return await asyncio.to_thread(remove)
@@ -496,9 +508,11 @@ class MinioStorageBackend(BaseStorageBackend):
 # 存储编排器
 # =============================================================================
 
+
 @dataclass
 class StorageState:
     """Storage 编排器的内部状态"""
+
     initialized: bool = False
     default_backend_id: str | None = None
 
@@ -506,7 +520,7 @@ class StorageState:
 class Storage:
     """
     存储编排器 - 管理多个存储后端，提供统一的存储访问接口。
-    
+
     初始化流程 (由 main.py 调用):
     1. 检查数据库 schema 是否存在
     2. 加载存储配置 (MinIO + 本地存储)
@@ -532,7 +546,9 @@ class Storage:
 
         async with self._init_lock:
             if self._state.initialized:
-                _get_logger().info("[Storage] initialize: already initialized (after lock)")
+                _get_logger().info(
+                    "[Storage] initialize: already initialized (after lock)"
+                )
                 return
 
             _get_logger().info("[Storage] Initializing Storage orchestrator...")
@@ -554,9 +570,13 @@ class Storage:
                 )
                 backend = self._create_backend(config)
                 try:
-                    _get_logger().info(f"[Storage] -> initializing backend '{config.id}'")
+                    _get_logger().info(
+                        f"[Storage] -> initializing backend '{config.id}'"
+                    )
                     await backend.initialize()
-                    _get_logger().info(f"[Storage] -> backend '{config.id}' initialized OK")
+                    _get_logger().info(
+                        f"[Storage] -> backend '{config.id}' initialized OK"
+                    )
                 except Exception as exc:
                     _get_logger().error(
                         f"Failed to initialize storage backend {config.id} "
@@ -672,7 +692,9 @@ class Storage:
         except Exception as exc:
             _get_logger().error(f"Failed to prepare local storage configuration: {exc}")
 
-        _get_logger().debug(f"[Storage] _load_storage_configs: done (count={len(configs)})")
+        _get_logger().debug(
+            f"[Storage] _load_storage_configs: done (count={len(configs)})"
+        )
         return configs
 
     def _create_backend(self, config: StorageConfig) -> BaseStorageBackend:

@@ -316,7 +316,7 @@ class KnowledgeBaseDBManager(BaseDBManager):
         self, kb_id: str, limit: int = 50, offset: int = 0
     ) -> tuple[list[DocumentModel], int]:
         """列出指定知识库下的文档（分页）并返回总数。
-        
+
         通过 JOIN 查询获取原始文件名和文件大小。
         """
         # 参数校验与清理
@@ -437,7 +437,6 @@ class KnowledgeBaseDBManager(BaseDBManager):
         except Exception as e:
             logger.error(f"Error getting document detail {doc_id}: {e}")
             raise
-
 
     async def ensure_document_exists(
         self,

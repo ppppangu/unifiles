@@ -113,7 +113,6 @@ class FileDBManager(BaseDBManager):
                         False,  # 默认私有
                     )
 
-
             # 记录审计日志
             self.security_enforcer.audit_log(
                 "file_creation",

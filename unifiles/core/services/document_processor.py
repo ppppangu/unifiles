@@ -419,7 +419,9 @@ class DocumentProcessingService:
             self.logger.info(f"File record: {file_record}")
             file_url = file_record.get("storage_path")
             derived_pdf_path = file_record.get("derived_pdf_path")
-            self.logger.info(f"File URL obtained: {file_url}, Derived PDF path: {derived_pdf_path}")
+            self.logger.info(
+                f"File URL obtained: {file_url}, Derived PDF path: {derived_pdf_path}"
+            )
             if not file_url:
                 raise ValueError(f"File URL not available for file: {file_id}")
 

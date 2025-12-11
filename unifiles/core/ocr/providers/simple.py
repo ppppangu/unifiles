@@ -48,9 +48,7 @@ class SimpleOCRProvider(BaseOCRProvider):
     # --------------------
     # Async APIs
     # --------------------
-    async def aprocess_file(
-        self, file_path: Union[str, Path], **kwargs
-    ) -> OCROutput:
+    async def aprocess_file(self, file_path: Union[str, Path], **kwargs) -> OCROutput:
         """Async extraction; returns markdown text and image metadata."""
         if not self.config.validate():
             return "", []

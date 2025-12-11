@@ -359,9 +359,9 @@ class ChunkingService:
 
         # 根据策略选择分块器
         text_chunks = []
-        
+
         chunker_cls = _CHUNKER_REGISTRY.get(strategy)
-        
+
         if chunker_cls:
             # 实例化分块器，传入必要的参数
             # 使用 kwargs 将所有可能的参数透传给 __init__
