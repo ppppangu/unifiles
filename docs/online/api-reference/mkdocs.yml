@@ -1,0 +1,22 @@
+site_name: api-reference
+docs_dir: .
+
+nav:
+  - index.md
+  - REST API:
+      - 概览: rest-api/overview.md
+      - 文件: rest-api/files.md
+      - 提取: rest-api/extractions.md
+      - 知识库: rest-api/knowledge-bases.md
+      - Webhooks: rest-api/webhooks.md
+      - API 密钥: rest-api/api-keys.md
+      - 使用量: rest-api/usage.md
+      - 错误码: rest-api/errors.md
+  - Python SDK:
+      - 概览: python-sdk/overview.md
+      - UnifilesClient: python-sdk/client.md
+      - Files: python-sdk/files.md
+      - Extractions: python-sdk/extractions.md
+      - Knowledge Bases: python-sdk/knowledge-bases.md
+      - 类型定义: python-sdk/types.md
+      - 异常处理: python-sdk/exceptions.md

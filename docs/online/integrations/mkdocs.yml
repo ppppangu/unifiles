@@ -1,0 +1,7 @@
+site_name: integrations
+docs_dir: .
+
+nav:
+  - index.md
+  - LangChain: langchain.md
+  - 自定义集成: custom-integration.md

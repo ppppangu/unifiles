@@ -1,0 +1,10 @@
+site_name: under-the-hood
+docs_dir: .
+
+nav:
+  - index.md
+  - 处理管线: processing-pipeline.md
+  - 数据库架构: database-schema.md
+  - 存储架构: storage-architecture.md
+  - 安全模型: security-model.md
+  - 开发技巧: development-tips.md

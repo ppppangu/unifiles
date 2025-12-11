@@ -1,0 +1,8 @@
+site_name: what-is-unifiles
+docs_dir: .
+
+nav:
+  - index.md
+  - 工作原理: how-it-works.md
+  - 设计理念: design-philosophy.md
+  - 方案对比: comparison.md
