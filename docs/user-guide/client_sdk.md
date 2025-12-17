@@ -212,6 +212,44 @@ for res in results:
     print(res.text_content)
 ```
 
+### 6. Document Management
+
+#### Get Document Detail
+
+Retrieve complete information about a specific document, including the full extracted markdown content:
+
+```python
+# Get a knowledge base
+kb = client.get_knowledge_base("kb_12345")
+
+# List documents to find the ID
+documents = kb.list_documents(limit=10)
+doc_id = documents[0]["document_id"]
+
+# Get detailed information
+detail = kb.get_document_detail(doc_id)
+
+print(f"Document: {detail['original_filename']}")
+print(f"File size: {detail['file_size']} bytes")
+print(f"Chunks: {detail['chunk_count']}")
+print(f"Status: {detail['indexing_status']}")
+
+# Access the full markdown content
+markdown = detail["markdown_content"]
+print(f"Content preview: {markdown[:200]}...")
+
+# Check extraction metadata
+metadata = detail.get("extraction_metadata", {})
+print(f"Total pages: {metadata.get('total_pages')}")
+print(f"Total characters: {metadata.get('total_chars')}")
+```
+
+**Use cases:**
+- Retrieve full extracted text for display or export
+- Check indexing status and chunk counts
+- Access file metadata (original filename, size)
+- Debug extraction quality
+
 ## API Reference
 
 ### `Unifiles` Client
@@ -262,5 +300,17 @@ Manages a collection of searchable documents.
 *   `upload_document(file_path, is_public=False, auto_extract=True, auto_index=True, extract_mode="simple") -> Document`:
     Helper to upload and process a file in one go (upload → extract → index).
 *   `search(query, top_k=10, include_photos=False) -> List[SearchResult]`: Performs a semantic search within this knowledge base. Set `include_photos=True` to also include image components (`component_type='photo'`) in the results.
-*   `list_documents(limit=50, offset=0) -> List[dict]`: Lists documents in this Knowledge Base (requires server support for the corresponding endpoint).
+*   `list_documents(limit=50, offset=0) -> List[Dict]`:
+    Lists documents in this Knowledge Base. Each document now includes:
+    - `document_id`, `extraction_id`, `knowledge_base_id`
+    - `original_filename` - Original file name (NEW)
+    - `file_size` - File size in bytes (NEW)
+    - `file_id` - Source file ID for preview URL (NEW)
+    - `chunk_count`, `indexing_status`, `created_at`
+*   `get_document_detail(document_id) -> Dict`:
+    Retrieves detailed information about a specific document, including:
+    - Full markdown content (`markdown_content`)
+    - Original file metadata (`original_filename`, `file_size`, `file_id`)
+    - Indexing status and chunk count
+    - Extraction metadata (page count, character count, etc.)
 *   `delete_document(document_id) -> bool`: Removes a document from the Knowledge Base (requires server endpoint support).

@@ -211,6 +211,44 @@ for res in results:
     print(res.text_content)
 ```
 
+### 6. 文档管理
+
+#### 获取文档详情
+
+检索特定文档的完整信息，包括完整的提取Markdown内容：
+
+```python
+# 获取知识库
+kb = client.get_knowledge_base("kb_12345")
+
+# 列出文档以查找ID
+documents = kb.list_documents(limit=10)
+doc_id = documents[0]["document_id"]
+
+# 获取详细信息
+detail = kb.get_document_detail(doc_id)
+
+print(f"文档: {detail['original_filename']}")
+print(f"文件大小: {detail['file_size']} 字节")
+print(f"分块数: {detail['chunk_count']}")
+print(f"状态: {detail['indexing_status']}")
+
+# 访问完整的Markdown内容
+markdown = detail["markdown_content"]
+print(f"内容预览: {markdown[:200]}...")
+
+# 检查提取元数据
+metadata = detail.get("extraction_metadata", {})
+print(f"总页数: {metadata.get('total_pages')}")
+print(f"总字符数: {metadata.get('total_chars')}")
+```
+
+**使用场景：**
+- 检索完整提取文本用于显示或导出
+- 检查索引状态和分块数量
+- 访问文件元数据（原始文件名、大小）
+- 调试提取质量
+
 ## API 参考
 
 ### `Unifiles` 客户端
@@ -264,5 +302,17 @@ from unifiles_client import Unifiles
     - `query`：检索查询文本。
     - `top_k`：返回结果数量（1–100）。
     - `include_photos`：是否在结果中包含图片组件（`component_type='photo'`），默认为 False。
-*   `list_documents(limit=50, offset=0) -> List[dict]`：列出此知识库中的文档（需要服务器支持相应的端点）。
+*   `list_documents(limit=50, offset=0) -> List[Dict]`：
+    列出此知识库中的文档。每个文档现在包含：
+    - `document_id`、`extraction_id`、`knowledge_base_id`
+    - `original_filename` - 原始文件名（新增）
+    - `file_size` - 文件大小（字节）（新增）
+    - `file_id` - 源文件ID（用于获取预览URL）（新增）
+    - `chunk_count`、`indexing_status`、`created_at`
+*   `get_document_detail(document_id) -> Dict`：
+    检索特定文档的详细信息，包括：
+    - 完整的Markdown内容（`markdown_content`）
+    - 原始文件元数据（`original_filename`、`file_size`、`file_id`）
+    - 索引状态和分块数量
+    - 提取元数据（页数、字符数等）
 *   `delete_document(document_id) -> bool`：从知识库中移除文档（需要服务器端点支持）。

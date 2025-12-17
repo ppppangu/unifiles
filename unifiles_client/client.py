@@ -5,11 +5,37 @@ Unifile Python客户端实现
 """
 
 import time
+import warnings
 from enum import Enum
+from functools import wraps
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Union
 
+try:
+    from typing import TypedDict
+except ImportError:
+    from typing_extensions import TypedDict
+
 import requests
+
+
+def deprecated(reason: str, removal_version: str = "2.0.0"):
+    """Decorator to mark functions as deprecated"""
+
+    def decorator(func):
+        @wraps(func)
+        def wrapper(*args, **kwargs):
+            warnings.warn(
+                f"{func.__name__} is deprecated and will be removed in "
+                f"version {removal_version}. {reason}",
+                category=DeprecationWarning,
+                stacklevel=2,
+            )
+            return func(*args, **kwargs)
+
+        return wrapper
+
+    return decorator
 
 
 class DocumentStatus(Enum):
@@ -28,6 +54,23 @@ class ContentType(Enum):
 
     TEXT = "text"  # 文字类内容
     IMAGE = "image"  # 图片类内容（OCR结果）
+
+
+class DocumentDetailDict(TypedDict, total=False):
+    """Type definition for document detail response"""
+
+    document_id: str
+    extraction_id: str
+    knowledge_base_id: str
+    original_filename: Optional[str]
+    file_size: Optional[int]
+    file_id: Optional[str]
+    file_url: Optional[str]
+    markdown_content: Optional[str]
+    chunk_count: int
+    indexing_status: str
+    created_at: str
+    extraction_metadata: Optional[Dict[str, Any]]
 
 
 class UnifilesError(Exception):
@@ -417,12 +460,69 @@ class KnowledgeBase:
         return response
 
     def list_documents(self, limit: int = 50, offset: int = 0) -> List[Dict[str, Any]]:
-        """获取知识库中的文档列表"""
+        """
+        Get list of documents in this knowledge base.
+
+        Args:
+            limit: Maximum number of documents to return (default: 50)
+            offset: Number of documents to skip (default: 0)
+
+        Returns:
+            List of document dictionaries, each containing:
+            - document_id, extraction_id, knowledge_base_id
+            - original_filename: Original file name (from file metadata)
+            - file_size: File size in bytes (from file metadata)
+            - file_id: Source file ID (for getting preview URL)
+            - chunk_count, indexing_status, created_at
+
+        Example:
+            >>> kb = client.get_knowledge_base("kb_123")
+            >>> docs = kb.list_documents(limit=10)
+            >>> for doc in docs:
+            ...     print(f"{doc['original_filename']} - {doc['file_size']} bytes")
+        """
         params = {"limit": limit, "offset": offset}
         response = self.client._get(
             f"/knowledge-bases/{self.kb_id}/documents", params=params
         )
         return response.get("documents", [])
+
+    def get_document_detail(self, document_id: str) -> Dict[str, Any]:
+        """
+        Get detailed information about a specific document in this knowledge base.
+
+        Args:
+            document_id: The document ID
+
+        Returns:
+            Dictionary containing:
+            - document_id, extraction_id, knowledge_base_id
+            - original_filename, file_size, file_id, file_url
+            - markdown_content: Full extracted markdown text
+            - chunk_count, indexing_status, created_at
+            - extraction_metadata: Dict with total_pages, total_chars, etc.
+
+        Raises:
+            DocumentNotFoundError: If document doesn't exist
+            UnifilesError: On API errors
+
+        Example:
+            >>> kb = client.get_knowledge_base("kb_123")
+            >>> detail = kb.get_document_detail("doc_456")
+            >>> print(f"File: {detail['original_filename']}")
+            >>> print(f"Content: {detail['markdown_content'][:200]}...")
+        """
+        try:
+            response = self.client._get(
+                f"/knowledge-bases/{self.kb_id}/documents/{document_id}"
+            )
+            return response.get("document", {})
+        except Exception as e:
+            if "404" in str(e) or "not found" in str(e).lower():
+                raise DocumentNotFoundError(
+                    f"Document {document_id} not found in knowledge base {self.kb_id}"
+                )
+            raise
 
     def upload_document(
         self,
