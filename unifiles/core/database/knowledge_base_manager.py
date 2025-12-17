@@ -412,7 +412,7 @@ class KnowledgeBaseDBManager(BaseDBManager):
                 f.id as file_id,
                 f.filename as original_filename,
                 f.bytes as file_size,
-                f.public_url as file_url,
+                f.storage_path as file_url,
                 
                 -- 提取内容
                 ed.full_markdown as markdown_content,
