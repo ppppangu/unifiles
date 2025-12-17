@@ -178,6 +178,13 @@ class Document:
             None  # queued|processing|completed|failed
         )
 
+        # Conversion task tracking
+        self._conversion_task_id: Optional[str] = None
+
+        # Extract from file_info if provided
+        if file_info:
+            self._conversion_task_id = file_info.get("conversion_task_id")
+
     @property
     def filename(self) -> str:
         """文件名"""
@@ -226,6 +233,51 @@ class Document:
         response = self.client._get(f"/files/{self.file_id}")
         self._file_info = response
         return response
+
+    @property
+    def conversion_status(self) -> Optional[str]:
+        """
+        PDF conversion status
+
+        Returns:
+            - None: No conversion task (file is already PDF or not convertible)
+            - "pending": Conversion queued but not started
+            - "processing": Currently converting
+            - "completed": Conversion successful
+            - "failed": Conversion failed
+            - "skipped": Conversion not needed (already PDF)
+
+        Example:
+            >>> doc = client.upload_file("report.docx")
+            >>> print(doc.conversion_status)  # "completed" or "skipped"
+        """
+        if self._file_info:
+            return self._file_info.get("conversion_status")
+        return self.get_info().get("conversion_status")
+
+    @property
+    def is_converted(self) -> bool:
+        """Whether the file has been converted to PDF"""
+        if self._file_info:
+            return self._file_info.get("is_converted", False)
+        return self.get_info().get("is_converted", False)
+
+    @property
+    def derived_pdf_url(self) -> Optional[str]:
+        """
+        URL of the converted PDF file (if conversion occurred)
+
+        Returns:
+            URL string if file was converted to PDF, None otherwise
+
+        Example:
+            >>> doc = client.upload_file("report.docx")
+            >>> if doc.is_converted:
+            ...     print(f"PDF available at: {doc.derived_pdf_url}")
+        """
+        if self._file_info:
+            return self._file_info.get("derived_pdf_url")
+        return self.get_info().get("derived_pdf_url")
 
     def get_content(self, content_type: Optional[ContentType] = None) -> Dict[str, Any]:
         """
@@ -328,6 +380,80 @@ class Document:
         except KeyboardInterrupt:
             raise UnifilesError("Document extraction cancelled by user")
 
+    def wait_for_conversion(self, timeout: int = 300, poll_interval: int = 5) -> bool:
+        """
+        Wait for PDF conversion to complete
+
+        Args:
+            timeout: Maximum time to wait in seconds (default: 300)
+            poll_interval: Time between status checks in seconds (default: 5)
+
+        Returns:
+            True if conversion completed successfully
+
+        Raises:
+            UnifilesError: If conversion fails, times out, or no conversion task exists
+
+        Example:
+            >>> doc = client.upload_file("report.docx", wait_for_conversion=False)
+            >>> doc.wait_for_conversion()  # Wait manually
+            True
+        """
+        start_time = time.time()
+
+        # Get conversion task ID
+        def _ensure_task_id() -> Optional[str]:
+            if self._conversion_task_id:
+                return self._conversion_task_id
+            info = self.get_info()
+            return info.get("conversion_task_id")
+
+        task_id = _ensure_task_id()
+        if not task_id:
+            # Check if conversion is not needed
+            info = self.get_info()
+            status = info.get("conversion_status")
+            if status == "skipped":
+                return True  # Already PDF - no waiting needed
+            raise UnifilesError(
+                "No conversion task found. File may not require conversion."
+            )
+
+        try:
+            while time.time() - start_time < timeout:
+                try:
+                    # Query task status
+                    status_resp = self.client._get(f"/tasks/{task_id}")
+                    st = (status_resp.get("status") or "").lower()
+
+                    if st == "completed":
+                        # Refresh file info to get derived_pdf_url
+                        self._file_info = self.get_info()
+                        return True
+
+                    if st in {"failed", "cancelled", "timeout"}:
+                        error_msg = status_resp.get("error_message", "Unknown error")
+                        raise UnifilesError(
+                            f"PDF conversion failed with status '{st}': {error_msg}"
+                        )
+
+                    # Still processing, wait and retry
+                    time.sleep(poll_interval)
+
+                except UnifilesError as e:
+                    msg = str(e).lower()
+                    if "connection failed" in msg or "timeout" in msg:
+                        time.sleep(poll_interval)
+                    else:
+                        raise
+
+            raise UnifilesError(
+                f"PDF conversion timeout after {timeout} seconds for {self.file_id}"
+            )
+
+        except KeyboardInterrupt:
+            raise UnifilesError("PDF conversion cancelled by user")
+
     def extract_content(
         self,
         mode: str = "simple",
@@ -338,21 +464,25 @@ class Document:
         poll_interval: int = 5,
     ) -> Dict[str, Any]:
         """
-        触发内容提取（第二层处理，异步任务）
+        Trigger content extraction (Layer 2: Async OCR processing)
 
         Args:
-            mode: 提取模式 simple|mistral|selfhosted|openai
-            parse_image_content: 是否解析图像内容到full_markdown (仅对支持的OCR提供商有效，如selfhosted)
-            wait: 是否等待任务完成并返回内容
-            timeout: 等待超时时间（秒），仅在 wait=True 时生效
-            poll_interval: 轮询间隔（秒），仅在 wait=True 时生效
+            mode: Extraction mode (simple|mistral|selfhosted|openai)
+            parse_image_content: Parse image content to full_markdown (selfhosted only)
+            wait: Wait for extraction task to complete
+            timeout: Timeout in seconds (applies to both conversion and extraction)
+            poll_interval: Polling interval in seconds
 
         Returns:
-            - 当 wait=False 时：返回任务提交结果（task_id/status）
-            - 当 wait=True 时：返回任务结果，包含 extracted_content
+            - When wait=False: Task submission result
+            - When wait=True: Task result with extracted_content
 
         Raises:
-            ValueError: 当 parse_image_content=True 但 mode 不是 selfhosted 时
+            ValueError: When parse_image_content=True but mode is not selfhosted
+
+        Note:
+            - If PDF conversion is pending, this method automatically waits for it first
+            - Extraction uses converted PDF if available, original file otherwise
         """
         # 验证参数组合
         if parse_image_content and mode != "selfhosted":
@@ -361,6 +491,28 @@ class Document:
                 f"当前 mode='{mode}'。"
                 f"请使用 mode='selfhosted' 或设置 parse_image_content=False"
             )
+
+        # Auto-wait for pending conversion before extraction
+        conversion_status = (
+            self._file_info.get("conversion_status") if self._file_info else None
+        )
+        conversion_task_id = (
+            self._file_info.get("conversion_task_id") if self._file_info else None
+        )
+
+        if conversion_task_id and conversion_status in {"pending", "processing", "queued"}:
+            try:
+                # Wait for conversion to complete before extracting
+                self.wait_for_conversion(timeout=timeout, poll_interval=poll_interval)
+            except UnifilesError as e:
+                # Warn but allow extraction to proceed on original file
+                import warnings
+
+                warnings.warn(
+                    f"PDF conversion incomplete, extracting from original file: {e}",
+                    RuntimeWarning,
+                    stacklevel=2,
+                )
 
         data = {
             "mode": mode,
@@ -720,17 +872,38 @@ class Unifiles:
     # ==================== 文件存储层 API ====================
 
     def upload_file(
-        self, file_path: Union[str, Path], is_public: bool = False
+        self,
+        file_path: Union[str, Path],
+        is_public: bool = False,
+        wait_for_conversion: bool = True,
+        conversion_timeout: int = 300,
     ) -> Document:
         """
-        上传文件（第一层：文件存储）
+        Upload file to storage (Layer 1: File Storage)
 
         Args:
-            file_path: 文件路径
-            is_public: 是否设为公开访问
+            file_path: Path to file to upload
+            is_public: Whether to make file publicly accessible (default: False)
+            wait_for_conversion: Auto-wait for PDF conversion to complete (default: True)
+            conversion_timeout: Maximum time to wait for conversion in seconds (default: 300)
 
         Returns:
-            Document对象
+            Document object
+
+        Note:
+            - If file is convertible (.docx, .pptx, etc.) and wait_for_conversion=True,
+              this method will block until conversion completes
+            - PDF files and non-convertible files return immediately
+            - Set wait_for_conversion=False for async behavior
+
+        Example:
+            >>> # Auto-wait for conversion (default)
+            >>> doc = client.upload_file("report.docx")
+            >>> print(doc.conversion_status)  # "completed"
+
+            >>> # Async upload (no waiting)
+            >>> doc = client.upload_file("report.docx", wait_for_conversion=False)
+            >>> doc.wait_for_conversion()  # Wait manually later
         """
         file_path = Path(file_path)
 
@@ -802,6 +975,25 @@ class Unifiles:
 
                 if not file_id:
                     raise UnifilesError("Server did not return file_id after upload")
+
+                # Auto-wait for conversion if requested
+                conversion_task_id = file_info.get("conversion_task_id")
+                if wait_for_conversion and conversion_task_id:
+                    document = Document(self, file_id, file_info)
+                    try:
+                        document.wait_for_conversion(timeout=conversion_timeout)
+                        # Refresh file_info after conversion completes
+                        file_info = document.get_info()
+                    except UnifilesError as e:
+                        # Log warning but don't fail upload
+                        import warnings
+
+                        warnings.warn(
+                            f"PDF conversion failed but file upload succeeded: {e}",
+                            RuntimeWarning,
+                            stacklevel=2,
+                        )
+                    return document
 
                 return Document(self, file_id, file_info)
 

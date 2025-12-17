@@ -5,6 +5,142 @@ All notable changes to the Unifiles Python Client will be documented in this fil
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased] - 2025-12-17
+
+### Added ✨
+
+- **PDF Conversion Support** - Comprehensive client-side handling for async PDF conversion tasks
+  - Added `Document.conversion_status` property - Returns conversion status (pending/processing/completed/failed/skipped)
+  - Added `Document.is_converted` property - Boolean flag indicating if file was converted to PDF
+  - Added `Document.derived_pdf_url` property - URL of the converted PDF file
+  - Added `Document.wait_for_conversion(timeout, poll_interval)` method - Wait for PDF conversion to complete
+  - **Files**: `unifiles_client/client.py:230-273, 383-455`
+
+- **Auto-Wait Conversion in Upload** - `upload_file()` now waits for PDF conversion by default
+  - New parameter: `wait_for_conversion: bool = True` - Control auto-wait behavior
+  - New parameter: `conversion_timeout: int = 300` - Maximum time to wait for conversion
+  - Automatically blocks until .docx/.pptx conversion completes
+  - PDF files and non-convertible files return immediately (no waiting)
+  - Emits warning if conversion fails but upload succeeds
+  - **File**: `unifiles_client/client.py:848-972`
+
+- **Smart Extraction Pre-Check** - `extract_content()` automatically waits for pending conversions
+  - Checks conversion status before triggering extraction
+  - Waits for pending/processing conversions to complete
+  - Ensures OCR uses converted PDF for optimal quality
+  - Emits warning if conversion incomplete but allows extraction on original file
+  - **File**: `unifiles_client/client.py:495-515`
+
+### Changed 🔄
+
+- **Upload Behavior for Office Documents** - `.docx`, `.pptx`, `.xlsx` files now auto-wait for conversion by default
+  - **Previous**: `upload_file("report.docx")` returned immediately, conversion ran async
+  - **Current**: `upload_file("report.docx")` blocks until PDF conversion completes
+  - **Opt-Out**: Use `wait_for_conversion=False` for old async behavior
+  - **Impact**: Upload operations for Office documents may take longer (typically 5-30 seconds)
+
+- **Document Class Initialization** - Now tracks conversion task ID from server response
+  - `Document.__init__` extracts `conversion_task_id` from `file_info` if provided
+  - Enables manual conversion waiting via `wait_for_conversion()`
+  - **File**: `unifiles_client/client.py:181-186`
+
+### Breaking Changes ⚠️
+
+- **upload_file() Auto-Wait Behavior**
+  - **Affected File Types**: `.docx`, `.pptx`, `.xlsx`, and other Office formats
+  - **Not Affected**: `.pdf` files (conversion skipped), `.txt`, `.jpg`, etc. (no conversion)
+  - **Previous Behavior**:
+    ```python
+    doc = client.upload_file("report.docx")  # Returned immediately
+    # Conversion ran in background
+    ```
+  - **New Behavior**:
+    ```python
+    doc = client.upload_file("report.docx")  # Blocks until conversion completes
+    print(doc.conversion_status)  # "completed"
+    print(doc.derived_pdf_url)    # URL to converted PDF
+    ```
+  - **Migration Path**: Use `wait_for_conversion=False` for async uploads
+    ```python
+    doc = client.upload_file("report.docx", wait_for_conversion=False)  # Async
+    # Do other work...
+    doc.wait_for_conversion()  # Wait manually when needed
+    ```
+
+### Migration Guide 📋
+
+#### For Users Uploading Office Documents
+
+**Scenario 1: You want auto-wait behavior (RECOMMENDED)**
+```python
+# No changes needed - this is now the default
+doc = client.upload_file("report.docx")
+# Conversion completes automatically
+doc.extract_content(mode="mistral")
+```
+
+**Scenario 2: You need async upload behavior**
+```python
+# Opt out of auto-wait
+doc = client.upload_file("report.docx", wait_for_conversion=False)
+
+# Upload returns immediately
+print(f"Uploaded: {doc.file_id}")
+
+# Wait manually when needed
+if doc.wait_for_conversion(timeout=300):
+    print("Conversion complete!")
+```
+
+**Scenario 3: Checking conversion status**
+```python
+doc = client.upload_file("presentation.pptx")
+
+# Check conversion status
+if doc.is_converted:
+    print(f"PDF available: {doc.derived_pdf_url}")
+else:
+    print(f"Status: {doc.conversion_status}")
+```
+
+#### For Users Uploading PDF Files
+
+**No changes required** - PDF files skip conversion entirely:
+```python
+doc = client.upload_file("already.pdf")
+# Returns immediately (no conversion)
+print(doc.conversion_status)  # "skipped"
+```
+
+### Testing 🧪
+
+- Added comprehensive unit tests in `tests/unit/test_client_conversion.py`
+  - 13 test cases covering all conversion scenarios
+  - Mock-based tests for properties, waiting, upload, and extraction
+  - Tests for success, failure, timeout, and edge cases
+
+- Added integration tests in `tests/test_conversion_integration.py`
+  - End-to-end tests with live server
+  - Tests for .docx conversion, .pdf upload, extraction flow
+  - Requires API server running at http://127.0.0.1:8088
+
+### Documentation 📚
+
+- Updated `README.md` with comprehensive PDF conversion section
+  - Auto-wait behavior examples
+  - Async upload patterns
+  - Conversion status checking
+  - Smart extraction pre-check
+  - Migration examples
+
+### Developer Notes 🔧
+
+- Server API compatibility: Requires server API v1.1.0+ with conversion endpoints
+- Task polling uses existing `/tasks/{task_id}` endpoint
+- Conversion status values: `pending`, `processing`, `completed`, `failed`, `skipped`
+- Auto-wait uses same timeout/polling pattern as `wait_for_extraction()`
+- All changes maintain 100% backward compatibility for PDF files and non-convertible formats
+
 ## [Unreleased] - 2025-12-05
 
 ### Security Fixes 🔒
