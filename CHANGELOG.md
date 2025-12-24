@@ -5,6 +5,13 @@ All notable changes to the Unifiles Python Client will be documented in this fil
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased] - 2025-12-24
+
+### Documentation
+
+- Aligned backend API docs with current code (added `/extractions` and `/ai/chat`, updated auth rules, marked planned endpoints).
+- Synced SDK user guides with planned endpoint notes and server endpoint mappings.
+
 ## [Unreleased] - 2025-12-17
 
 ### Added ✨

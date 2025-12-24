@@ -111,6 +111,8 @@ print(f"Markdown: {all_content.get('markdown_content')}")
 print(f"Metadata: {all_content.get('extraction_metadata')}")
 ```
 
+All extraction modes are handled by the same OCR provider factory; `simple` uses the built-in pdfplumber/PyMuPDF provider, so switching modes just changes the provider name.
+
 ### Layer 3: Knowledge Base Operations
 
 ```python
@@ -170,6 +172,91 @@ document.extract_content()
 if document.wait_for_extraction(timeout=300):
     content = document.get_content()
     print("Content extraction completed!")
+```
+
+### PDF Conversion Support
+
+The client automatically handles conversion of Office documents (.docx, .pptx, .xlsx, etc.) to PDF before content extraction. This ensures optimal OCR quality and consistent processing.
+
+#### Auto-Wait Behavior (Default)
+
+By default, `upload_file()` waits for PDF conversion to complete:
+
+```python
+# Upload .docx file - automatically waits for PDF conversion
+document = client.upload_file("report.docx")
+print(f"Conversion status: {document.conversion_status}")  # "completed"
+print(f"PDF URL: {document.derived_pdf_url}")  # URL to converted PDF
+
+# Ready for extraction - uses converted PDF automatically
+document.extract_content(mode="mistral")
+```
+
+#### Async Upload (Opt-Out)
+
+For async behavior, disable auto-wait and manage conversion manually:
+
+```python
+# Upload without waiting for conversion
+document = client.upload_file("report.docx", wait_for_conversion=False)
+print(f"File uploaded: {document.file_id}")
+
+# Do other work...
+
+# Wait for conversion when needed
+if document.wait_for_conversion(timeout=300):
+    print(f"Conversion completed: {document.derived_pdf_url}")
+```
+
+#### Checking Conversion Status
+
+Access conversion information through document properties:
+
+```python
+document = client.upload_file("presentation.pptx")
+
+# Check conversion status
+print(f"Status: {document.conversion_status}")
+# Values: "pending" | "processing" | "completed" | "failed" | "skipped"
+
+# Check if file was converted
+print(f"Is converted: {document.is_converted}")  # True/False
+
+# Get converted PDF URL (if available)
+if document.is_converted:
+    print(f"PDF URL: {document.derived_pdf_url}")
+```
+
+#### Conversion Status Values
+
+- **`pending`** - Conversion queued but not started
+- **`processing`** - Currently converting
+- **`completed`** - Conversion successful, PDF available
+- **`failed`** - Conversion failed (extraction will use original file)
+- **`skipped`** - No conversion needed (file is already PDF or non-convertible)
+
+#### Smart Extraction Pre-Check
+
+The `extract_content()` method automatically waits for pending conversions:
+
+```python
+# Upload without waiting
+document = client.upload_file("report.docx", wait_for_conversion=False)
+
+# Extract immediately - automatically waits for conversion first
+document.extract_content(mode="mistral", wait=True)
+print("Extraction used converted PDF automatically!")
+```
+
+#### PDF Files (No Conversion)
+
+PDF files skip conversion entirely:
+
+```python
+document = client.upload_file("already.pdf")
+print(f"Status: {document.conversion_status}")  # "skipped"
+print(f"Is converted: {document.is_converted}")  # False
+# No waiting - returns immediately
 ```
 
 ### File Type Support

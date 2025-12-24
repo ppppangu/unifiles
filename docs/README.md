@@ -8,13 +8,12 @@
 
 | 文档                                | 描述                                                               | 主要读者                   |
 | ----------------------------------- | ------------------------------------------------------------------ | -------------------------- |
-| 🚀 **[快速开始 (quick-start.md)]**   | 5分钟上手指南，教您如何快速部署和测试API。                         | 新用户、开发者             |
-| 📄 **[API 参考 (api/README.md)]** | 详细的 RESTful API 接口文档，包含所有端点、请求和响应示例。        | 前端/后端开发者、API使用者 |
-| 🏗️ **[架构设计 (architecture/README.md)]**  | 深入解析系统核心设计理念、数据处理流水线、模块化组件和数据库设计。 | 核心开发者、架构师         |
-| 🛠️ **[开发指南 (development/README.md)]**   | V1 版本的开发环境搭建、代码规范、测试和部署指南。                  | 贡献者、后端开发者         |
-| 🤝 **[贡献指南 (contributing.md)]**  | 如何为项目贡献代码、报告问题或提出建议。                           | 开源贡献者                 |
+| 📄 **[API 参考 (api/openapi.yaml)]** | 详细的 RESTful API 接口文档，包含所有端点、请求和响应示例。        | 前端/后端开发者、API使用者 |
+| 🏗️ **[架构设计 (architecture/database-design.md)]**  | 深入解析系统核心设计理念、数据处理流水线、模块化组件和数据库设计。 | 核心开发者、架构师         |
+| 🛠️ **[开发指南 (development/chunking_strategy_extension.md)]**   | V1 版本的开发环境搭建、代码规范、测试和部署指南。 (chunking strategy extension) | 贡献者、后端开发者         |
 | 🚀 **[部署指南 (DEPLOYMENT.md)]** | 详细的部署指南。 | 运维、开发者 |
-| 🐍 **[Python 客户端指南 (client_sdk.md)]** | Python SDK 的安装、快速开始和 API 参考。 | 开发者、数据科学家 |
+| 🐍 **[Python 客户端指南 (user-guide/client_sdk.md)]** | Python SDK 的安装、快速开始和 API 参考。 | 开发者、数据科学家 |
+| 🐍 **[Python 客户端指南 (user-guide/client_sdk_zh.md)]** | Python SDK 的安装、快速开始和 API 参考。 | 开发者、数据科学家 |
 
 ## 项目概述
 

@@ -250,6 +250,12 @@ print(f"Total characters: {metadata.get('total_chars')}")
 - Access file metadata (original filename, size)
 - Debug extraction quality
 
+## Server Endpoint Notes (v1.1.0)
+
+- Extraction uses `POST /extractions/{file_id}` and `GET /extractions/{file_id}`; `/files/{file_id}/extract` is planned.
+- Knowledge base detail `GET /knowledge-bases/{kb_id}` is planned (currently returns 501).
+- Document deletion `DELETE /knowledge-bases/{kb_id}/documents/{doc_id}` is planned (currently returns 501).
+
 ## API Reference
 
 ### `Unifiles` Client
@@ -267,7 +273,7 @@ Key methods:
 *   `list_files(limit=50, offset=0) -> List[Document]`: Lists uploaded files for the current user.
 *   `delete_file(file_id) -> bool`: Deletes a file; returns `True` on success.
 *   `create_knowledge_base(name, description="") -> KnowledgeBase`: Creates a new `KnowledgeBase`.
-*   `get_knowledge_base(kb_id) -> KnowledgeBase`: Gets a `KnowledgeBase` instance by ID (lazy-loading info when needed).
+*   `get_knowledge_base(kb_id) -> KnowledgeBase`: Gets a `KnowledgeBase` instance by ID (planned endpoint; `GET /knowledge-bases/{kb_id}` currently returns 501).
 *   `list_knowledge_bases(limit=50, offset=0) -> List[KnowledgeBase]`: Lists the current user's knowledge bases.
 *   `delete_knowledge_base(kb_id) -> bool`: Deletes a knowledge base; returns `True` on success.
 *   `quick_process(file_path, knowledge_base_name=None, extract_mode="simple") -> Document`:
@@ -313,4 +319,4 @@ Manages a collection of searchable documents.
     - Original file metadata (`original_filename`, `file_size`, `file_id`)
     - Indexing status and chunk count
     - Extraction metadata (page count, character count, etc.)
-*   `delete_document(document_id) -> bool`: Removes a document from the Knowledge Base (requires server endpoint support).
+*   `delete_document(document_id) -> bool`: Removes a document from the Knowledge Base (planned endpoint; currently returns 501).

@@ -249,6 +249,12 @@ print(f"总字符数: {metadata.get('total_chars')}")
 - 访问文件元数据（原始文件名、大小）
 - 调试提取质量
 
+## 服务端接口说明 (v1.1.0)
+
+- 提取使用 `POST /extractions/{file_id}` 与 `GET /extractions/{file_id}`；`/files/{file_id}/extract` 为计划中接口。
+- 知识库详情 `GET /knowledge-bases/{kb_id}` 为计划中接口（当前返回 501）。
+- 文档删除 `DELETE /knowledge-bases/{kb_id}/documents/{doc_id}` 为计划中接口（当前返回 501）。
+
 ## API 参考
 
 ### `Unifiles` 客户端
@@ -266,7 +272,7 @@ from unifiles_client import Unifiles
 *   `list_files(limit=50, offset=0) -> List[Document]`：列出当前用户的已上传文件。
 *   `delete_file(file_id) -> bool`：删除文件；成功时返回 `True`。
 *   `create_knowledge_base(name, description="") -> KnowledgeBase`：创建一个新的 `KnowledgeBase`。
-*   `get_knowledge_base(kb_id) -> KnowledgeBase`：通过 ID 获取 `KnowledgeBase` 实例（需要时延迟加载信息）。
+*   `get_knowledge_base(kb_id) -> KnowledgeBase`：通过 ID 获取 `KnowledgeBase` 实例（需要时延迟加载信息）。（计划中接口；`GET /knowledge-bases/{kb_id}` 当前返回 501）。
 *   `list_knowledge_bases(limit=50, offset=0) -> List[KnowledgeBase]`：列出当前用户的知识库。
 *   `delete_knowledge_base(kb_id) -> bool`：删除知识库；成功时返回 `True`。
 *   `quick_process(file_path, knowledge_base_name=None, extract_mode="simple") -> Document`：
@@ -315,4 +321,4 @@ from unifiles_client import Unifiles
     - 原始文件元数据（`original_filename`、`file_size`、`file_id`）
     - 索引状态和分块数量
     - 提取元数据（页数、字符数等）
-*   `delete_document(document_id) -> bool`：从知识库中移除文档（需要服务器端点支持）。
+*   `delete_document(document_id) -> bool`：从知识库中移除文档（需要服务器端点支持）。（计划中接口；当前返回 501）。

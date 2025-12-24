@@ -12,8 +12,8 @@ info:
   termsOfService: https://unifiles.com/terms
 
 servers:
-  - url: https://api.unifiles.com/v1
-  - url: https://staging-api.unifiles.com/v1
+  - url: https://api.unifiles.com
+  - url: https://staging-api.unifiles.com
   - url: http://localhost:8088
 
 security:
@@ -47,7 +47,6 @@ paths:
       tags: [Files]
       summary: Get supported file types
       description: Retrieve list of supported file types for upload
-      security: []  # Public endpoint
       responses:
         '200':
           description: Supported file types retrieved successfully
@@ -55,6 +54,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/SupportedFileTypes'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
 
   /files:
     post:
@@ -67,6 +68,13 @@ paths:
         - Images (JPG, JPEG, PNG, TIFF, BMP)
         - Text files (TXT, MD, HTML, CSV)
         - Code files (PY, IPYNB, JS, JSON)
+      parameters:
+        - name: is_public
+          in: query
+          description: Whether to make file publicly accessible
+          schema:
+            type: boolean
+            default: false
       requestBody:
         required: true
         content:
@@ -80,10 +88,6 @@ paths:
                   type: string
                   format: binary
                   description: File to upload (max 100MB)
-                is_public:
-                  type: boolean
-                  default: false
-                  description: Whether to make file publicly accessible
             encoding:
               file:
                 contentType: application/octet-stream
@@ -262,7 +266,7 @@ paths:
           content:
             application/json:
               schema:
-                type: object
+                $ref: '#/components/schemas/StandardResponse'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '500':
@@ -271,24 +275,50 @@ paths:
   # Content Extraction Layer
   /files/{file_id}/extract:
     post:
-      tags: [Processors]
-      summary: Extract file content (Async)
+      tags: [Extractions]
+      summary: Extract file content (planned)
       description: |
-        Submit an asynchronous task to extract content from an uploaded file.
-        This endpoint returns a task ID immediately. Use the `/tasks/{task_id}` endpoint to check the status and retrieve the result upon completion.
-        Supports extraction modes:
-        - **simple**: Basic text extraction using built-in PDF reader (pdfplumber)
-        - **mistral/mineru/selfhosted/openai**: OCR via specified provider
+        Planned endpoint. This route is not implemented in the current API.
+        Use `POST /extractions/{file_id}` instead.
+      x-planned: true
       parameters:
         - $ref: '#/components/parameters/FileIdPath'
       requestBody:
-        required: true
+        required: false
         content:
           application/json:
             schema:
               $ref: '#/components/schemas/FileExtractRequest'
       responses:
-        '202':
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '501':
+          $ref: '#/components/responses/NotImplemented'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /extractions/{file_id}:
+    post:
+      tags: [Extractions]
+      summary: Extract file content (Async)
+      description: |
+        Submit an asynchronous task to extract content from an uploaded file.
+        This endpoint returns a task ID immediately. Use `/tasks/{task_id}` to
+        check the status and retrieve the result upon completion.
+      parameters:
+        - $ref: '#/components/parameters/FileIdPath'
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FileExtractRequest'
+      responses:
+        '200':
           description: Content extraction task accepted
           content:
             application/json:
@@ -305,12 +335,35 @@ paths:
         '500':
           $ref: '#/components/responses/InternalServerError'
 
+    get:
+      tags: [Extractions]
+      summary: Get extracted content
+      description: Retrieve the extracted markdown content for a file.
+      parameters:
+        - $ref: '#/components/parameters/FileIdPath'
+      responses:
+        '200':
+          description: Extracted content retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FileExtractResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
   /files/public/{file_id}:
     get:
       tags: [Files]
       summary: Get public file info
-      description: Retrieve detailed information about a specific public file (no auth required)
-      security: [] # No auth required
+      description: |
+        Retrieve detailed information about a specific public file.
+        Note: this endpoint is still protected by the global auth middleware in current deployments.
       parameters:
         - $ref: '#/components/parameters/FileIdPath'
       responses:
@@ -320,6 +373,10 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/FileInfo'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
         '404':
           $ref: '#/components/responses/NotFound'
         '500':
@@ -385,10 +442,12 @@ paths:
   /knowledge-bases/{kb_id}:
     get:
       tags: [Knowledge Bases]
-      summary: Get knowledge base info
-      description: Retrieve detailed information about a specific knowledge base
+      summary: Get knowledge base info (planned)
+      description: |
+        Planned endpoint. Currently returns 501 (not implemented).
       parameters:
         - $ref: '#/components/parameters/KnowledgeBaseIdPath'
+      x-planned: true
       responses:
         '200':
           description: Knowledge base information retrieved successfully
@@ -413,7 +472,7 @@ paths:
       summary: Index extracted content to knowledge base
       description: |
         Add extracted document content to a knowledge base with chunking and vectorization.
-        The document must be extracted first using the /files/{file_id}/extract endpoint.
+        The document must be extracted first using the /extractions/{file_id} endpoint.
       parameters:
         - $ref: '#/components/parameters/KnowledgeBaseIdPath'
       requestBody:
@@ -452,7 +511,7 @@ paths:
           schema:
             type: integer
             minimum: 1
-            maximum: 100
+            maximum: 200
             default: 50
         - name: offset
           in: query
@@ -467,25 +526,47 @@ paths:
           content:
             application/json:
               schema:
-                type: array
-                items:
-                  $ref: '#/components/schemas/ProcessedDocument'
+                $ref: '#/components/schemas/KnowledgeBaseDocumentsResponse'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
           $ref: '#/components/responses/Forbidden'
         '404':
           $ref: '#/components/responses/NotFound'
-        '501':
-          $ref: '#/components/responses/NotImplemented'
         '500':
           $ref: '#/components/responses/InternalServerError'
 
   /knowledge-bases/{kb_id}/documents/{doc_id}:
+    get:
+      tags: [Knowledge Bases]
+      summary: Get knowledge base document detail
+      description: Retrieve detailed information about a document, including markdown content and file metadata.
+      parameters:
+        - $ref: '#/components/parameters/KnowledgeBaseIdPath'
+        - $ref: '#/components/parameters/DocumentIdPath'
+      responses:
+        '200':
+          description: Document detail retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DocumentDetailResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
     delete:
       tags: [Knowledge Bases]
-      summary: Delete knowledge base document
-      description: Remove a document and its associated vectors from a knowledge base
+      summary: Delete knowledge base document (planned)
+      description: |
+        Planned endpoint. Currently returns 501 (not implemented).
+        Intended to remove a document and its associated vectors from a knowledge base.
+      x-planned: true
       parameters:
         - $ref: '#/components/parameters/KnowledgeBaseIdPath'
         - $ref: '#/components/parameters/DocumentIdPath'
@@ -615,6 +696,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/StandardResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
@@ -645,7 +728,7 @@ paths:
         '404':
           $ref: '#/components/responses/NotFound'
         '400':
-          description: Task not completed
+          $ref: '#/components/responses/BadRequest'
         '500':
           $ref: '#/components/responses/InternalServerError'
 
@@ -680,6 +763,30 @@ paths:
         '500':
           $ref: '#/components/responses/InternalServerError'
 
+  /ai/chat:
+    post:
+      tags: [AI Chat]
+      summary: Chat proxy (streaming)
+      description: Stream chat completions from an OpenAI-compatible backend.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ChatRequest'
+      responses:
+        '200':
+          description: Streaming response (Server-Sent Events)
+          content:
+            text/event-stream:
+              schema:
+                type: string
+                description: Stream of text chunks ending with [DONE].
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
   # User endpoints
   /users/create:
     post:
@@ -694,7 +801,7 @@ paths:
             schema:
               $ref: '#/components/schemas/UserCreateRequest'
       responses:
-        '201':
+        '200':
           description: User created successfully
           content:
             application/json:
@@ -710,25 +817,23 @@ paths:
       tags: [Users]
       summary: User login
       description: Login with email to retrieve user information.
-      security: []
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required: [email]
-              properties:
-                email:
-                  type: string
-                  format: email
+      parameters:
+        - name: email
+          in: query
+          required: true
+          description: User email
+          schema:
+            type: string
+            format: email
       responses:
         '200':
           description: Login successful
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/UserInfo'
+                $ref: '#/components/schemas/StandardResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
         '404':
           $ref: '#/components/responses/NotFound'
         '500':
@@ -747,7 +852,9 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/UserInfo'
+                $ref: '#/components/schemas/StandardResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
         '404':
           $ref: '#/components/responses/NotFound'
         '500':
@@ -758,6 +865,7 @@ paths:
       tags: [Users]
       summary: Create access key
       description: Create a new access key (API key) for a user.
+      security: []
       parameters:
         - $ref: '#/components/parameters/UserIdPath'
       requestBody:
@@ -767,7 +875,7 @@ paths:
             schema:
               $ref: '#/components/schemas/AccessKeyCreateRequest'
       responses:
-        '201':
+        '200':
           description: Access key created successfully
           content:
             application/json:
@@ -856,8 +964,8 @@ components:
       description: Unique identifier for the document
       schema:
         type: string
-        pattern: '^doc_[a-f0-9]{8}$'
-        example: "doc_abc12345"
+        format: uuid
+        example: "550e8400-e29b-41d4-a716-446655440000"
 
     TaskIdPath:
       name: task_id
@@ -987,6 +1095,22 @@ components:
           format: date-time
           description: File upload timestamp
           example: "2024-01-15T10:30:00Z"
+        original_filename:
+          type: string
+          description: Original filename before conversion (compatibility field)
+        is_converted:
+          type: boolean
+          description: Whether the file has been converted to PDF
+        conversion_status:
+          type: string
+          description: Conversion status (pending|success|failed|skipped)
+        derived_pdf_url:
+          type: string
+          format: uri
+          description: Access URL for the derived PDF (if available)
+        conversion_task_id:
+          type: string
+          description: PDF conversion task ID (for polling)
 
     FileUploadResponse:
       type: object
@@ -1083,14 +1207,19 @@ components:
       properties:
         mode:
           type: string
-          enum: ["simple", "mistral", "mineru", "selfhosted", "openai"]
+          enum: ["simple", "mistral", "selfhosted", "openai"]
           default: "simple"
           description: |
             Content extraction mode:
             - **simple**: Basic text extraction using built-in PDF reader
-            - **mistral/mineru/selfhosted/openai**: OCR via specified provider
+            - **mistral/selfhosted/openai**: OCR via specified provider
+        parse_image_content:
+          type: boolean
+          default: false
+          description: Parse image/table content into markdown (only effective for selfhosted)
       example:
         mode: "mistral"
+        parse_image_content: false
 
     ExtractedContent:
       type: object
@@ -1108,12 +1237,12 @@ components:
           example: "file-550e8400-e29b-41d4-a716-446655440000"
         extraction_id:
           type: string
-          description: Unique extraction task ID
-          example: "ext_12345678"
+          description: Extracted document ID
+          example: "550e8400-e29b-41d4-a716-446655440000"
         content_type:
           type: string
           description: Type of extracted content
-          example: "mixed"
+          example: "markdown"
         extracted_text:
           type: string
           description: Plain text content extracted from the document
@@ -1128,25 +1257,16 @@ components:
           additionalProperties: true
         extraction_metadata:
           type: object
-          description: Metadata about the extraction process
-          properties:
-            pages:
-              type: integer
-              description: Number of pages processed
-            processing_time:
-              type: number
-              description: Processing time in seconds
-            extraction_method:
-              type: string
-              description: Method used for extraction
+          description: Extraction metadata (page counts, char counts, strategy info, etc.)
           additionalProperties: true
           example:
-            pages: 5
-            processing_time: 15.2
-            extraction_method: "mistral"
+            total_pages: 5
+            total_chars: 12034
+            total_assets: 3
+            strategy_name: "simple"
         status:
           type: string
-          enum: ["pending", "processing", "completed", "failed"]
+          enum: ["pending", "processing", "completed", "failed", "partial"]
           description: Current extraction status
           example: "completed"
         created_at:
@@ -1154,6 +1274,9 @@ components:
           format: date-time
           description: Extraction start timestamp
           example: "2024-01-15T10:30:00Z"
+        extraction_strategy:
+          type: string
+          description: Extraction strategy name
 
     FileExtractResponse:
       type: object
@@ -1256,14 +1379,37 @@ components:
           type: boolean
 
     TaskStatusResponse:
-      allOf:
-        - $ref: '#/components/schemas/TaskInfo'
-        - type: object
-          properties:
-            retry_count:
-              type: integer
-            max_retries:
-              type: integer
+      type: object
+      properties:
+        task_id:
+          type: string
+        task_type:
+          type: string
+        status:
+          type: string
+        progress_percent:
+          type: integer
+        progress_message:
+          type: string
+        entity_type:
+          type: string
+        entity_id:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+        started_at:
+          type: string
+          format: date-time
+        completed_at:
+          type: string
+          format: date-time
+        error_message:
+          type: string
+        retry_count:
+          type: integer
+        max_retries:
+          type: integer
 
     TaskResultResponse:
       type: object
@@ -1355,29 +1501,23 @@ components:
       type: object
       required:
         - extraction_id
-        - knowledge_base_id
       properties:
         extraction_id:
           type: string
           description: ID of the extracted content to index
-          example: "ext_12345678"
-        knowledge_base_id:
-          type: string
-          description: Target knowledge base ID
-          example: "kb_sample_001"
+          example: "550e8400-e29b-41d4-a716-446655440000"
         chunk_strategy:
           type: string
-          enum: ["semantic", "fixed", "sliding"]
-          default: "semantic"
+          enum: ["markdown_hierarchical", "fixed", "semantic"]
+          default: "markdown_hierarchical"
           description: |
             Document chunking strategy:
-            - **semantic**: Intelligent chunking based on document structure
+            - **markdown_hierarchical**: Hierarchical chunking based on markdown structure
             - **fixed**: Fixed-size chunks
-            - **sliding**: Overlapping sliding window chunks
+            - **semantic**: Semantic chunking
       example:
-        extraction_id: "ext_12345678"
-        knowledge_base_id: "kb_sample_001"
-        chunk_strategy: "semantic"
+        extraction_id: "550e8400-e29b-41d4-a716-446655440000"
+        chunk_strategy: "markdown_hierarchical"
 
     KnowledgeBaseCreateRequest:
       type: object
@@ -1409,8 +1549,14 @@ components:
           description: The search query text
         top_k:
           type: integer
-          default: 5
+          default: 10
           description: The number of results to return
+          minimum: 1
+          maximum: 100
+        include_photos:
+          type: boolean
+          default: false
+          description: Whether to include photo components in results
 
     SearchResultItem:
       type: object
@@ -1427,6 +1573,9 @@ components:
         similarity_score:
           type: number
           description: Similarity score (0-1)
+        component_type:
+          type: string
+          description: Component type (chunk or photo)
 
     SearchResponse:
       type: object
@@ -1457,11 +1606,11 @@ components:
         document_id:
           type: string
           description: Unique document ID in the knowledge base
-          example: "doc_abc12345"
+          example: "550e8400-e29b-41d4-a716-446655440000"
         extraction_id:
           type: string
           description: Source extraction ID
-          example: "ext_12345678"
+          example: "550e8400-e29b-41d4-a716-446655440000"
         knowledge_base_id:
           type: string
           description: Knowledge base ID
@@ -1481,6 +1630,15 @@ components:
           format: date-time
           description: Document processing start timestamp
           example: "2024-01-15T10:30:00Z"
+        original_filename:
+          type: string
+          description: Original file name
+        file_size:
+          type: integer
+          description: File size in bytes
+        file_id:
+          type: string
+          description: Source file ID
 
     ProcessDocumentResponse:
       type: object
@@ -1501,12 +1659,122 @@ components:
         success: true
         message: "Document indexing started successfully"
         document:
-          document_id: "doc_abc12345"
-          extraction_id: "ext_12345678"
+          document_id: "550e8400-e29b-41d4-a716-446655440000"
+          extraction_id: "550e8400-e29b-41d4-a716-446655440000"
           knowledge_base_id: "kb_sample_001"
           chunk_count: 15
           indexing_status: "processing"
           created_at: "2024-01-15T10:30:00Z"
+
+    KnowledgeBaseDocumentsResponse:
+      type: object
+      required:
+        - success
+        - message
+        - documents
+        - has_more
+      properties:
+        success:
+          type: boolean
+        message:
+          type: string
+        documents:
+          type: array
+          items:
+            $ref: '#/components/schemas/ProcessedDocument'
+        total_count:
+          type: integer
+          description: Total number of documents (optional)
+        has_more:
+          type: boolean
+
+    DocumentDetailInfo:
+      type: object
+      required:
+        - document_id
+        - extraction_id
+        - knowledge_base_id
+        - chunk_count
+        - indexing_status
+        - created_at
+      properties:
+        document_id:
+          type: string
+        extraction_id:
+          type: string
+        knowledge_base_id:
+          type: string
+        original_filename:
+          type: string
+        file_size:
+          type: integer
+        file_id:
+          type: string
+        file_url:
+          type: string
+          format: uri
+        markdown_content:
+          type: string
+        chunk_count:
+          type: integer
+        indexing_status:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+        extraction_metadata:
+          type: object
+          additionalProperties: true
+
+    DocumentDetailResponse:
+      type: object
+      required:
+        - success
+        - message
+        - document
+      properties:
+        success:
+          type: boolean
+        message:
+          type: string
+        document:
+          $ref: '#/components/schemas/DocumentDetailInfo'
+
+    # AI Chat Schemas
+    ChatMessage:
+      type: object
+      required:
+        - role
+        - content
+      properties:
+        role:
+          type: string
+          enum: ["system", "user", "assistant"]
+        content:
+          type: string
+          minLength: 1
+
+    ChatRequest:
+      type: object
+      required:
+        - messages
+      properties:
+        messages:
+          type: array
+          minItems: 1
+          items:
+            $ref: '#/components/schemas/ChatMessage'
+        model:
+          type: string
+          description: Chat model to use (optional)
+        temperature:
+          type: number
+          default: 0.7
+          minimum: 0
+          maximum: 2
+        max_tokens:
+          type: integer
+          description: Max tokens in response (optional)
 
     # User and Auth Schemas
     UserInfo:
@@ -1544,7 +1812,7 @@ components:
 
     UserCreateRequest:
       type: object
-      required: [user_id, username, email]
+      required: [user_id]
       properties:
         user_id:
           type: string
@@ -1763,7 +2031,7 @@ tags:
     description: System health and status endpoints
   - name: Files
     description: File storage layer - Upload and manage original files
-  - name: Processors
+  - name: Extractions
     description: Content extraction layer - OCR processing and content extraction
   - name: Knowledge Bases
     description: Knowledge base layer - Document chunking and vector indexing
@@ -1773,6 +2041,8 @@ tags:
     description: User and access key management
   - name: Manager
     description: Management and administration endpoints
+  - name: AI Chat
+    description: OpenAI-compatible chat proxy
 
 externalDocs:
   description: Complete Unifiles Documentation

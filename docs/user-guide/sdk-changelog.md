@@ -1,5 +1,11 @@
 # Unifiles Python SDK Changelog
 
+## 2025-12-24
+
+### Documentation
+- Aligned OpenAPI docs with current backend routes (`/extractions`, `/ai/chat`) and marked planned endpoints.
+- Added server endpoint notes to both SDK user guides and clarified planned endpoints.
+
 ## 2025-12-17
 
 ### Added

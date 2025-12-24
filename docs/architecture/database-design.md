@@ -264,7 +264,7 @@
 数据库通过触发器实现了一些自动化逻辑，以保证数据的一致性和实时性。
 - **时间戳自动更新**: 大多数表都有 `updated_at` 字段，会在记录更新时通过统一触发器自动刷新。
 - **搜索字段生成**: `searchable_text` 和 `search_keywords` 字段由应用层（`DocumentIndexingService`）在插入组件时生成和填充，不再使用数据库触发器（已移除 `trigger_update_component_search_fields`）。
-- **文档/知识库关联维护**: 当 `documents` 或 `components` 表发生变化时，会通过触发器更新 `knowledge_bases.document_ids` 以及相关记录的 `updated_at` 字段（目前不直接维护 `document_count` 等统计计数字段）。
+- **文档/知识库统计**: 触发器当前仅刷新 updated_at；document_ids/统计由应用服务更新。
 - **异步任务时间记录**: `async_tasks` 表的状态变更会通过触发器自动记录 `queued_at`, `started_at`, `completed_at` 等时间戳。
 
 
@@ -293,7 +293,7 @@
   - `knowledge_bases` 定义知识库的“容器”与全局配置（默认分块策略、向量配置、访问级别等）。
   - `documents` 是知识库中的具体文档实例：`documents.knowledge_base_id` 指向所属知识库，`documents.extracted_document_id` 指向统一内容源 `extracted_documents`。
   - 同一个 `extracted_documents` 可以被多个 `knowledge_bases` 通过不同的 `documents` 引用，实现“同一内容，面向不同知识库的多视图复用”（通过不同的分块策略、权限和标签等进行差异化组织）。
-  - `knowledge_bases.document_ids` 是文档 ID 的快捷索引，由触发器在文档增删时自动维护，用于加速按知识库遍历文档。
+  - knowledge_bases.document_ids 字段存在但不自动维护；请通过查询或应用层更新。
 
 - **组件抽象与检索链路**
   - `components` 以 `document_id` 关联 `documents`，将一个知识库文档拆分为多个可独立检索的原子组件（文本块或图片块），是向量检索和语义搜索的直接操作对象。
