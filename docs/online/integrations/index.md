@@ -56,7 +56,7 @@ documents = [
 ### 安装依赖
 
 ```bash
-pip install unifiles langchain langchain-openai
+pip install unifiles-client langchain langchain-openai
 ```
 
 ### 构建 RAG 链

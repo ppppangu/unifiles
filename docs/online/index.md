@@ -36,7 +36,7 @@ Unifiles 是一个自托管的文档处理平台，为 AI 应用提供文件存�
 
     ---
 
-    数据完全由你控制，支持 Docker Compose 和 Kubernetes 部署
+    数据完全由你控制，支持 Python 包和 Docker Compose 单机部署
 
     [:octicons-arrow-right-24: 部署指南](self-hosting/index.md)
 
@@ -71,6 +71,10 @@ results = client.knowledge_bases.search(
 
 ## 核心功能
 
+!!! info "0.1 自部署实现"
+    当前可运行 Server 使用 SQLite 与本地文件存储，客户端契约保持不变。文档中涉及
+    PostgreSQL、Redis、MinIO 和独立 Worker 的内容描述的是后续可替换的生产适配层。
+
 ### Layer 1: 文件存储
 
 安全存储各种格式的文档，支持去重、元数据和标签管理。
@@ -100,11 +104,12 @@ extraction = client.extractions.create(
 构建向量知识库，支持语义搜索和混合搜索。
 
 ```python
-results = client.knowledge_bases.search(
+results = client.knowledge_bases.hybrid_search(
     kb_id=kb.id,
     query="关键条款",
-    search_type="hybrid",
-    top_k=10
+    top_k=10,
+    vector_weight=0.7,
+    keyword_weight=0.3,
 )
 ```
 

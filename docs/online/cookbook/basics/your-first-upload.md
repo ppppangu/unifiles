@@ -4,7 +4,7 @@
 
 ## 前置条件
 
-- 已安装 Python SDK：`pip install unifiles`
+- 已安装 Python SDK：`pip install unifiles-client`
 - 已获取 API Key
 - 准备一个测试文件（PDF、Word 或图片）
 

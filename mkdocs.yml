@@ -87,8 +87,6 @@ plugins:
       lang:
         - zh
         - en
-  - git-revision-date-localized:
-      enable_creation_date: true
 
 extra:
   version:

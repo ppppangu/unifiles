@@ -61,7 +61,7 @@
 
 1. **已安装 SDK**
    ```bash
-   pip install unifiles
+   pip install unifiles-client
    ```
 
 2. **已获取 API Key**

@@ -1,0 +1,58 @@
+name: Release packages
+
+on:
+  push:
+    tags:
+      - "python-v*"
+      - "server-v*"
+      - "typescript-v*"
+      - "cli-v*"
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  python-sdk:
+    if: startsWith(github.ref_name, 'python-v')
+    runs-on: ubuntu-latest
+    environment: pypi
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: "3.11"
+      - run: uv build --package unifiles-client
+      - uses: pypa/gh-action-pypi-publish@release/v1
+
+  server:
+    if: startsWith(github.ref_name, 'server-v')
+    runs-on: ubuntu-latest
+    environment: pypi
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: "3.11"
+      - run: uv build --package unifiles-server
+      - uses: pypa/gh-action-pypi-publish@release/v1
+
+  npm:
+    if: startsWith(github.ref_name, 'typescript-v') || startsWith(github.ref_name, 'cli-v')
+    runs-on: ubuntu-latest
+    environment: npm
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          registry-url: https://registry.npmjs.org
+      - run: npm ci
+      - run: npm run check
+      - if: startsWith(github.ref_name, 'typescript-v')
+        run: npm publish --workspace @wyy/unifiles --provenance --access public
+      - if: startsWith(github.ref_name, 'cli-v')
+        run: npm publish --workspace @wyy/unifiles-cli --provenance --access public

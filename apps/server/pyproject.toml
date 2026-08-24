@@ -1,0 +1,26 @@
+[build-system]
+requires = ["hatchling>=1.27.0"]
+build-backend = "hatchling.build"
+
+[project]
+name = "unifiles-server"
+version = "0.1.0"
+description = "Self-hosted Unifiles document processing API"
+readme = "README.md"
+requires-python = ">=3.11"
+license = {text = "Apache-2.0"}
+dependencies = [
+    "fastapi>=0.115.0",
+    "httpx>=0.27.0",
+    "pydantic>=2.10.0",
+    "pydantic-settings>=2.7.0",
+    "pypdf>=5.1.0",
+    "python-multipart>=0.0.20",
+    "uvicorn[standard]>=0.34.0",
+]
+
+[project.scripts]
+unifiles-server = "unifiles_server.cli:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/unifiles_server"]

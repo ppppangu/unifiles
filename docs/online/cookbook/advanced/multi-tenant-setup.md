@@ -55,10 +55,11 @@ class TenantIsolatedClient:
     
     def list_files(self, **kwargs):
         """列出租户的文件"""
-        return self.client.files.list(
-            metadata_filter={"tenant_id": self.tenant_id},
-            **kwargs
-        )
+        page = self.client.files.list(**kwargs)
+        return [
+            file for file in page.items
+            if file.metadata.get("tenant_id") == self.tenant_id
+        ]
     
     def search_kb(self, kb_id: str, query: str, **kwargs):
         """搜索时限制租户范围"""

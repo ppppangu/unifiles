@@ -4,12 +4,5 @@ docs_dir: .
 nav:
   - index.md
   - 系统要求: requirements.md
-  - Docker Compose: docker-compose.md
-  - Kubernetes: kubernetes.md
   - 配置说明: configuration.md
-  - 数据库设置: database-setup.md
-  - 存储设置: storage-setup.md
-  - 可观测性: observability.md
-  - 备份恢复: backup-restore.md
-  - 升级指南: upgrade.md
   - 故障排除: troubleshooting.md

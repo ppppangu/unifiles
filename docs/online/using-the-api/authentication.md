@@ -30,14 +30,15 @@ API Key 是访问 Unifiles API 的凭证，格式为：
 
 ### 自部署用户
 
-使用 CLI 创建 API Key：
+启动自部署 Server 时设置 bootstrap API Key：
 
 ```bash
-# 创建用户
-python -m unifiles.cli create-user --username admin --email admin@example.com
+UNIFILES_BOOTSTRAP_API_KEY='replace-me' unifiles-server --port 8088
 
-# 创建 API Key
-python -m unifiles.cli create-api-key --user admin --name "production"
+# 使用 bootstrap Key 创建后续 Key
+UNIFILES_API_KEY='replace-me' \
+UNIFILES_BASE_URL='http://localhost:8088' \
+unifiles api-keys create production --scope 'files:*' 'kb:*'
 ```
 
 或通过 API 创建（需要管理员权限）：

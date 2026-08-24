@@ -1,0 +1,26 @@
+{
+  "name": "@wyy/unifiles-cli",
+  "version": "0.1.0",
+  "description": "Unix-style command line client for Unifiles",
+  "license": "Apache-2.0",
+  "type": "module",
+  "bin": {"unifiles": "./dist/index.js"},
+  "files": ["dist", "README.md"],
+  "engines": {"node": ">=22"},
+  "scripts": {
+    "build": "tsup src/index.ts --format esm --platform node --clean",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@wyy/unifiles": "0.1.0",
+    "commander": "^13.0.0",
+    "smol-toml": "^1.3.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "tsup": "^8.3.5",
+    "typescript": "^5.7.2",
+    "vitest": "^4.1.11"
+  }
+}

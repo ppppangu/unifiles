@@ -40,7 +40,7 @@ file = client.files.upload("document.pdf")
 
 print(f"文件 ID: {file.id}")
 print(f"文件名: {file.filename}")
-print(f"大小: {file.bytes} bytes")
+print(f"大小: {file.size} bytes")
 print(f"类型: {file.mime_type}")
 print(f"状态: {file.status}")  # uploaded
 ```
@@ -207,7 +207,7 @@ print(f"ID: {file.id}")
 print(f"文件名: {file.filename}")
 print(f"原始文件名: {file.original_filename}")
 print(f"MIME 类型: {file.mime_type}")
-print(f"大小: {file.bytes}")
+print(f"大小: {file.size}")
 print(f"哈希: {file.file_hash}")
 print(f"状态: {file.status}")
 print(f"标签: {file.tags}")

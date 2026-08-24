@@ -1,5 +1,8 @@
 # Webhooks API
 
+!!! note
+    下列资源响应片段只展示统一 envelope 中的 `data` 内容；完整格式见 REST API 概述。
+
 Webhook 管理接口，配置异步事件通知。
 
 ## 创建 Webhook

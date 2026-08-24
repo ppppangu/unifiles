@@ -1,0 +1,24 @@
+{
+  "name": "unifiles-monorepo",
+  "private": true,
+  "workspaces": [
+    "packages/typescript",
+    "packages/cli"
+  ],
+  "scripts": {
+    "generate": "npm run generate --workspace @wyy/unifiles",
+    "build": "npm run build --workspaces --if-present",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "test": "npm run test --workspaces --if-present",
+    "check": "npm run typecheck && npm run test && npm run build"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "devDependencies": {
+    "esbuild": "0.28.2"
+  },
+  "overrides": {
+    "esbuild": "0.28.2"
+  }
+}
