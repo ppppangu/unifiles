@@ -10,7 +10,7 @@
     "build": "npm run build --workspaces --if-present",
     "typecheck": "npm run typecheck --workspaces --if-present",
     "test": "npm run test --workspaces --if-present",
-    "check": "npm run typecheck && npm run test && npm run build"
+    "check": "npm run build --workspace @wyy/unifiles && npm run typecheck && npm run test && npm run build --workspace @wyy/unifiles-cli"
   },
   "engines": {
     "node": ">=22"

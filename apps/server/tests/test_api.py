@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import time
 from pathlib import Path
 
 import httpx
@@ -28,6 +29,27 @@ def client(tmp_path: Path):
 def data(response):
     assert response.json()["success"] is True, response.text
     return response.json()["data"]
+
+
+def wait_for_status(
+    client: TestClient,
+    url: str,
+    expected: str,
+    *,
+    timeout: float = 5,
+) -> dict:
+    deadline = time.monotonic() + timeout
+    while True:
+        resource = data(client.get(url))
+        if resource["status"] == expected:
+            return resource
+        if resource["status"] in {"failed", "cancelled"}:
+            pytest.fail(
+                f"Task reached terminal status {resource['status']}: {resource.get('error')}"
+            )
+        if time.monotonic() >= deadline:
+            pytest.fail(f"Timed out waiting for {expected}; latest status was {resource['status']}")
+        time.sleep(0.01)
 
 
 def test_complete_document_flow(client: TestClient) -> None:
@@ -64,8 +86,7 @@ def test_complete_document_flow(client: TestClient) -> None:
             json={"file_id": file["id"], "mode": "normal", "options": {}},
         )
     )
-    extraction = data(client.get(f"/v1/extractions/{extraction['id']}"))
-    assert extraction["status"] == "completed"
+    extraction = wait_for_status(client, f"/v1/extractions/{extraction['id']}", "completed")
     assert "Payment" in extraction["markdown"]
 
     kb = data(
@@ -85,8 +106,11 @@ def test_complete_document_flow(client: TestClient) -> None:
             json={"file_id": file["id"], "title": "Contract", "metadata": {"year": 2026}},
         )
     )
-    document = data(client.get(f"/v1/knowledge-bases/{kb['id']}/documents/{document['id']}"))
-    assert document["status"] == "indexed"
+    document = wait_for_status(
+        client,
+        f"/v1/knowledge-bases/{kb['id']}/documents/{document['id']}",
+        "indexed",
+    )
     assert document["chunk_count"] >= 1
 
     results = data(
@@ -178,10 +202,7 @@ def test_chinese_search_and_metadata_filter(client: TestClient) -> None:
             json={"file_id": file["id"], "mode": "normal", "options": {}},
         )
     )
-    for _ in range(50):
-        extraction = data(client.get(f"/v1/extractions/{extraction['id']}"))
-        if extraction["status"] == "completed":
-            break
+    extraction = wait_for_status(client, f"/v1/extractions/{extraction['id']}", "completed")
     kb = data(client.post("/v1/knowledge-bases", json={"name": "合同", "metadata": {}}))
     document = data(
         client.post(
@@ -192,10 +213,11 @@ def test_chinese_search_and_metadata_filter(client: TestClient) -> None:
             },
         )
     )
-    for _ in range(50):
-        document = data(client.get(f"/v1/knowledge-bases/{kb['id']}/documents/{document['id']}"))
-        if document["status"] == "indexed":
-            break
+    document = wait_for_status(
+        client,
+        f"/v1/knowledge-bases/{kb['id']}/documents/{document['id']}",
+        "indexed",
+    )
     results = data(
         client.post(
             f"/v1/knowledge-bases/{kb['id']}/search",
@@ -275,11 +297,7 @@ def test_startup_recovers_persisted_processing_tasks(tmp_path: Path) -> None:
     app = create_app(settings)
     with TestClient(app) as recovered:
         recovered.headers["Authorization"] = "Bearer sk_recovery"
-        for _ in range(50):
-            result = data(recovered.get(f"/v1/extractions/{extraction['id']}"))
-            if result["status"] == "completed":
-                break
-        assert result["status"] == "completed"
+        result = wait_for_status(recovered, f"/v1/extractions/{extraction['id']}", "completed")
         assert "durable" in result["markdown"]
 
 
@@ -343,10 +361,7 @@ def test_remote_ocr_provider_handles_advanced_and_image_files(
                 },
             )
         )
-        for _ in range(50):
-            extraction = data(ocr_client.get(f"/v1/extractions/{extraction['id']}"))
-            if extraction["status"] == "completed":
-                break
+        extraction = wait_for_status(ocr_client, f"/v1/extractions/{extraction['id']}", "completed")
         assert extraction["markdown"].startswith("# 扫描合同")
         assert extraction["metadata"]["parser"] == "remote-ocr"
         assert calls[0]["headers"]["Authorization"] == "Bearer ocr-secret"
