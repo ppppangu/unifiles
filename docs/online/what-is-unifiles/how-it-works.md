@@ -2,6 +2,10 @@
 
 本文详细介绍 Unifiles 的三层业务架构和数据处理流程，帮助你理解系统的内部运作机制。
 
+!!! info "实现说明"
+    0.1 单机 Server 使用 SQLite、本地文件存储和进程内后台任务实现这三层语义；
+    REST/SDK 契约不依赖具体存储或队列后端。
+
 ## 三层业务架构
 
 Unifiles 将文档处理分解为三个独立且可组合的业务层。这种设计让你可以根据需求选择使用部分或全部功能。
@@ -62,7 +66,7 @@ file = client.files.upload(
 
 print(f"文件ID: {file.id}")
 print(f"文件名: {file.filename}")
-print(f"大小: {file.bytes} bytes")
+print(f"大小: {file.size} bytes")
 print(f"状态: {file.status}")  # uploaded
 
 # 列出文件

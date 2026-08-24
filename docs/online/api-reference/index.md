@@ -1,6 +1,6 @@
 # API 参考
 
-Unifiles 提供 REST API 和 Python SDK 两种接入方式。
+Unifiles 提供 REST API、Python SDK、TypeScript SDK 和 Unix CLI 四种接入方式。
 
 ## 接入方式
 
@@ -8,6 +8,8 @@ Unifiles 提供 REST API 和 Python SDK 两种接入方式。
 |-----|---------|------|
 | REST API | 任何编程语言、HTTP 客户端 | [REST API 参考](rest-api/overview.md) |
 | Python SDK | Python 应用程序 | [Python SDK 参考](python-sdk/overview.md) |
+| TypeScript SDK | Node.js 服务 | [TypeScript SDK 参考](typescript-sdk/index.md) |
+| CLI | 终端与自动化脚本 | [CLI 参考](cli.md) |
 
 ## 快速对比
 
@@ -26,6 +28,21 @@ from unifiles import UnifilesClient
 
 client = UnifilesClient(api_key="sk_...")
 file = client.files.upload("document.pdf")
+```
+
+### TypeScript SDK
+
+```typescript
+import { UnifilesClient } from "@wyy/unifiles";
+
+const client = new UnifilesClient({ apiKey: "sk_..." });
+const file = await client.files.upload("document.pdf");
+```
+
+### CLI
+
+```bash
+unifiles files upload document.pdf
 ```
 
 ## API 基础信息

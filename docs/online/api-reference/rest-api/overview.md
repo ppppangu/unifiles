@@ -82,16 +82,19 @@ Content-Type: application/json
 
 ### 成功响应
 
-返回请求的资源对象：
+所有 JSON 成功响应使用统一 envelope。单资源放在 `data`：
 
 ```http
 HTTP/1.1 200 OK
 Content-Type: application/json
 
 {
-    "id": "kb_abc123",
-    "name": "my-kb",
-    "created_at": "2024-01-15T10:30:00Z"
+    "success": true,
+    "data": {
+        "id": "kb_abc123",
+        "name": "my-kb",
+        "created_at": "2024-01-15T10:30:00Z"
+    }
 }
 ```
 
@@ -104,13 +107,17 @@ HTTP/1.1 200 OK
 Content-Type: application/json
 
 {
-    "items": [
-        {"id": "file_001", "filename": "doc1.pdf"},
-        {"id": "file_002", "filename": "doc2.pdf"}
-    ],
-    "total": 100,
-    "limit": 50,
-    "offset": 0
+    "success": true,
+    "data": {
+        "items": [
+            {"id": "file_001", "filename": "doc1.pdf"},
+            {"id": "file_002", "filename": "doc2.pdf"}
+        ],
+        "total": 100,
+        "limit": 50,
+        "offset": 0,
+        "has_more": true
+    }
 }
 ```
 
@@ -121,6 +128,7 @@ HTTP/1.1 400 Bad Request
 Content-Type: application/json
 
 {
+    "success": false,
     "error": {
         "code": "INVALID_REQUEST",
         "message": "请求参数无效",
@@ -133,13 +141,16 @@ Content-Type: application/json
 }
 ```
 
+文件下载端点是唯一例外：成功时直接流式返回原始字节与标准 `Content-Type`、
+`Content-Disposition` 响应头。其他成功响应均包含 `success` 与 `data`。
+
 ## HTTP 状态码
 
 | 状态码 | 说明 |
 |-------|------|
 | 200 | 成功 |
 | 201 | 创建成功 |
-| 204 | 删除成功（无响应体） |
+| 200 | 读取、更新或删除成功 |
 | 400 | 请求参数错误 |
 | 401 | 认证失败 |
 | 403 | 权限不足 |

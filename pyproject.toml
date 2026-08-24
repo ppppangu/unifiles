@@ -1,287 +1,52 @@
-[build-system]
-requires = ["setuptools>=61.0", "wheel"]
-build-backend = "setuptools.build_meta"
-
-[project]
-name = "unifiles"
-version = "0.1.0"
-description = "Unifiles document processing platform - SaaS service, client library, and self-deployment package"
-readme = "README.md"
-license = "Apache-2.0"
-authors = [
-    {name = "Unifiles Team", email = "support@unifiles.com"},
+[tool.uv.workspace]
+members = [
+    "apps/server",
+    "packages/python",
 ]
-maintainers = [
-    {name = "Unifiles Team", email = "support@unifiles.com"},
-]
-classifiers = [
-    "Development Status :: 4 - Beta",
-    "Intended Audience :: Developers",
-    "Operating System :: OS Independent",
-    "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.8",
-    "Programming Language :: Python :: 3.9",
-    "Programming Language :: Python :: 3.10",
-    "Programming Language :: Python :: 3.11",
-    "Programming Language :: Python :: 3.12",
-    "Topic :: Software Development :: Libraries :: Python Modules",
-    "Topic :: Internet :: WWW/HTTP :: HTTP Servers",
-    "Topic :: Text Processing :: General",
-    "Topic :: Scientific/Engineering :: Artificial Intelligence",
-]
-keywords = [
-    "document-processing", "ocr", "pdf", "knowledge-base",
-    "vector-database", "text-extraction", "api-client", "unifiles"
-]
-# Minimal core dependencies - required for all use cases
-dependencies = [
-    "pydantic>=2.0.0",
-    "pydantic-settings>=2.0.0",
-    "loguru>=0.7.0",
-    "mkdocs-monorepo-plugin>=1.1.1",
-]
-requires-python = ">=3.8"
-
-[project.optional-dependencies]
-# Client library dependencies
-client = [
-    "requests>=2.28.0",
-    "httpx>=0.27.0",
-]
-
-# Server dependencies (FastAPI application)
-server = [
-    "fastapi>=0.110.0",
-    "uvicorn[standard]>=0.27.0",
-    "python-multipart>=0.0.9",
-    "asyncpg>=0.29.0",
-    "redis>=5.0.0",
-    "minio>=7.2.0",
-    "aiofiles>=23.0.0",
-    "passlib[bcrypt]>=1.7.4",
-    "cryptography>=42.0.0",
-    "pyjwt>=2.8.0",
-    "bcrypt>=4.0.0,<5.0.0",
-]
-
-# Document processing (OCR, PDF)
-ocr = [
-    "pillow>=10.0.0",
-    "pdfplumber>=0.11.0",
-    "pymupdf>=1.24.0",
-    "pypdf>=4.0.0",
-]
-
-# All server features
-all = [
-    "unifiles[client,server,ocr]",
-]
-
-# Documentation dependencies
-docs = [
-    "mkdocs-material>=9.5.0",
-    "mkdocs-git-revision-date-localized-plugin>=1.2.0",
-    "mkdocs-static-i18n>=1.2.0",
-    "mike>=2.0.0",
-]
-
-# Development dependencies
-dev = [
-    "pytest>=8.0.0",
-    "pytest-cov>=4.0.0",
-    "pytest-asyncio>=0.23.0",
-    "pytest-mock>=3.12.0",
-    "ruff>=0.3.0",
-    "mypy>=1.8.0",
-]
-
-# Testing dependencies
-test = [
-    "pytest>=8.0.0",
-    "pytest-cov>=4.0.0",
-    "pytest-asyncio>=0.23.0",
-    "pytest-mock>=3.12.0",
-    "requests-toolbelt>=1.0.0",
-]
-
-[project.scripts]
-# CLI entry point for starting the server
-unifiles-server = "unifiles.server.cli:main"
-
-[project.urls]
-Homepage = "https://github.com/unifiles/unifiles"
-Documentation = "https://unifiles.dev/docs"
-Repository = "https://github.com/unifiles/unifiles.git"
-Issues = "https://github.com/unifiles/unifiles/issues"
-Changelog = "https://github.com/unifiles/unifiles/blob/main/CHANGELOG.md"
-
-[tool.setuptools.packages.find]
-where = ["."]
-include = ["unifiles*"]
-exclude = ["tests*", "docs*", "examples*", "scripts*"]
-
-[tool.black]
-line-length = 88
-target-version = ['py38']
-include = '\.pyi?$'
-extend-exclude = '''
-/(
-  # directories
-  \.eggs
-  | \.git
-  | \.hg
-  | \.mypy_cache
-  | \.tox
-  | \.venv
-  | build
-  | dist
-)/
-'''
-
-[tool.isort]
-profile = "black"
-multi_line_output = 3
-line_length = 88
-known_first_party = ["unifiles"]
-
-[tool.mypy]
-python_version = "3.8"
-warn_return_any = true
-warn_unused_configs = true
-disallow_untyped_defs = true
-disallow_incomplete_defs = true
-check_untyped_defs = true
-disallow_untyped_decorators = true
-no_implicit_optional = true
-warn_redundant_casts = true
-warn_unused_ignores = true
-warn_no_return = true
-warn_unreachable = true
-strict_equality = true
-
-[tool.pytest.ini_options]
-minversion = "7.0"
-addopts = "-ra -q --strict-markers --strict-config"
-testpaths = [
-    "tests",
-]
-python_files = [
-    "test_*.py",
-    "*_test.py",
-]
-markers = [
-    "slow: marks tests as slow (deselect with '-m \"not slow\"')",
-    "unit: marks tests as unit tests",
-    "integration: marks tests as integration tests",
-]
-
-[tool.coverage.run]
-source = ["unifiles"]
-omit = [
-    "*/tests/*",
-    "*/test_*.py",
-    "*/__pycache__/*",
-]
-
-[tool.coverage.report]
-exclude_lines = [
-    "pragma: no cover",
-    "def __repr__",
-    "if self.debug:",
-    "if settings.DEBUG",
-    "raise AssertionError",
-    "raise NotImplementedError",
-    "if 0:",
-    "if __name__ == .__main__.:",
-    "class .*\\bProtocol\\):",
-    "@(abc\\.)?abstractmethod",
-]
-
-[tool.ruff]
-# Target Python 3.8+ for compatibility
-target-version = "py38"
-line-length = 88
-indent-width = 4
-
-# Include all Python files in the project
-include = ["*.py", "*.pyi", "**/pyproject.toml"]
-
-# Exclude common directories that shouldn't be linted
-exclude = [
-    ".bzr",
-    ".direnv",
-    ".eggs",
-    ".git",
-    ".git-rewrite",
-    ".hg",
-    ".mypy_cache",
-    ".nox",
-    ".pants.d",
-    ".pytype",
-    ".ruff_cache",
-    ".svn",
-    ".tox",
-    ".venv",
-    "__pypackages__",
-    "_build",
-    "buck-out",
-    "build",
-    "dist",
-    "node_modules",
-    "venv",
-    "*.egg-info",
-]
-
-[tool.ruff.lint]
-# Balanced rule set - focus on real issues, not style preferences
-select = [
-    "E",      # pycodestyle errors (syntax and obvious issues)
-    "W",      # pycodestyle warnings
-    "F",      # Pyflakes (undefined names, unused imports)
-    "B",      # flake8-bugbear (common bugs)
-    "I",      # isort (import ordering)
-    "C4",     # flake8-comprehensions (better list/dict comprehensions)
-    "UP",     # pyupgrade (modern Python syntax)
-]
-
-# Relaxed ignore list - focus on developer productivity
-ignore = [
-    "E501",    # Line too long (handled by formatter)
-    "E402",    # Module level import not at top (sometimes needed)
-    "B008",    # Function call in argument defaults (common in FastAPI)
-]
-
-# Allow unfixable rules to be fixed
-unfixable = []
-
-# Allow unused variables when prefixed with underscore
-dummy-variable-rgx = "^(_+|(_+[a-zA-Z0-9_]*[a-zA-Z0-9]+?))$"
-
-[tool.ruff.lint.per-file-ignores]
-# No per-file ignores needed with relaxed rules
-
-[tool.ruff.format]
-# Use double quotes for strings
-quote-style = "double"
-
-# Use 4 spaces for indentation
-indent-style = "space"
-
-# Respect magic trailing comma
-skip-magic-trailing-comma = false
-
-# Automatically detect line ending
-line-ending = "auto"
 
 [dependency-groups]
 dev = [
+    "datamodel-code-generator>=0.26.0",
+    "mypy>=1.14.0",
+    "openapi-spec-validator>=0.7.1",
+    "pytest>=8.3.0",
+    "pytest-asyncio>=0.25.0",
+    "pytest-cov>=6.0.0",
+    "pyyaml>=6.0.2",
+    "respx>=0.22.0",
+    "ruff>=0.9.0",
+]
+docs = [
     "mkdocs>=1.6.1",
-    "mkdocs-git-revision-date-localized-plugin>=1.4.7",
     "mkdocs-material>=9.6.23",
-    "requests-toolbelt>=1.0.0",
+    "mkdocs-monorepo-plugin>=1.1.1",
 ]
 
-[tool.ruff.lint.isort]
-# Configure import sorting
-known-first-party = ["unifiles"]
-section-order = ["future", "standard-library", "third-party", "first-party", "local-folder"]
+[tool.pytest.ini_options]
+addopts = "-ra -q --strict-markers --strict-config"
+testpaths = [
+    "apps/server/tests",
+    "packages/python/tests",
+]
+python_files = ["test_*.py", "*_test.py"]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+markers = [
+    "integration: requires the local API and its backing services",
+]
+
+[tool.ruff]
+target-version = "py311"
+line-length = 100
+extend-exclude = ["**/_generated/**"]
+
+[tool.ruff.lint]
+select = ["B", "C4", "E", "F", "I", "UP"]
+ignore = ["E501", "B008"]
+
+[tool.mypy]
+python_version = "3.11"
+warn_unused_configs = true
+check_untyped_defs = true
+no_implicit_optional = true
+strict_equality = true

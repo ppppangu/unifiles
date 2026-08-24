@@ -1,0 +1,45 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  python:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.11", "3.12", "3.13"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: ${{ matrix.python-version }}
+          enable-cache: true
+      - run: uv sync --all-packages --group dev
+      - run: uv run ruff check apps packages/python scripts
+      - run: uv run pytest
+      - run: uv run python scripts/check_openapi.py
+      - run: uv run python scripts/generate_contract.py --python-only
+      - run: git diff --exit-code -- packages/python/src/unifiles/_generated
+      - run: uv build --package unifiles-client
+      - run: uv build --package unifiles-server
+
+  node:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        node-version: [22, 24]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: npm
+      - run: npm ci
+      - run: npm run generate
+      - run: git diff --exit-code -- packages/typescript/src/generated
+      - run: npm run check
+      - run: npm pack --workspace @wyy/unifiles --dry-run
+      - run: npm pack --workspace @wyy/unifiles-cli --dry-run

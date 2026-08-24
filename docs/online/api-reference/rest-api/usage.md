@@ -1,5 +1,8 @@
 # Usage API
 
+!!! note
+    下列资源响应片段只展示统一 envelope 中的 `data` 内容；完整格式见 REST API 概述。
+
 使用量统计和配额查询接口。
 
 ## 获取使用统计

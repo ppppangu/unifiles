@@ -1,11 +1,23 @@
 # Python SDK 概述
 
-Unifiles Python SDK 提供类型安全、符合 Python 习惯的 API 接入方式。
+Unifiles Python SDK 提供类型安全、符合 Python 习惯的 API 接入方式。分发包名为
+`unifiles-client`，导入模块仍为 `unifiles`。
 
 ## 安装
 
 ```bash
-pip install unifiles
+pip install unifiles-client
+```
+
+支持同步 `UnifilesClient` 和异步 `AsyncUnifilesClient`：
+
+```python
+from unifiles import AsyncUnifilesClient
+
+async with AsyncUnifilesClient(api_key="sk_...") as client:
+    file = await client.files.upload("document.pdf")
+    extraction = await client.extractions.create(file.id)
+    await extraction.wait()
 ```
 
 ## 快速开始

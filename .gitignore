@@ -166,3 +166,8 @@ Thumbs.db
 *.swp
 *.swo
 *~
+node_modules/
+**/dist/
+.unifiles-data/
+*.tsbuildinfo
+site/

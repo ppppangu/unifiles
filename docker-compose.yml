@@ -1,0 +1,15 @@
+services:
+  unifiles:
+    build:
+      context: ./apps/server
+    ports:
+      - "8088:8088"
+    environment:
+      UNIFILES_BOOTSTRAP_API_KEY: ${UNIFILES_BOOTSTRAP_API_KEY:?set UNIFILES_BOOTSTRAP_API_KEY}
+      UNIFILES_DATA_DIR: /data
+    volumes:
+      - unifiles-data:/data
+    restart: unless-stopped
+
+volumes:
+  unifiles-data:

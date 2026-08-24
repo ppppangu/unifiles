@@ -20,3 +20,5 @@ nav:
       - Knowledge Bases: python-sdk/knowledge-bases.md
       - 类型定义: python-sdk/types.md
       - 异常处理: python-sdk/exceptions.md
+  - TypeScript SDK: typescript-sdk/index.md
+  - CLI: cli.md

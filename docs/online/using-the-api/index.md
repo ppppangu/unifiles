@@ -46,19 +46,19 @@ Layer 3: 知识库
 === "pip"
 
     ```bash
-    pip install unifiles
+    pip install unifiles-client
     ```
 
 === "uv"
 
     ```bash
-    uv add unifiles
+    uv add unifiles-client
     ```
 
 === "poetry"
 
     ```bash
-    poetry add unifiles
+    poetry add unifiles-client
     ```
 
 ### 初始化客户端

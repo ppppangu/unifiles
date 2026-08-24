@@ -5,7 +5,7 @@ Unifiles 提供 LangChain Retriever 和 Loader 组件，可直接用于构建 RA
 ## 安装
 
 ```bash
-pip install unifiles langchain langchain-openai
+pip install unifiles-client langchain langchain-openai
 ```
 
 ## UnifilesRetriever

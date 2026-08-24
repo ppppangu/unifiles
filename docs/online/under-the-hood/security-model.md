@@ -808,4 +808,4 @@ async def delete_file(file_id: str, request: Request):
 ## 下一步
 
 - [开发技巧](./development-tips.md) - 本地开发安全实践
-- [自部署指南](../self-hosting/) - 生产环境安全配置
+- [自部署指南](../self-hosting/index.md) - 生产环境安全配置

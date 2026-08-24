@@ -1,288 +1,105 @@
 # 快速开始
 
-本指南将帮助你在 5 分钟内开始使用 Unifiles。
+本指南使用本机自部署 Server，分别演示 Python、TypeScript 和 CLI。
 
-## 安装
+## 1. 启动 Server
 
 ```bash
-pip install unifiles
+git clone https://github.com/ppppangu/unifiles.git
+cd unifiles
+uv sync --all-packages --group dev
+
+UNIFILES_BOOTSTRAP_API_KEY=sk_test_local \
+  uv run unifiles-server --host 127.0.0.1 --port 8088
 ```
 
-## 获取 API 密钥
+服务启动后可访问 `http://localhost:8088/docs`，数据默认写入 `.unifiles-data/`。
 
-### 使用 SaaS 服务
+## 2. 选择客户端
 
-访问 [Unifiles Console](https://console.unifiles.dev) 注册账户并获取 API 密钥。
+=== "Python（同步）"
 
-### 自部署
+    ```bash
+    pip install unifiles-client
+    ```
 
-参考 [自部署指南](self-hosting/index.md) 部署你自己的 Unifiles 实例。
+    ```python
+    from unifiles import UnifilesClient
 
-## 初始化客户端
-
-```python
-from unifiles import UnifilesClient
-
-# 使用 API 密钥初始化
-client = UnifilesClient(api_key="[REDACTED]")
-
-# 或使用环境变量 UNIFILES_API_KEY
-client = UnifilesClient()
-
-# 自部署时指定服务地址
-client = UnifilesClient(
-    api_key="[REDACTED]",
-    base_url="https://your-unifiles-server.com"
-)
-```
-
-## 上传文件
-
-```python
-# 上传本地文件
-file = client.files.upload("document.pdf")
-
-print(f"文件 ID: {file.id}")
-print(f"文件名: {file.filename}")
-print(f"大小: {file.size} bytes")
-
-# 带元数据上传
-file = client.files.upload(
-    "contract.pdf",
-    metadata={"department": "legal", "year": "2024"},
-    tags=["contract", "important"]
-)
-```
-
-## 提取内容
-
-```python
-# 创建提取任务
-extraction = client.extractions.create(file_id=file.id)
-
-# 等待完成
-extraction.wait()
-
-# 获取 Markdown 内容
-print(extraction.markdown)
-```
-
-输出示例：
-
-```markdown
-# 合同标题
-
-## 第一条 合同双方
-
-甲方：XXX 公司
-乙方：XXX 公司
-
-## 第二条 合同内容
-
-| 项目 | 数量 | 单价 |
-|------|------|------|
-| 产品A | 100 | ¥500 |
-| 产品B | 200 | ¥300 |
-
-...
-```
-
-## 创建知识库
-
-```python
-# 创建知识库
-kb = client.knowledge_bases.create(
-    name="company-docs",
-    description="公司文档知识库"
-)
-
-print(f"知识库 ID: {kb.id}")
-```
-
-## 添加文档到知识库
-
-```python
-# 将已提取的文件添加到知识库
-doc = client.knowledge_bases.documents.create(
-    kb_id=kb.id,
-    file_id=file.id
-)
-
-# 等待索引完成
-doc.wait()
-
-print(f"文档 ID: {doc.id}")
-print(f"分块数: {doc.chunk_count}")
-```
-
-## 搜索知识库
-
-```python
-# 语义搜索
-results = client.knowledge_bases.search(
-    kb_id=kb.id,
-    query="违约责任条款",
-    top_k=5
-)
-
-for chunk in results.chunks:
-    print(f"相似度: {chunk.score:.3f}")
-    print(f"内容: {chunk.content[:200]}...")
-    print("---")
-```
-
-## 完整示例
-
-将上述步骤组合成一个完整的流程：
-
-```python
-from unifiles import UnifilesClient
-
-def main():
-    # 初始化客户端
-    client = UnifilesClient(api_key="[REDACTED]")
-    
-    # 1. 上传文件
-    print("上传文件...")
-    file = client.files.upload(
-        "contract.pdf",
-        metadata={"type": "contract"}
+    client = UnifilesClient(
+        api_key="sk_test_local",
+        base_url="http://localhost:8088",
     )
-    print(f"✓ 文件上传成功: {file.id}")
-    
-    # 2. 提取内容
-    print("提取内容...")
-    extraction = client.extractions.create(file_id=file.id)
-    extraction.wait()
-    print(f"✓ 内容提取成功: {len(extraction.markdown)} 字符")
-    
-    # 3. 创建或获取知识库
-    print("准备知识库...")
-    kbs = client.knowledge_bases.list()
-    kb = next((k for k in kbs if k.name == "my-kb"), None)
-    if not kb:
-        kb = client.knowledge_bases.create(name="my-kb")
-    print(f"✓ 知识库就绪: {kb.id}")
-    
-    # 4. 添加文档
-    print("添加文档...")
-    doc = client.knowledge_bases.documents.create(
-        kb_id=kb.id,
-        file_id=file.id
-    )
-    doc.wait()
-    print(f"✓ 文档已索引: {doc.chunk_count} 个分块")
-    
-    # 5. 搜索
-    print("执行搜索...")
-    results = client.knowledge_bases.search(
-        kb_id=kb.id,
-        query="合同期限",
-        top_k=3
-    )
-    
-    print(f"✓ 找到 {len(results.chunks)} 个相关结果:")
-    for i, chunk in enumerate(results.chunks, 1):
-        print(f"\n结果 {i} (相似度: {chunk.score:.3f}):")
-        print(chunk.content[:200] + "...")
 
-if __name__ == "__main__":
-    main()
-```
+    file = client.files.upload("document.pdf")
+    extraction = client.extractions.create(file.id).wait()
 
-## 使用 REST API
+    kb = client.knowledge_bases.create("my-docs")
+    document = client.knowledge_bases.documents.create(kb.id, file.id).wait()
 
-如果你不使用 Python，可以直接调用 REST API：
+    results = client.knowledge_bases.search(kb.id, "关键内容")
+    for chunk in results.chunks:
+        print(chunk.score, chunk.content)
+    ```
 
-### 上传文件
+=== "Python（异步）"
 
-```bash
-curl -X POST https://api.unifiles.dev/v1/files \
-  -H "Authorization: Bearer [REDACTED]" \
-  -F "file=@document.pdf"
-```
+    ```python
+    import asyncio
+    from unifiles import AsyncUnifilesClient
 
-### 提取内容
+    async def main():
+        async with AsyncUnifilesClient(
+            api_key="sk_test_local",
+            base_url="http://localhost:8088",
+        ) as client:
+            file = await client.files.upload("document.pdf")
+            extraction = await client.extractions.create(file.id)
+            await extraction.wait()
 
-```bash
-curl -X POST https://api.unifiles.dev/v1/extractions \
-  -H "Authorization: Bearer [REDACTED]" \
-  -H "Content-Type: application/json" \
-  -d '{"file_id": "file_xxx"}'
-```
+    asyncio.run(main())
+    ```
 
-### 搜索知识库
+=== "TypeScript"
 
-```bash
-curl -X POST https://api.unifiles.dev/v1/knowledge-bases/kb_xxx/search \
-  -H "Authorization: Bearer [REDACTED]" \
-  -H "Content-Type: application/json" \
-  -d '{"query": "搜索内容", "top_k": 5}'
-```
+    ```bash
+    npm install @wyy/unifiles
+    ```
 
-## 与 LangChain 集成
+    ```typescript
+    import { UnifilesClient } from "@wyy/unifiles";
 
-```python
-from unifiles.integrations.langchain import UnifilesRetriever
-from langchain_openai import ChatOpenAI
-from langchain.chains import RetrievalQA
+    const client = new UnifilesClient({
+      apiKey: "sk_test_local",
+      baseUrl: "http://localhost:8088",
+    });
 
-# 创建 Retriever
-retriever = UnifilesRetriever(
-    api_key="[REDACTED]",
-    kb_id="kb_xxx",
-    top_k=5
-)
+    const file = await client.files.upload("document.pdf");
+    const extraction = await client.extractions.create(file.id);
+    await extraction.wait();
 
-# 创建 RAG Chain
-llm = ChatOpenAI(model="gpt-4")
-qa_chain = RetrievalQA.from_chain_type(
-    llm=llm,
-    retriever=retriever,
-    return_source_documents=True
-)
+    const kb = await client.knowledgeBases.create("my-docs");
+    const document = await client.knowledgeBases.documents.create(kb.id, file.id);
+    await document.wait();
 
-# 提问
-result = qa_chain.invoke({"query": "合同的违约金是多少？"})
-print(result["result"])
-```
+    const results = await client.knowledgeBases.search(kb.id, "关键内容");
+    ```
 
-[查看完整 LangChain 集成指南 →](integrations/langchain.md)
+=== "CLI"
 
-## 下一步
+    ```bash
+    npm install -g @wyy/unifiles-cli
+    printf '%s' sk_test_local | unifiles config set local \
+      --base-url http://localhost:8088 \
+      --api-key-stdin
 
-<div class="grid cards" markdown>
+    file_id=$(unifiles --profile local --output json files upload document.pdf | jq -r .id)
+    extraction_id=$(unifiles --profile local --output json extractions create "$file_id" --wait | jq -r .id)
+    unifiles --profile local kb list | jq .
+    ```
 
--   :material-book-open-page-variant:{ .lg .middle } **了解核心概念**
+## 支持范围
 
-    ---
-
-    深入理解 Unifiles 的三层架构和设计理念
-
-    [:octicons-arrow-right-24: 了解 Unifiles](what-is-unifiles/index.md)
-
--   :material-api:{ .lg .middle } **探索 API**
-
-    ---
-
-    学习 API 的完整功能和最佳实践
-
-    [:octicons-arrow-right-24: 使用 API](using-the-api/index.md)
-
--   :material-book-education:{ .lg .middle } **动手实践**
-
-    ---
-
-    通过渐进式教程掌握各种使用场景
-
-    [:octicons-arrow-right-24: Cookbook](cookbook/index.md)
-
--   :material-file-document-multiple:{ .lg .middle } **API 参考**
-
-    ---
-
-    查阅完整的 API 文档和类型定义
-
-    [:octicons-arrow-right-24: API 参考](api-reference/index.md)
-
-</div>
+内置单机 Server 可直接提取文本和包含文本层的 PDF。图片、扫描件、无文本层 PDF 和
+`advanced` 模式通过 `UNIFILES_OCR_ENDPOINT` 接入远程 OCR Provider；未配置时返回明确的
+`EXTRACTION_FAILED`，不会返回模拟内容。
