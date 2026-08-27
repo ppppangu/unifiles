@@ -6,7 +6,7 @@
     "packages/cli"
   ],
   "scripts": {
-    "generate": "npm run generate --workspace @wyy/unifiles",
+    "generate": "uv run python scripts/generate_contract.py",
     "build": "npm run build --workspaces --if-present",
     "typecheck": "npm run typecheck --workspaces --if-present",
     "test": "npm run test --workspaces --if-present",
@@ -16,6 +16,7 @@
     "node": ">=22"
   },
   "devDependencies": {
+    "@openapitools/openapi-generator-cli": "2.41.0",
     "esbuild": "0.28.2"
   },
   "overrides": {

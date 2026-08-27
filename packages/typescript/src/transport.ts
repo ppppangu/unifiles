@@ -1,3 +1,14 @@
+import { APIKeysApi } from "../generated/src/apis/APIKeysApi.js";
+import { DocumentsApi } from "../generated/src/apis/DocumentsApi.js";
+import { ExtractionsApi } from "../generated/src/apis/ExtractionsApi.js";
+import { FilesApi } from "../generated/src/apis/FilesApi.js";
+import { KnowledgeBasesApi } from "../generated/src/apis/KnowledgeBasesApi.js";
+import { SearchApi } from "../generated/src/apis/SearchApi.js";
+import { SystemApi } from "../generated/src/apis/SystemApi.js";
+import { UsageApi } from "../generated/src/apis/UsageApi.js";
+import { WebhooksApi } from "../generated/src/apis/WebhooksApi.js";
+import { Configuration, type Middleware } from "../generated/src/runtime.js";
+
 import {
   AuthenticationError,
   ConflictError,
@@ -11,22 +22,6 @@ import {
   ValidationError,
 } from "./errors.js";
 
-interface SuccessEnvelope<T> {
-  success: true;
-  data: T;
-}
-
-interface ErrorEnvelope {
-  success: false;
-  error: {
-    code?: string;
-    message?: string;
-    details?: Record<string, unknown>;
-    request_id?: string;
-    retry_after?: number;
-  };
-}
-
 export interface TransportOptions {
   apiKey?: string;
   baseUrl?: string;
@@ -35,24 +30,81 @@ export interface TransportOptions {
   fetch?: typeof globalThis.fetch;
 }
 
-export interface RequestOptions {
-  query?: Record<string, string | number | boolean | undefined>;
-  body?: unknown;
-  form?: FormData;
-  idempotencyKey?: string;
+export interface GeneratedAPIs {
+  files: FilesApi;
+  extractions: ExtractionsApi;
+  knowledgeBases: KnowledgeBasesApi;
+  documents: DocumentsApi;
+  search: SearchApi;
+  webhooks: WebhooksApi;
+  apiKeys: APIKeysApi;
+  usage: UsageApi;
+  system: SystemApi;
 }
 
 const retryableStatuses = new Set([408, 429, 500, 502, 503, 504]);
-
 const sleep = async (milliseconds: number): Promise<void> =>
   new Promise((resolve) => setTimeout(resolve, milliseconds));
 
+const normalizeBaseUrl = (value: string | undefined): string => {
+  const configured = (value ?? process.env.UNIFILES_BASE_URL ?? "https://api.unifiles.dev/v1").replace(
+    /\/$/,
+    "",
+  );
+  return configured.endsWith("/v1") ? configured : `${configured}/v1`;
+};
+
+const retryAfter = (response: Response): number | undefined => {
+  const value = response.headers.get("retry-after");
+  if (!value || !Number.isFinite(Number(value))) return undefined;
+  return Math.max(0, Number(value) * 1_000);
+};
+
+const backoff = (attempt: number, response?: Response): number =>
+  (response ? retryAfter(response) : undefined) ?? Math.random() * Math.min(8_000, 500 * 2 ** attempt);
+
+const throwResponseError = async (response: Response): Promise<never> => {
+  let body:
+    | {
+        error?: {
+          code?: string;
+          message?: string;
+          details?: Record<string, unknown>;
+          request_id?: string;
+          retry_after?: number;
+        };
+      }
+    | undefined;
+  try {
+    body = (await response.json()) as typeof body;
+  } catch {
+    body = undefined;
+  }
+  const wire = body?.error;
+  const options = {
+    code: wire?.code ?? `HTTP_${response.status}`,
+    statusCode: response.status,
+    ...((wire?.request_id ?? response.headers.get("x-request-id"))
+      ? { requestId: wire?.request_id ?? response.headers.get("x-request-id") ?? undefined }
+      : {}),
+    ...(wire?.details ? { details: wire.details } : {}),
+    ...(wire?.retry_after !== undefined ? { retryAfter: wire.retry_after } : {}),
+  };
+  const message = wire?.message ?? response.statusText ?? "Request failed";
+  if (response.status === 401) throw new AuthenticationError(message, options);
+  if (response.status === 403) throw new PermissionError(message, options);
+  if (response.status === 404) throw new NotFoundError(message, options);
+  if ([400, 413, 415, 422].includes(response.status)) throw new ValidationError(message, options);
+  if (response.status === 409) throw new ConflictError(message, options);
+  if (response.status === 429) throw new RateLimitError(message, options);
+  if ([408, 504].includes(response.status)) throw new TimeoutError(message, options);
+  if (response.status >= 500) throw new ServerError(message, options);
+  throw new UnifilesError(message, options);
+};
+
 export class Transport {
   readonly baseUrl: string;
-  readonly #apiKey: string;
-  readonly #timeoutMs: number;
-  readonly #maxRetries: number;
-  readonly #fetch: typeof globalThis.fetch;
+  readonly apis: GeneratedAPIs;
 
   constructor(options: TransportOptions = {}) {
     const apiKey = options.apiKey ?? process.env.UNIFILES_API_KEY;
@@ -61,130 +113,63 @@ export class Transport {
         code: "MISSING_API_KEY",
       });
     }
-    const configured = (options.baseUrl ?? process.env.UNIFILES_BASE_URL ?? "https://api.unifiles.dev/v1").replace(/\/$/, "");
-    this.baseUrl = configured.endsWith("/v1") ? configured : `${configured}/v1`;
-    this.#apiKey = apiKey;
-    this.#timeoutMs = options.timeoutMs ?? 30_000;
-    this.#maxRetries = Math.max(0, options.maxRetries ?? 3);
-    this.#fetch = options.fetch ?? globalThis.fetch;
-  }
+    this.baseUrl = normalizeBaseUrl(options.baseUrl);
+    const timeoutMs = options.timeoutMs ?? 30_000;
+    const maxRetries = Math.max(0, options.maxRetries ?? 3);
+    const baseFetch = options.fetch ?? globalThis.fetch;
 
-  async request<T>(method: string, path: string, options: RequestOptions = {}): Promise<T> {
-    const url = new URL(`${this.baseUrl}/${path.replace(/^\//, "")}`);
-    for (const [key, value] of Object.entries(options.query ?? {})) {
-      if (value !== undefined) url.searchParams.set(key, String(value));
-    }
-
-    const retryAllowed = ["GET", "HEAD", "OPTIONS", "DELETE"].includes(method.toUpperCase()) || Boolean(options.idempotencyKey);
-    let response: Response | undefined;
-    for (let attempt = 0; attempt <= this.#maxRetries; attempt += 1) {
-      const headers = new Headers({
-        Authorization: `Bearer ${this.#apiKey}`,
-        Accept: "application/json",
-        "User-Agent": "unifiles-node/0.1.0",
-      });
-      if (options.idempotencyKey) headers.set("Idempotency-Key", options.idempotencyKey);
-      let body: BodyInit | undefined;
-      if (options.form) {
-        body = options.form;
-      } else if (options.body !== undefined) {
-        headers.set("Content-Type", "application/json");
-        body = JSON.stringify(options.body);
-      }
-
-      try {
-        const init: RequestInit = {
-          method,
-          headers,
-          signal: AbortSignal.timeout(this.#timeoutMs),
-        };
-        if (body !== undefined) init.body = body;
-        response = await this.#fetch(url, init);
-      } catch (error) {
-        if (retryAllowed && attempt < this.#maxRetries) {
-          await sleep(this.#backoff(attempt));
-          continue;
+    const fetchWithPolicy: typeof globalThis.fetch = async (input, init = {}) => {
+      const method = String(init.method ?? "GET").toUpperCase();
+      const headers = new Headers(init.headers);
+      const retryAllowed = ["GET", "HEAD", "OPTIONS", "DELETE"].includes(method) ||
+        headers.has("Idempotency-Key");
+      for (let attempt = 0; attempt <= maxRetries; attempt += 1) {
+        try {
+          const response = await baseFetch(input, {
+            ...init,
+            signal: AbortSignal.timeout(timeoutMs),
+          });
+          if (retryAllowed && retryableStatuses.has(response.status) && attempt < maxRetries) {
+            await response.body?.cancel();
+            await sleep(backoff(attempt, response));
+            continue;
+          }
+          return response;
+        } catch (error) {
+          if (retryAllowed && attempt < maxRetries) {
+            await sleep(backoff(attempt));
+            continue;
+          }
+          if (error instanceof DOMException && error.name === "TimeoutError") {
+            throw new TimeoutError(error.message, { code: "REQUEST_TIMEOUT", cause: error });
+          }
+          throw new TransportError(String(error), { code: "TRANSPORT_ERROR", cause: error });
         }
-        if (error instanceof DOMException && error.name === "TimeoutError") {
-          throw new TimeoutError(error.message, { code: "REQUEST_TIMEOUT", cause: error });
-        }
-        throw new TransportError(String(error), { code: "TRANSPORT_ERROR", cause: error });
       }
-
-      if (retryAllowed && retryableStatuses.has(response.status) && attempt < this.#maxRetries) {
-        await sleep(this.#backoff(attempt, response));
-        continue;
-      }
-      return this.#unwrap<T>(response);
-    }
-    throw new TransportError("Request failed without a response", { code: "TRANSPORT_ERROR" });
-  }
-
-  async binary(path: string): Promise<Uint8Array> {
-    const response = await this.#fetch(`${this.baseUrl}/${path.replace(/^\//, "")}`, {
-      headers: {
-        Authorization: `Bearer ${this.#apiKey}`,
-        Accept: "application/octet-stream",
-        "User-Agent": "unifiles-node/0.1.0",
-      },
-      signal: AbortSignal.timeout(this.#timeoutMs),
-    });
-    if (!response.ok) await this.#throwResponseError(response);
-    return new Uint8Array(await response.arrayBuffer());
-  }
-
-  #backoff(attempt: number, response?: Response): number {
-    const retryAfter = response?.headers.get("retry-after");
-    if (retryAfter && Number.isFinite(Number(retryAfter))) return Number(retryAfter) * 1000;
-    return Math.random() * Math.min(8_000, 500 * 2 ** attempt);
-  }
-
-  async #unwrap<T>(response: Response): Promise<T> {
-    if (!response.ok) await this.#throwResponseError(response);
-    let envelope: SuccessEnvelope<T> | ErrorEnvelope;
-    try {
-      envelope = (await response.json()) as SuccessEnvelope<T> | ErrorEnvelope;
-    } catch (error) {
-      throw new TransportError("The API returned invalid JSON", {
-        code: "INVALID_RESPONSE",
-        statusCode: response.status,
-        requestId: response.headers.get("x-request-id") ?? undefined,
-        cause: error,
-      });
-    }
-    if (!envelope.success || !("data" in envelope)) {
-      throw new TransportError("The API returned an invalid success envelope", {
-        code: "INVALID_RESPONSE",
-        statusCode: response.status,
-      });
-    }
-    return envelope.data;
-  }
-
-  async #throwResponseError(response: Response): Promise<never> {
-    let body: ErrorEnvelope | undefined;
-    try {
-      body = (await response.json()) as ErrorEnvelope;
-    } catch {
-      body = undefined;
-    }
-    const wire = body?.error;
-    const options = {
-      code: wire?.code ?? `HTTP_${response.status}`,
-      statusCode: response.status,
-      requestId: wire?.request_id ?? response.headers.get("x-request-id") ?? undefined,
-      details: wire?.details,
-      retryAfter: wire?.retry_after,
+      throw new TransportError("Request failed without a response", { code: "TRANSPORT_ERROR" });
     };
-    const message = wire?.message ?? response.statusText ?? "Request failed";
-    if (response.status === 401) throw new AuthenticationError(message, options);
-    if (response.status === 403) throw new PermissionError(message, options);
-    if (response.status === 404) throw new NotFoundError(message, options);
-    if ([400, 413, 415, 422].includes(response.status)) throw new ValidationError(message, options);
-    if (response.status === 409) throw new ConflictError(message, options);
-    if (response.status === 429) throw new RateLimitError(message, options);
-    if ([408, 504].includes(response.status)) throw new TimeoutError(message, options);
-    if (response.status >= 500) throw new ServerError(message, options);
-    throw new UnifilesError(message, options);
+
+    const errorMiddleware: Middleware = {
+      post: async ({ response }) => {
+        if (!response.ok) await throwResponseError(response);
+      },
+    };
+    const configuration = new Configuration({
+      basePath: this.baseUrl.replace(/\/v1$/, ""),
+      accessToken: apiKey,
+      fetchApi: fetchWithPolicy,
+      middleware: [errorMiddleware],
+    });
+    this.apis = {
+      files: new FilesApi(configuration),
+      extractions: new ExtractionsApi(configuration),
+      knowledgeBases: new KnowledgeBasesApi(configuration),
+      documents: new DocumentsApi(configuration),
+      search: new SearchApi(configuration),
+      webhooks: new WebhooksApi(configuration),
+      apiKeys: new APIKeysApi(configuration),
+      usage: new UsageApi(configuration),
+      system: new SystemApi(configuration),
+    };
   }
 }

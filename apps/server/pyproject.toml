@@ -23,4 +23,7 @@ dependencies = [
 unifiles-server = "unifiles_server.cli:main"
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/unifiles_server"]
+packages = [
+    "src/unifiles_server",
+    "generated/src/unifiles_server_protocol",
+]

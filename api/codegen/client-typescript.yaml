@@ -1,0 +1,17 @@
+generatorName: typescript-fetch
+additionalProperties:
+  npmName: "@wyy/unifiles-generated"
+  npmVersion: 0.1.0
+  supportsES6: true
+  typescriptThreePlus: true
+  modelPropertyNaming: camelCase
+  withInterfaces: true
+  importFileExtension: .js
+  disallowAdditionalPropertiesIfNotPresent: false
+typeMappings:
+  DateTime: string
+globalProperties:
+  apiDocs: false
+  apiTests: false
+  modelDocs: false
+  modelTests: false

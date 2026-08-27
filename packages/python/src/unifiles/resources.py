@@ -1,4 +1,4 @@
-"""Resource namespaces used by the synchronous and asynchronous clients."""
+"""Ergonomic resource facades over the generated Python SDK core."""
 
 from __future__ import annotations
 
@@ -9,6 +9,18 @@ import time
 import uuid
 from pathlib import Path
 from typing import Any
+
+from unifiles_generated.models.api_key_create import APIKeyCreate
+from unifiles_generated.models.chunking_strategy import ChunkingStrategy
+from unifiles_generated.models.document_create import DocumentCreate
+from unifiles_generated.models.extraction_create import ExtractionCreate
+from unifiles_generated.models.extraction_options import ExtractionOptions
+from unifiles_generated.models.hybrid_search_request import HybridSearchRequest
+from unifiles_generated.models.knowledge_base_create import KnowledgeBaseCreate
+from unifiles_generated.models.knowledge_base_update import KnowledgeBaseUpdate
+from unifiles_generated.models.search_request import SearchRequest
+from unifiles_generated.models.webhook_create import WebhookCreate
+from unifiles_generated.models.webhook_update import WebhookUpdate
 
 from ._transport import AsyncTransport, SyncTransport
 from .models import (
@@ -31,38 +43,25 @@ from .models import (
 )
 
 
-def _compact(data: dict[str, Any]) -> dict[str, Any]:
-    return {key: value for key, value in data.items() if value is not None}
-
-
 def _idempotency_key() -> str:
     return str(uuid.uuid4())
 
 
-def _upload_parts(
+def _upload(
     path: str | Path | None,
     *,
     content: bytes | None,
     filename: str | None,
-    content_type: str | None,
-    metadata: dict[str, Any] | None,
-    tags: list[str] | None,
-) -> tuple[dict[str, Any], dict[str, str]]:
+) -> tuple[str, bytes]:
     if (path is None) == (content is None):
         raise ValueError("Provide exactly one of path or content")
     if path is not None:
         file_path = Path(path)
         content = file_path.read_bytes()
         filename = filename or file_path.name
-    if not filename:
+    if not filename or content is None:
         raise ValueError("filename is required when uploading bytes")
-    mime = content_type or mimetypes.guess_type(filename)[0] or "application/octet-stream"
-    files = {"file": (filename, content, mime)}
-    form = {
-        "metadata": json.dumps(metadata or {}, ensure_ascii=False),
-        "tags": json.dumps(tags or [], ensure_ascii=False),
-    }
-    return files, form
+    return filename, content
 
 
 class FilesResource:
@@ -79,18 +78,18 @@ class FilesResource:
         metadata: dict[str, Any] | None = None,
         tags: list[str] | None = None,
     ) -> File:
-        files, form = _upload_parts(
-            path,
-            content=content,
-            filename=filename,
-            content_type=content_type,
-            metadata=metadata,
-            tags=tags,
+        upload = _upload(path, content=content, filename=filename)
+        if content_type and (suffix := Path(upload[0]).suffix):
+            mimetypes.add_type(content_type, suffix)
+        response = self._transport.call_sync(
+            self._transport.apis.files.upload_file_sync,
+            retry_allowed=True,
+            file=upload,
+            idempotency_key=_idempotency_key(),
+            metadata=json.dumps(metadata or {}, ensure_ascii=False),
+            tags=json.dumps(tags or [], ensure_ascii=False),
         )
-        data = self._transport.request(
-            "POST", "files", files=files, data=form, idempotency_key=_idempotency_key()
-        )
-        return File.model_validate(data)
+        return response.data
 
     def list(
         self,
@@ -102,41 +101,55 @@ class FilesResource:
         sort_by: str = "created_at",
         order: str = "desc",
     ) -> ListResponse[File]:
-        data = self._transport.request(
-            "GET",
-            "files",
-            params=_compact(
-                {
-                    "limit": limit,
-                    "offset": offset,
-                    "tags": ",".join(tags) if tags else None,
-                    "content_type": content_type,
-                    "sort_by": sort_by,
-                    "order": order,
-                }
-            ),
+        response = self._transport.call_sync(
+            self._transport.apis.files.list_files_sync,
+            retry_allowed=True,
+            limit=limit,
+            offset=offset,
+            tags=",".join(tags) if tags else None,
+            content_type=content_type,
+            sort_by=sort_by,
+            order=order,
         )
-        return ListResponse[File].model_validate(data)
+        return ListResponse(response.data)
 
     def get(self, file_id: str) -> File:
-        return File.model_validate(self._transport.request("GET", f"files/{file_id}"))
+        response = self._transport.call_sync(
+            self._transport.apis.files.get_file_sync,
+            retry_allowed=True,
+            file_id=file_id,
+        )
+        return response.data
 
     def download(self, file_id: str) -> bytes:
-        return self._transport.request_binary(f"files/{file_id}/download")
+        return self._transport.call_sync(
+            self._transport.apis.files.download_file_sync,
+            retry_allowed=True,
+            file_id=file_id,
+        )
 
     def delete(self, file_id: str) -> DeletionResult:
-        return DeletionResult.model_validate(self._transport.request("DELETE", f"files/{file_id}"))
+        response = self._transport.call_sync(
+            self._transport.apis.files.delete_file_sync,
+            retry_allowed=True,
+            file_id=file_id,
+        )
+        return response.data
 
     def list_supported_types(self) -> SupportedFileTypes:
-        return SupportedFileTypes.model_validate(self._transport.request("GET", "files/types"))
+        response = self._transport.call_sync(
+            self._transport.apis.files.list_supported_file_types_sync,
+            retry_allowed=True,
+        )
+        return response.data
 
 
 class ExtractionsResource:
     def __init__(self, transport: SyncTransport) -> None:
         self._transport = transport
 
-    def _bind(self, extraction: Extraction) -> Extraction:
-        return extraction._bind_waiter(self._wait)
+    def _bind(self, value: Any) -> Extraction:
+        return Extraction.model_validate(value.model_dump())._bind_waiter(self._wait)
 
     def create(
         self,
@@ -145,23 +158,36 @@ class ExtractionsResource:
         mode: str = "normal",
         options: dict[str, Any] | None = None,
     ) -> Extraction:
-        data = self._transport.request(
-            "POST",
-            "extractions",
-            json={"file_id": file_id, "mode": mode, "options": options or {}},
+        payload = ExtractionCreate(
+            file_id=file_id,
+            mode=mode,
+            options=ExtractionOptions.from_dict(options or {}),
+        )
+        response = self._transport.call_sync(
+            self._transport.apis.extractions.create_extraction_sync,
+            retry_allowed=True,
+            extraction_create=payload,
             idempotency_key=_idempotency_key(),
         )
-        return self._bind(Extraction.model_validate(data))
+        return self._bind(response.data)
 
     def get(self, extraction_id: str) -> Extraction:
-        data = self._transport.request("GET", f"extractions/{extraction_id}")
-        return self._bind(Extraction.model_validate(data))
+        response = self._transport.call_sync(
+            self._transport.apis.extractions.get_extraction_sync,
+            retry_allowed=True,
+            extraction_id=extraction_id,
+        )
+        return self._bind(response.data)
 
     def list(self, file_id: str, *, limit: int = 50, offset: int = 0) -> ListResponse[Extraction]:
-        data = self._transport.request(
-            "GET", f"files/{file_id}/extractions", params={"limit": limit, "offset": offset}
+        response = self._transport.call_sync(
+            self._transport.apis.extractions.list_file_extractions_sync,
+            retry_allowed=True,
+            file_id=file_id,
+            limit=limit,
+            offset=offset,
         )
-        result = ListResponse[Extraction].model_validate(data)
+        result: ListResponse[Extraction] = ListResponse(response.data)
         result.items = [self._bind(item) for item in result.items]
         return result
 
@@ -181,8 +207,8 @@ class DocumentsResource:
     def __init__(self, transport: SyncTransport) -> None:
         self._transport = transport
 
-    def _bind(self, document: Document) -> Document:
-        return document._bind_waiter(self._wait)
+    def _bind(self, value: Any) -> Document:
+        return Document.model_validate(value.model_dump())._bind_waiter(self._wait)
 
     def create(
         self,
@@ -192,32 +218,48 @@ class DocumentsResource:
         title: str | None = None,
         metadata: dict[str, Any] | None = None,
     ) -> Document:
-        data = self._transport.request(
-            "POST",
-            f"knowledge-bases/{kb_id}/documents",
-            json=_compact({"file_id": file_id, "title": title, "metadata": metadata}),
+        response = self._transport.call_sync(
+            self._transport.apis.documents.create_document_sync,
+            retry_allowed=True,
+            kb_id=kb_id,
+            document_create=DocumentCreate(
+                file_id=file_id,
+                title=title,
+                metadata=metadata,
+            ),
             idempotency_key=_idempotency_key(),
         )
-        return self._bind(Document.model_validate(data))
+        return self._bind(response.data)
 
     def list(self, kb_id: str, *, limit: int = 50, offset: int = 0) -> ListResponse[Document]:
-        data = self._transport.request(
-            "GET",
-            f"knowledge-bases/{kb_id}/documents",
-            params={"limit": limit, "offset": offset},
+        response = self._transport.call_sync(
+            self._transport.apis.documents.list_documents_sync,
+            retry_allowed=True,
+            kb_id=kb_id,
+            limit=limit,
+            offset=offset,
         )
-        result = ListResponse[Document].model_validate(data)
+        result: ListResponse[Document] = ListResponse(response.data)
         result.items = [self._bind(item) for item in result.items]
         return result
 
     def get(self, kb_id: str, document_id: str) -> Document:
-        data = self._transport.request("GET", f"knowledge-bases/{kb_id}/documents/{document_id}")
-        return self._bind(Document.model_validate(data))
+        response = self._transport.call_sync(
+            self._transport.apis.documents.get_document_sync,
+            retry_allowed=True,
+            kb_id=kb_id,
+            document_id=document_id,
+        )
+        return self._bind(response.data)
 
     def delete(self, kb_id: str, document_id: str) -> DeletionResult:
-        return DeletionResult.model_validate(
-            self._transport.request("DELETE", f"knowledge-bases/{kb_id}/documents/{document_id}")
+        response = self._transport.call_sync(
+            self._transport.apis.documents.delete_document_sync,
+            retry_allowed=True,
+            kb_id=kb_id,
+            document_id=document_id,
         )
+        return response.data
 
     def _wait(self, kb_id: str, document_id: str, timeout: float, poll_interval: float) -> Document:
         deadline = time.monotonic() + timeout
@@ -244,41 +286,55 @@ class KnowledgeBasesResource:
         chunking_strategy: dict[str, Any] | None = None,
         metadata: dict[str, Any] | None = None,
     ) -> KnowledgeBase:
-        data = self._transport.request(
-            "POST",
-            "knowledge-bases",
-            json=_compact(
-                {
-                    "name": name,
-                    "description": description,
-                    "chunking_strategy": chunking_strategy,
-                    "metadata": metadata,
-                }
+        response = self._transport.call_sync(
+            self._transport.apis.knowledge_bases.create_knowledge_base_sync,
+            retry_allowed=True,
+            knowledge_base_create=KnowledgeBaseCreate(
+                name=name,
+                description=description,
+                chunking_strategy=(
+                    ChunkingStrategy.from_dict(chunking_strategy)
+                    if chunking_strategy is not None
+                    else None
+                ),
+                metadata=metadata,
             ),
             idempotency_key=_idempotency_key(),
         )
-        return KnowledgeBase.model_validate(data)
+        return response.data
 
     def list(self, *, limit: int = 50, offset: int = 0) -> ListResponse[KnowledgeBase]:
-        data = self._transport.request(
-            "GET", "knowledge-bases", params={"limit": limit, "offset": offset}
+        response = self._transport.call_sync(
+            self._transport.apis.knowledge_bases.list_knowledge_bases_sync,
+            retry_allowed=True,
+            limit=limit,
+            offset=offset,
         )
-        return ListResponse[KnowledgeBase].model_validate(data)
+        return ListResponse(response.data)
 
     def get(self, kb_id: str) -> KnowledgeBase:
-        return KnowledgeBase.model_validate(
-            self._transport.request("GET", f"knowledge-bases/{kb_id}")
+        response = self._transport.call_sync(
+            self._transport.apis.knowledge_bases.get_knowledge_base_sync,
+            retry_allowed=True,
+            kb_id=kb_id,
         )
+        return response.data
 
     def update(self, kb_id: str, **changes: Any) -> KnowledgeBase:
-        return KnowledgeBase.model_validate(
-            self._transport.request("PATCH", f"knowledge-bases/{kb_id}", json=changes)
+        response = self._transport.call_sync(
+            self._transport.apis.knowledge_bases.update_knowledge_base_sync,
+            kb_id=kb_id,
+            knowledge_base_update=KnowledgeBaseUpdate.from_dict(changes),
         )
+        return response.data
 
     def delete(self, kb_id: str) -> DeletionResult:
-        return DeletionResult.model_validate(
-            self._transport.request("DELETE", f"knowledge-bases/{kb_id}")
+        response = self._transport.call_sync(
+            self._transport.apis.knowledge_bases.delete_knowledge_base_sync,
+            retry_allowed=True,
+            kb_id=kb_id,
         )
+        return response.data
 
     def search(
         self,
@@ -289,15 +345,17 @@ class KnowledgeBasesResource:
         threshold: float = 0,
         filter: dict[str, Any] | None = None,
     ) -> SearchResults:
-        data = self._transport.request(
-            "POST",
-            f"knowledge-bases/{kb_id}/search",
-            json=_compact(
-                {"query": query, "top_k": top_k, "threshold": threshold, "filter": filter}
+        response = self._transport.call_sync(
+            self._transport.apis.search.search_knowledge_base_sync,
+            kb_id=kb_id,
+            search_request=SearchRequest(
+                query=query,
+                top_k=top_k,
+                threshold=threshold,
+                filter=filter,
             ),
-            idempotency_key=_idempotency_key(),
         )
-        return SearchResults.model_validate(data)
+        return response.data
 
     def hybrid_search(
         self,
@@ -308,18 +366,17 @@ class KnowledgeBasesResource:
         keyword_weight: float = 0.3,
         top_k: int = 5,
     ) -> SearchResults:
-        data = self._transport.request(
-            "POST",
-            f"knowledge-bases/{kb_id}/hybrid-search",
-            json={
-                "query": query,
-                "vector_weight": vector_weight,
-                "keyword_weight": keyword_weight,
-                "top_k": top_k,
-            },
-            idempotency_key=_idempotency_key(),
+        response = self._transport.call_sync(
+            self._transport.apis.search.hybrid_search_knowledge_base_sync,
+            kb_id=kb_id,
+            hybrid_search_request=HybridSearchRequest(
+                query=query,
+                vector_weight=vector_weight,
+                keyword_weight=keyword_weight,
+                top_k=top_k,
+            ),
         )
-        return SearchResults.model_validate(data)
+        return response.data
 
 
 class WebhooksResource:
@@ -327,30 +384,46 @@ class WebhooksResource:
         self._transport = transport
 
     def create(self, url: str, events: list[str], *, description: str | None = None) -> Webhook:
-        data = self._transport.request(
-            "POST",
-            "webhooks",
-            json=_compact({"url": url, "events": events, "description": description}),
+        response = self._transport.call_sync(
+            self._transport.apis.webhooks.create_webhook_sync,
+            retry_allowed=True,
+            webhook_create=WebhookCreate(url=url, events=events, description=description),
             idempotency_key=_idempotency_key(),
         )
-        return Webhook.model_validate(data)
+        return response.data
 
     def list(self, *, limit: int = 50, offset: int = 0) -> ListResponse[Webhook]:
-        data = self._transport.request("GET", "webhooks", params={"limit": limit, "offset": offset})
-        return ListResponse[Webhook].model_validate(data)
+        response = self._transport.call_sync(
+            self._transport.apis.webhooks.list_webhooks_sync,
+            retry_allowed=True,
+            limit=limit,
+            offset=offset,
+        )
+        return ListResponse(response.data)
 
     def get(self, webhook_id: str) -> Webhook:
-        return Webhook.model_validate(self._transport.request("GET", f"webhooks/{webhook_id}"))
+        response = self._transport.call_sync(
+            self._transport.apis.webhooks.get_webhook_sync,
+            retry_allowed=True,
+            webhook_id=webhook_id,
+        )
+        return response.data
 
     def update(self, webhook_id: str, **changes: Any) -> Webhook:
-        return Webhook.model_validate(
-            self._transport.request("PATCH", f"webhooks/{webhook_id}", json=changes)
+        response = self._transport.call_sync(
+            self._transport.apis.webhooks.update_webhook_sync,
+            webhook_id=webhook_id,
+            webhook_update=WebhookUpdate.from_dict(changes),
         )
+        return response.data
 
     def delete(self, webhook_id: str) -> DeletionResult:
-        return DeletionResult.model_validate(
-            self._transport.request("DELETE", f"webhooks/{webhook_id}")
+        response = self._transport.call_sync(
+            self._transport.apis.webhooks.delete_webhook_sync,
+            retry_allowed=True,
+            webhook_id=webhook_id,
         )
+        return response.data
 
 
 class APIKeysResource:
@@ -364,22 +437,32 @@ class APIKeysResource:
         scopes: list[str] | None = None,
         expires_at: str | None = None,
     ) -> APIKey:
-        data = self._transport.request(
-            "POST",
-            "api-keys",
-            json=_compact({"name": name, "scopes": scopes, "expires_at": expires_at}),
+        response = self._transport.call_sync(
+            self._transport.apis.api_keys.create_api_key_sync,
+            retry_allowed=True,
+            api_key_create=APIKeyCreate.from_dict(
+                {"name": name, "scopes": scopes, "expires_at": expires_at}
+            ),
             idempotency_key=_idempotency_key(),
         )
-        return APIKey.model_validate(data)
+        return response.data
 
     def list(self, *, limit: int = 50, offset: int = 0) -> ListResponse[APIKey]:
-        data = self._transport.request("GET", "api-keys", params={"limit": limit, "offset": offset})
-        return ListResponse[APIKey].model_validate(data)
+        response = self._transport.call_sync(
+            self._transport.apis.api_keys.list_api_keys_sync,
+            retry_allowed=True,
+            limit=limit,
+            offset=offset,
+        )
+        return ListResponse(response.data)
 
     def delete(self, key_id: str) -> DeletionResult:
-        return DeletionResult.model_validate(
-            self._transport.request("DELETE", f"api-keys/{key_id}")
+        response = self._transport.call_sync(
+            self._transport.apis.api_keys.revoke_api_key_sync,
+            retry_allowed=True,
+            key_id=key_id,
         )
+        return response.data
 
     revoke = delete
 
@@ -389,10 +472,16 @@ class UsageResource:
         self._transport = transport
 
     def get_stats(self) -> UsageStats:
-        return UsageStats.model_validate(self._transport.request("GET", "usage/stats"))
+        return self._transport.call_sync(
+            self._transport.apis.usage.get_usage_stats_sync,
+            retry_allowed=True,
+        ).data
 
     def get_limits(self) -> UsageLimits:
-        return UsageLimits.model_validate(self._transport.request("GET", "usage/limits"))
+        return self._transport.call_sync(
+            self._transport.apis.usage.get_usage_limits_sync,
+            retry_allowed=True,
+        ).data
 
 
 class AsyncFilesResource:
@@ -409,23 +498,18 @@ class AsyncFilesResource:
         metadata: dict[str, Any] | None = None,
         tags: list[str] | None = None,
     ) -> File:
-        if path is not None:
-            file_path = Path(path)
-            content = await asyncio.to_thread(file_path.read_bytes)
-            filename = filename or file_path.name
-            path = None
-        files, form = _upload_parts(
-            path,
-            content=content,
-            filename=filename,
-            content_type=content_type,
-            metadata=metadata,
-            tags=tags,
+        upload = _upload(path, content=content, filename=filename)
+        if content_type and (suffix := Path(upload[0]).suffix):
+            mimetypes.add_type(content_type, suffix)
+        response = await self._transport.call_async(
+            self._transport.apis.files.upload_file,
+            retry_allowed=True,
+            file=upload,
+            idempotency_key=_idempotency_key(),
+            metadata=json.dumps(metadata or {}, ensure_ascii=False),
+            tags=json.dumps(tags or [], ensure_ascii=False),
         )
-        data = await self._transport.request(
-            "POST", "files", files=files, data=form, idempotency_key=_idempotency_key()
-        )
-        return File.model_validate(data)
+        return response.data
 
     async def list(
         self,
@@ -437,63 +521,93 @@ class AsyncFilesResource:
         sort_by: str = "created_at",
         order: str = "desc",
     ) -> ListResponse[File]:
-        query = {
-            "limit": limit,
-            "offset": offset,
-            "tags": ",".join(tags) if tags else None,
-            "content_type": content_type,
-            "sort_by": sort_by,
-            "order": order,
-        }
-        data = await self._transport.request("GET", "files", params=_compact(query))
-        return ListResponse[File].model_validate(data)
+        response = await self._transport.call_async(
+            self._transport.apis.files.list_files,
+            retry_allowed=True,
+            limit=limit,
+            offset=offset,
+            tags=",".join(tags) if tags else None,
+            content_type=content_type,
+            sort_by=sort_by,
+            order=order,
+        )
+        return ListResponse(response.data)
 
     async def get(self, file_id: str) -> File:
-        return File.model_validate(await self._transport.request("GET", f"files/{file_id}"))
+        return (
+            await self._transport.call_async(
+                self._transport.apis.files.get_file,
+                retry_allowed=True,
+                file_id=file_id,
+            )
+        ).data
 
     async def download(self, file_id: str) -> bytes:
-        return await self._transport.request_binary(f"files/{file_id}/download")
+        return await self._transport.call_async(
+            self._transport.apis.files.download_file,
+            retry_allowed=True,
+            file_id=file_id,
+        )
 
     async def delete(self, file_id: str) -> DeletionResult:
-        return DeletionResult.model_validate(
-            await self._transport.request("DELETE", f"files/{file_id}")
-        )
+        return (
+            await self._transport.call_async(
+                self._transport.apis.files.delete_file,
+                retry_allowed=True,
+                file_id=file_id,
+            )
+        ).data
 
     async def list_supported_types(self) -> SupportedFileTypes:
-        return SupportedFileTypes.model_validate(
-            await self._transport.request("GET", "files/types")
-        )
+        return (
+            await self._transport.call_async(
+                self._transport.apis.files.list_supported_file_types,
+                retry_allowed=True,
+            )
+        ).data
 
 
 class AsyncExtractionsResource:
     def __init__(self, transport: AsyncTransport) -> None:
         self._transport = transport
 
-    def _bind(self, extraction: AsyncExtraction) -> AsyncExtraction:
-        return extraction._bind_waiter(self._wait)
+    def _bind(self, value: Any) -> AsyncExtraction:
+        return AsyncExtraction.model_validate(value.model_dump())._bind_waiter(self._wait)
 
     async def create(
         self, file_id: str, *, mode: str = "normal", options: dict[str, Any] | None = None
     ) -> AsyncExtraction:
-        data = await self._transport.request(
-            "POST",
-            "extractions",
-            json={"file_id": file_id, "mode": mode, "options": options or {}},
+        response = await self._transport.call_async(
+            self._transport.apis.extractions.create_extraction,
+            retry_allowed=True,
+            extraction_create=ExtractionCreate(
+                file_id=file_id,
+                mode=mode,
+                options=ExtractionOptions.from_dict(options or {}),
+            ),
             idempotency_key=_idempotency_key(),
         )
-        return self._bind(AsyncExtraction.model_validate(data))
+        return self._bind(response.data)
 
     async def get(self, extraction_id: str) -> AsyncExtraction:
-        data = await self._transport.request("GET", f"extractions/{extraction_id}")
-        return self._bind(AsyncExtraction.model_validate(data))
+        response = await self._transport.call_async(
+            self._transport.apis.extractions.get_extraction,
+            retry_allowed=True,
+            extraction_id=extraction_id,
+        )
+        return self._bind(response.data)
 
     async def list(
         self, file_id: str, *, limit: int = 50, offset: int = 0
     ) -> ListResponse[AsyncExtraction]:
-        data = await self._transport.request(
-            "GET", f"files/{file_id}/extractions", params={"limit": limit, "offset": offset}
+        response = await self._transport.call_async(
+            self._transport.apis.extractions.list_file_extractions,
+            retry_allowed=True,
+            file_id=file_id,
+            limit=limit,
+            offset=offset,
         )
-        result = ListResponse[AsyncExtraction].model_validate(data)
+        result: ListResponse[AsyncExtraction] = ListResponse(response.data)
         result.items = [self._bind(item) for item in result.items]
         return result
 
@@ -515,8 +629,8 @@ class AsyncDocumentsResource:
     def __init__(self, transport: AsyncTransport) -> None:
         self._transport = transport
 
-    def _bind(self, document: AsyncDocument) -> AsyncDocument:
-        return document._bind_waiter(self._wait)
+    def _bind(self, value: Any) -> AsyncDocument:
+        return AsyncDocument.model_validate(value.model_dump())._bind_waiter(self._wait)
 
     async def create(
         self,
@@ -526,38 +640,51 @@ class AsyncDocumentsResource:
         title: str | None = None,
         metadata: dict[str, Any] | None = None,
     ) -> AsyncDocument:
-        data = await self._transport.request(
-            "POST",
-            f"knowledge-bases/{kb_id}/documents",
-            json=_compact({"file_id": file_id, "title": title, "metadata": metadata}),
+        response = await self._transport.call_async(
+            self._transport.apis.documents.create_document,
+            retry_allowed=True,
+            kb_id=kb_id,
+            document_create=DocumentCreate(
+                file_id=file_id,
+                title=title,
+                metadata=metadata,
+            ),
             idempotency_key=_idempotency_key(),
         )
-        return self._bind(AsyncDocument.model_validate(data))
+        return self._bind(response.data)
 
     async def list(
         self, kb_id: str, *, limit: int = 50, offset: int = 0
     ) -> ListResponse[AsyncDocument]:
-        data = await self._transport.request(
-            "GET",
-            f"knowledge-bases/{kb_id}/documents",
-            params={"limit": limit, "offset": offset},
+        response = await self._transport.call_async(
+            self._transport.apis.documents.list_documents,
+            retry_allowed=True,
+            kb_id=kb_id,
+            limit=limit,
+            offset=offset,
         )
-        result = ListResponse[AsyncDocument].model_validate(data)
+        result: ListResponse[AsyncDocument] = ListResponse(response.data)
         result.items = [self._bind(item) for item in result.items]
         return result
 
     async def get(self, kb_id: str, document_id: str) -> AsyncDocument:
-        data = await self._transport.request(
-            "GET", f"knowledge-bases/{kb_id}/documents/{document_id}"
+        response = await self._transport.call_async(
+            self._transport.apis.documents.get_document,
+            retry_allowed=True,
+            kb_id=kb_id,
+            document_id=document_id,
         )
-        return self._bind(AsyncDocument.model_validate(data))
+        return self._bind(response.data)
 
     async def delete(self, kb_id: str, document_id: str) -> DeletionResult:
-        return DeletionResult.model_validate(
-            await self._transport.request(
-                "DELETE", f"knowledge-bases/{kb_id}/documents/{document_id}"
+        return (
+            await self._transport.call_async(
+                self._transport.apis.documents.delete_document,
+                retry_allowed=True,
+                kb_id=kb_id,
+                document_id=document_id,
             )
-        )
+        ).data
 
     async def _wait(
         self, kb_id: str, document_id: str, timeout: float, poll_interval: float
@@ -579,52 +706,72 @@ class AsyncKnowledgeBasesResource:
         self.documents = AsyncDocumentsResource(transport)
 
     async def create(self, name: str, **options: Any) -> KnowledgeBase:
-        data = await self._transport.request(
-            "POST",
-            "knowledge-bases",
-            json=_compact({"name": name, **options}),
+        strategy = options.pop("chunking_strategy", None)
+        response = await self._transport.call_async(
+            self._transport.apis.knowledge_bases.create_knowledge_base,
+            retry_allowed=True,
+            knowledge_base_create=KnowledgeBaseCreate(
+                name=name,
+                chunking_strategy=(ChunkingStrategy.from_dict(strategy) if strategy else None),
+                **options,
+            ),
             idempotency_key=_idempotency_key(),
         )
-        return KnowledgeBase.model_validate(data)
+        return response.data
 
     async def list(self, *, limit: int = 50, offset: int = 0) -> ListResponse[KnowledgeBase]:
-        data = await self._transport.request(
-            "GET", "knowledge-bases", params={"limit": limit, "offset": offset}
+        response = await self._transport.call_async(
+            self._transport.apis.knowledge_bases.list_knowledge_bases,
+            retry_allowed=True,
+            limit=limit,
+            offset=offset,
         )
-        return ListResponse[KnowledgeBase].model_validate(data)
+        return ListResponse(response.data)
 
     async def get(self, kb_id: str) -> KnowledgeBase:
-        return KnowledgeBase.model_validate(
-            await self._transport.request("GET", f"knowledge-bases/{kb_id}")
-        )
+        return (
+            await self._transport.call_async(
+                self._transport.apis.knowledge_bases.get_knowledge_base,
+                retry_allowed=True,
+                kb_id=kb_id,
+            )
+        ).data
 
     async def update(self, kb_id: str, **changes: Any) -> KnowledgeBase:
-        return KnowledgeBase.model_validate(
-            await self._transport.request("PATCH", f"knowledge-bases/{kb_id}", json=changes)
-        )
+        return (
+            await self._transport.call_async(
+                self._transport.apis.knowledge_bases.update_knowledge_base,
+                kb_id=kb_id,
+                knowledge_base_update=KnowledgeBaseUpdate.from_dict(changes),
+            )
+        ).data
 
     async def delete(self, kb_id: str) -> DeletionResult:
-        return DeletionResult.model_validate(
-            await self._transport.request("DELETE", f"knowledge-bases/{kb_id}")
-        )
+        return (
+            await self._transport.call_async(
+                self._transport.apis.knowledge_bases.delete_knowledge_base,
+                retry_allowed=True,
+                kb_id=kb_id,
+            )
+        ).data
 
     async def search(self, kb_id: str, query: str, **options: Any) -> SearchResults:
-        data = await self._transport.request(
-            "POST",
-            f"knowledge-bases/{kb_id}/search",
-            json={"query": query, **options},
-            idempotency_key=_idempotency_key(),
-        )
-        return SearchResults.model_validate(data)
+        return (
+            await self._transport.call_async(
+                self._transport.apis.search.search_knowledge_base,
+                kb_id=kb_id,
+                search_request=SearchRequest(query=query, **options),
+            )
+        ).data
 
     async def hybrid_search(self, kb_id: str, query: str, **options: Any) -> SearchResults:
-        data = await self._transport.request(
-            "POST",
-            f"knowledge-bases/{kb_id}/hybrid-search",
-            json={"query": query, **options},
-            idempotency_key=_idempotency_key(),
-        )
-        return SearchResults.model_validate(data)
+        return (
+            await self._transport.call_async(
+                self._transport.apis.search.hybrid_search_knowledge_base,
+                kb_id=kb_id,
+                hybrid_search_request=HybridSearchRequest(query=query, **options),
+            )
+        ).data
 
 
 class AsyncWebhooksResource:
@@ -634,34 +781,50 @@ class AsyncWebhooksResource:
     async def create(
         self, url: str, events: list[str], *, description: str | None = None
     ) -> Webhook:
-        data = await self._transport.request(
-            "POST",
-            "webhooks",
-            json=_compact({"url": url, "events": events, "description": description}),
-            idempotency_key=_idempotency_key(),
-        )
-        return Webhook.model_validate(data)
+        return (
+            await self._transport.call_async(
+                self._transport.apis.webhooks.create_webhook,
+                retry_allowed=True,
+                webhook_create=WebhookCreate(url=url, events=events, description=description),
+                idempotency_key=_idempotency_key(),
+            )
+        ).data
 
     async def list(self, *, limit: int = 50, offset: int = 0) -> ListResponse[Webhook]:
-        data = await self._transport.request(
-            "GET", "webhooks", params={"limit": limit, "offset": offset}
+        response = await self._transport.call_async(
+            self._transport.apis.webhooks.list_webhooks,
+            retry_allowed=True,
+            limit=limit,
+            offset=offset,
         )
-        return ListResponse[Webhook].model_validate(data)
+        return ListResponse(response.data)
 
     async def get(self, webhook_id: str) -> Webhook:
-        return Webhook.model_validate(
-            await self._transport.request("GET", f"webhooks/{webhook_id}")
-        )
+        return (
+            await self._transport.call_async(
+                self._transport.apis.webhooks.get_webhook,
+                retry_allowed=True,
+                webhook_id=webhook_id,
+            )
+        ).data
 
     async def update(self, webhook_id: str, **changes: Any) -> Webhook:
-        return Webhook.model_validate(
-            await self._transport.request("PATCH", f"webhooks/{webhook_id}", json=changes)
-        )
+        return (
+            await self._transport.call_async(
+                self._transport.apis.webhooks.update_webhook,
+                webhook_id=webhook_id,
+                webhook_update=WebhookUpdate.from_dict(changes),
+            )
+        ).data
 
     async def delete(self, webhook_id: str) -> DeletionResult:
-        return DeletionResult.model_validate(
-            await self._transport.request("DELETE", f"webhooks/{webhook_id}")
-        )
+        return (
+            await self._transport.call_async(
+                self._transport.apis.webhooks.delete_webhook,
+                retry_allowed=True,
+                webhook_id=webhook_id,
+            )
+        ).data
 
 
 class AsyncAPIKeysResource:
@@ -669,24 +832,32 @@ class AsyncAPIKeysResource:
         self._transport = transport
 
     async def create(self, name: str, **options: Any) -> APIKey:
-        data = await self._transport.request(
-            "POST",
-            "api-keys",
-            json=_compact({"name": name, **options}),
-            idempotency_key=_idempotency_key(),
-        )
-        return APIKey.model_validate(data)
+        return (
+            await self._transport.call_async(
+                self._transport.apis.api_keys.create_api_key,
+                retry_allowed=True,
+                api_key_create=APIKeyCreate.from_dict({"name": name, **options}),
+                idempotency_key=_idempotency_key(),
+            )
+        ).data
 
     async def list(self, *, limit: int = 50, offset: int = 0) -> ListResponse[APIKey]:
-        data = await self._transport.request(
-            "GET", "api-keys", params={"limit": limit, "offset": offset}
+        response = await self._transport.call_async(
+            self._transport.apis.api_keys.list_api_keys,
+            retry_allowed=True,
+            limit=limit,
+            offset=offset,
         )
-        return ListResponse[APIKey].model_validate(data)
+        return ListResponse(response.data)
 
     async def delete(self, key_id: str) -> DeletionResult:
-        return DeletionResult.model_validate(
-            await self._transport.request("DELETE", f"api-keys/{key_id}")
-        )
+        return (
+            await self._transport.call_async(
+                self._transport.apis.api_keys.revoke_api_key,
+                retry_allowed=True,
+                key_id=key_id,
+            )
+        ).data
 
     revoke = delete
 
@@ -696,10 +867,20 @@ class AsyncUsageResource:
         self._transport = transport
 
     async def get_stats(self) -> UsageStats:
-        return UsageStats.model_validate(await self._transport.request("GET", "usage/stats"))
+        return (
+            await self._transport.call_async(
+                self._transport.apis.usage.get_usage_stats,
+                retry_allowed=True,
+            )
+        ).data
 
     async def get_limits(self) -> UsageLimits:
-        return UsageLimits.model_validate(await self._transport.request("GET", "usage/limits"))
+        return (
+            await self._transport.call_async(
+                self._transport.apis.usage.get_usage_limits,
+                retry_allowed=True,
+            )
+        ).data
 
 
 __all__ = [

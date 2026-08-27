@@ -1,0 +1,14 @@
+generatorName: python
+additionalProperties:
+  packageName: unifiles_generated
+  projectName: unifiles-generated
+  packageVersion: 0.1.0
+  library: httpx
+  generateSourceCodeOnly: true
+  supportHttpxSync: true
+  disallowAdditionalPropertiesIfNotPresent: false
+globalProperties:
+  apiDocs: false
+  apiTests: false
+  modelDocs: false
+  modelTests: false

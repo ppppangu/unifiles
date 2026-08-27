@@ -1,0 +1,75 @@
+# coding: utf-8
+
+from typing import Dict, List  # noqa: F401
+
+from {{apiPackage}}.{{classFilename}}_{{baseSuffix}} import Base{{classname}}
+from unifiles_server.implementation import resolve_api
+
+from fastapi import (  # noqa: F401
+    APIRouter,
+    Body,
+    Cookie,
+    Depends,
+    File,
+    Form,
+    Header,
+    HTTPException,
+    Path,
+    Query,
+    Request,
+    Response,
+    Security,
+    UploadFile,
+    status,
+)
+from {{modelPackage}}.extra_models import TokenModel  # noqa: F401
+{{#imports}}
+{{import}}
+{{/imports}}
+{{#securityImports.0}}from {{packageName}}.security_api import {{#securityImports}}get_token_{{.}}{{^-last}}, {{/-last}}{{/securityImports}}{{/securityImports.0}}
+
+router = APIRouter()
+
+{{#operations}}
+{{#operation}}
+@router.{{#lambda.lowercase}}{{httpMethod}}{{/lambda.lowercase}}(
+    "{{{path}}}",
+    {{#responses}}
+    {{#is2xx}}
+    status_code={{code}},
+    {{/is2xx}}
+    {{/responses}}
+    responses={
+        {{#responses}}
+        {{#isDefault}}"default"{{/isDefault}}{{^isDefault}}{{code}}{{/isDefault}}: {{=<% %>=}}{<%#dataType%>"model": <%dataType%>, "description": "<%message%>"<%/dataType%><%^dataType%>"description": "<%message%>"<%/dataType%>}<%={{ }}=%>,
+        {{/responses}}
+    },
+    tags=[{{#tags}}"{{name}}"{{^-last}},{{/-last}}{{/tags}}],
+    operation_id="{{{operationIdOriginal}}}",
+    {{#summary}}
+    summary="{{.}}",
+    {{/summary}}
+    {{#description}}
+    description="{{.}}",
+    {{/description}}
+    response_model_by_alias=True,
+)
+async def {{operationId}}(
+    {{#allParams}}
+    {{>endpoint_argument_definition}},
+    {{/allParams}}
+    {{#hasAuthMethods}}
+    {{#authMethods}}
+    token_{{name}}: TokenModel = Security(
+        get_token_{{name}}{{#isOAuth}}, scopes=[{{#scopes}}"{{scope}}"{{^-last}}, {{/-last}}{{/scopes}}]{{/isOAuth}}
+    ),
+    {{/authMethods}}
+    {{/hasAuthMethods}}
+) -> {{returnType}}{{^returnType}}None{{/returnType}}:
+    {{#notes}}"""{{.}}"""
+    {{/notes}}return await resolve_api(Base{{classname}}).{{operationId}}({{#allParams}}{{>impl_argument}}{{^-last}}, {{/-last}}{{/allParams}})
+{{^-last}}
+
+{{/-last}}
+{{/operation}}
+{{/operations}}

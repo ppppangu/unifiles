@@ -1,59 +1,53 @@
+import type { APIKeyResource } from "../generated/src/models/APIKeyResource.js";
+import type { ChunkResource } from "../generated/src/models/ChunkResource.js";
+import type { ChunkingStrategy as GeneratedChunkingStrategy } from "../generated/src/models/ChunkingStrategy.js";
+import type { DeletionResult as GeneratedDeletionResult } from "../generated/src/models/DeletionResult.js";
+import type { DocumentResource } from "../generated/src/models/DocumentResource.js";
+import type { ExtractionOptions as GeneratedExtractionOptions } from "../generated/src/models/ExtractionOptions.js";
+import type { ExtractionResource } from "../generated/src/models/ExtractionResource.js";
+import type { FileList } from "../generated/src/models/FileList.js";
+import type { FileResource as GeneratedFileResource } from "../generated/src/models/FileResource.js";
+import type { KnowledgeBaseResource } from "../generated/src/models/KnowledgeBaseResource.js";
+import type { SearchResults as GeneratedSearchResults } from "../generated/src/models/SearchResults.js";
+import type { SupportedFileTypes as GeneratedSupportedFileTypes } from "../generated/src/models/SupportedFileTypes.js";
+import type { UsageLimits as GeneratedUsageLimits } from "../generated/src/models/UsageLimits.js";
+import type { UsageStats as GeneratedUsageStats } from "../generated/src/models/UsageStats.js";
+import type { WebhookResource } from "../generated/src/models/WebhookResource.js";
+
 import { ProcessingError, TimeoutError } from "./errors.js";
 
-export interface ListResponse<T> {
-  items: T[];
-  total: number;
-  limit: number;
-  offset: number;
-  hasMore: boolean;
+export type FileResource = GeneratedFileResource;
+export type KnowledgeBase = Omit<KnowledgeBaseResource, "chunkingStrategy"> & {
+  chunkingStrategy: ChunkingStrategy;
+};
+export type Chunk = ChunkResource;
+export type SearchResults = GeneratedSearchResults;
+export type Webhook = WebhookResource;
+export type APIKey = APIKeyResource;
+export type UsageStats = GeneratedUsageStats;
+export type UsageLimits = GeneratedUsageLimits;
+export type DeletionResult = GeneratedDeletionResult;
+export type SupportedFileTypes = GeneratedSupportedFileTypes;
+export type ChunkingStrategy = GeneratedChunkingStrategy & {
+  readonly chunk_size?: undefined;
+};
+export type ExtractionOptions = GeneratedExtractionOptions;
+export type ExtractionData = ExtractionResource;
+export type DocumentData = DocumentResource;
+
+export type ListResponse<T> = Omit<FileList, "items"> & { items: T[] };
+
+export interface WaitOptions {
+  timeoutMs?: number;
+  pollIntervalMs?: number;
 }
 
-export interface FileResource {
-  id: string;
-  filename: string;
-  contentType: string;
-  size: number;
-  metadata: Record<string, unknown>;
-  tags: string[];
-  createdAt: string;
-  updatedAt?: string;
-}
-
-export interface ExtractionData {
-  id: string;
-  fileId: string;
-  status: "pending" | "processing" | "completed" | "failed" | "cancelled";
-  mode: string;
-  progress?: number;
-  markdown?: string;
-  totalPages?: number;
-  metadata?: Record<string, unknown>;
-  error?: Record<string, unknown>;
-  createdAt: string;
-  completedAt?: string;
-}
-
-export class Extraction implements ExtractionData {
-  id: string;
-  fileId: string;
-  status: ExtractionData["status"];
-  mode: string;
-  progress?: number;
-  markdown?: string;
-  totalPages?: number;
-  metadata?: Record<string, unknown>;
-  error?: Record<string, unknown>;
-  createdAt: string;
-  completedAt?: string;
+export interface Extraction extends ExtractionResource {}
+export class Extraction {
   readonly #waiter: (id: string, options: WaitOptions) => Promise<Extraction>;
 
-  constructor(data: ExtractionData, waiter: (id: string, options: WaitOptions) => Promise<Extraction>) {
+  constructor(data: ExtractionResource, waiter: (id: string, options: WaitOptions) => Promise<Extraction>) {
     Object.assign(this, data);
-    this.id = data.id;
-    this.fileId = data.fileId;
-    this.status = data.status;
-    this.mode = data.mode;
-    this.createdAt = data.createdAt;
     this.#waiter = waiter;
   }
 
@@ -64,71 +58,15 @@ export class Extraction implements ExtractionData {
   }
 }
 
-export interface KnowledgeBase {
-  id: string;
-  name: string;
-  description?: string;
-  chunkingStrategy: ChunkingStrategy;
-  documentCount: number;
-  chunkCount: number;
-  metadata?: Record<string, unknown>;
-  createdAt: string;
-  updatedAt?: string;
-}
-
-export interface ChunkingStrategy {
-  type: "fixed" | "semantic" | "hierarchical" | "paragraph";
-  chunkSize: number;
-  overlap: number;
-  [key: string]: unknown;
-}
-
-export interface ExtractionOptions {
-  language?: string;
-  ocrProvider?: string;
-  extractTables?: boolean;
-  extractImages?: boolean;
-  preserveLayout?: boolean;
-  [key: string]: unknown;
-}
-
-export interface DocumentData {
-  id: string;
-  kbId: string;
-  fileId: string;
-  title?: string;
-  status: "pending" | "indexing" | "indexed" | "failed" | "cancelled";
-  chunkCount: number;
-  metadata?: Record<string, unknown>;
-  error?: Record<string, unknown>;
-  createdAt: string;
-  indexedAt?: string;
-}
-
-export class Document implements DocumentData {
-  id: string;
-  kbId: string;
-  fileId: string;
-  title?: string;
-  status: DocumentData["status"];
-  chunkCount: number;
-  metadata?: Record<string, unknown>;
-  error?: Record<string, unknown>;
-  createdAt: string;
-  indexedAt?: string;
+export interface Document extends DocumentResource {}
+export class Document {
   readonly #waiter: (kbId: string, id: string, options: WaitOptions) => Promise<Document>;
 
   constructor(
-    data: DocumentData,
+    data: DocumentResource,
     waiter: (kbId: string, id: string, options: WaitOptions) => Promise<Document>,
   ) {
     Object.assign(this, data);
-    this.id = data.id;
-    this.kbId = data.kbId;
-    this.fileId = data.fileId;
-    this.status = data.status;
-    this.chunkCount = data.chunkCount;
-    this.createdAt = data.createdAt;
     this.#waiter = waiter;
   }
 
@@ -139,78 +77,12 @@ export class Document implements DocumentData {
   }
 }
 
-export interface Chunk {
-  id: string;
-  documentId: string;
-  documentTitle?: string;
-  content: string;
-  score: number;
-  vectorScore?: number;
-  keywordScore?: number;
-  metadata: Record<string, unknown>;
-}
-
-export interface SearchResults {
-  query: string;
-  chunks: Chunk[];
-  total: number;
-}
-
-export interface Webhook {
-  id: string;
-  url: string;
-  events: string[];
-  enabled: boolean;
-  description?: string;
-  lastDeliveryAt?: string;
-  createdAt: string;
-  updatedAt?: string;
-}
-
-export interface APIKey {
-  id: string;
-  name: string;
-  key?: string;
-  keyPrefix: string;
-  scopes: string[];
-  lastUsedAt?: string;
-  expiresAt?: string;
-  createdAt: string;
-}
-
-export interface UsageStats {
-  storage: { usedBytes: number; limitBytes: number; usedPercentage: number };
-  extraction: { pagesUsed: number; pagesLimit: number; resetAt?: string };
-  knowledgeBases: { used: number; limit: number };
-}
-
-export interface UsageLimits {
-  apiCalls: Record<string, unknown>;
-  storage: Record<string, unknown>;
-  files: Record<string, unknown>;
-}
-
-export interface DeletionResult {
-  id: string;
-  deleted: boolean;
-}
-
-export interface SupportedFileTypes {
-  documentTypes: string[];
-  imageTypes: string[];
-  allTypes: string[];
-}
-
-export interface WaitOptions {
-  timeoutMs?: number;
-  pollIntervalMs?: number;
-}
-
-export function terminalFailure(data: ExtractionData | DocumentData): void {
+export function terminalFailure(data: ExtractionResource | DocumentResource): void {
   if (data.status === "failed" || data.status === "cancelled") {
+    const details = data.error ?? undefined;
     throw new ProcessingError(String(data.error?.message ?? "Processing failed"), {
       code: String(data.error?.code ?? "PROCESSING_FAILED"),
-      details: data.error,
+      ...(details ? { details } : {}),
     });
   }
 }

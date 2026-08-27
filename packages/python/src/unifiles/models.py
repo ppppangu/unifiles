@@ -1,31 +1,66 @@
-"""Typed public resource models."""
+"""Public SDK models composed from generated protocol models."""
 
 from __future__ import annotations
 
 from collections.abc import Awaitable, Callable, Iterator
-from datetime import datetime
 from typing import Any, Generic, TypeVar
 
-from pydantic import BaseModel, ConfigDict, Field, PrivateAttr
+from pydantic import PrivateAttr
+from unifiles_generated.models.api_key_resource import APIKeyResource
+from unifiles_generated.models.chunk_resource import ChunkResource
+from unifiles_generated.models.deletion_result import DeletionResult
+from unifiles_generated.models.document_resource import DocumentResource
+from unifiles_generated.models.extraction_resource import ExtractionResource
+from unifiles_generated.models.file_resource import FileResource
+from unifiles_generated.models.knowledge_base_resource import KnowledgeBaseResource
+from unifiles_generated.models.search_results import SearchResults
+from unifiles_generated.models.supported_file_types import SupportedFileTypes
+from unifiles_generated.models.usage_limits import UsageLimits
+from unifiles_generated.models.usage_stats import UsageStats
+from unifiles_generated.models.webhook_resource import WebhookResource
 
 from .exceptions import ProcessingError, TimeoutError
 
-
-class APIModel(BaseModel):
-    model_config = ConfigDict(extra="ignore", populate_by_name=True, validate_assignment=True)
-
+APIKey = APIKeyResource
+Chunk = ChunkResource
+File = FileResource
+KnowledgeBase = KnowledgeBaseResource
+Webhook = WebhookResource
 
 T = TypeVar("T")
 
 
-class ListResponse(APIModel, Generic[T]):
-    items: list[T] = Field(default_factory=list)
-    total: int = 0
-    limit: int = 50
-    offset: int = 0
-    has_more: bool = False
+class ListResponse(Generic[T]):
+    """Iterable view over any generated concrete list model."""
 
-    def __iter__(self) -> Iterator[T]:  # type: ignore[override]
+    def __init__(self, generated: Any) -> None:
+        self._generated = generated
+
+    @property
+    def items(self) -> list[T]:
+        return self._generated.items
+
+    @items.setter
+    def items(self, value: list[T]) -> None:
+        self._generated.items = value
+
+    @property
+    def total(self) -> int:
+        return self._generated.total
+
+    @property
+    def limit(self) -> int:
+        return self._generated.limit
+
+    @property
+    def offset(self) -> int:
+        return self._generated.offset
+
+    @property
+    def has_more(self) -> bool:
+        return self._generated.has_more
+
+    def __iter__(self) -> Iterator[T]:
         return iter(self.items)
 
     def __len__(self) -> int:
@@ -34,37 +69,11 @@ class ListResponse(APIModel, Generic[T]):
     def __getitem__(self, index: int) -> T:
         return self.items[index]
 
-
-class File(APIModel):
-    id: str
-    filename: str
-    content_type: str
-    size: int
-    metadata: dict[str, Any] = Field(default_factory=dict)
-    tags: list[str] = Field(default_factory=list)
-    created_at: datetime
-    updated_at: datetime | None = None
+    def model_dump(self, **kwargs: Any) -> dict[str, Any]:
+        return self._generated.model_dump(**kwargs)
 
 
-class ExtractionData(APIModel):
-    id: str
-    file_id: str
-    status: str
-    mode: str = "normal"
-    progress: int | None = None
-    markdown: str | None = None
-    total_pages: int | None = None
-    metadata: dict[str, Any] | None = None
-    error: dict[str, Any] | None = None
-    created_at: datetime
-    completed_at: datetime | None = None
-
-    def _replace_from(self, other: ExtractionData) -> None:
-        for name in type(self).model_fields:
-            setattr(self, name, getattr(other, name))
-
-
-class Extraction(ExtractionData):
+class Extraction(ExtractionResource):
     _waiter: Callable[[str, float, float], Extraction] | None = PrivateAttr(default=None)
 
     def _bind_waiter(self, waiter: Callable[[str, float, float], Extraction]) -> Extraction:
@@ -75,11 +84,11 @@ class Extraction(ExtractionData):
         if self._waiter is None:
             raise RuntimeError("Extraction is not bound to a client")
         updated = self._waiter(self.id, timeout, poll_interval)
-        self._replace_from(updated)
+        _replace_model(self, updated)
         return self
 
 
-class AsyncExtraction(ExtractionData):
+class AsyncExtraction(ExtractionResource):
     _waiter: Callable[[str, float, float], Awaitable[AsyncExtraction]] | None = PrivateAttr(
         default=None
     )
@@ -94,40 +103,11 @@ class AsyncExtraction(ExtractionData):
         if self._waiter is None:
             raise RuntimeError("Extraction is not bound to a client")
         updated = await self._waiter(self.id, timeout, poll_interval)
-        self._replace_from(updated)
+        _replace_model(self, updated)
         return self
 
 
-class KnowledgeBase(APIModel):
-    id: str
-    name: str
-    description: str | None = None
-    chunking_strategy: dict[str, Any] = Field(default_factory=dict)
-    document_count: int = 0
-    chunk_count: int = 0
-    metadata: dict[str, Any] | None = None
-    created_at: datetime
-    updated_at: datetime | None = None
-
-
-class DocumentData(APIModel):
-    id: str
-    kb_id: str
-    file_id: str
-    title: str | None = None
-    status: str
-    chunk_count: int = 0
-    metadata: dict[str, Any] | None = None
-    error: dict[str, Any] | None = None
-    created_at: datetime
-    indexed_at: datetime | None = None
-
-    def _replace_from(self, other: DocumentData) -> None:
-        for name in type(self).model_fields:
-            setattr(self, name, getattr(other, name))
-
-
-class Document(DocumentData):
+class Document(DocumentResource):
     _waiter: Callable[[str, str, float, float], Document] | None = PrivateAttr(default=None)
 
     def _bind_waiter(self, waiter: Callable[[str, str, float, float], Document]) -> Document:
@@ -138,11 +118,11 @@ class Document(DocumentData):
         if self._waiter is None:
             raise RuntimeError("Document is not bound to a client")
         updated = self._waiter(self.kb_id, self.id, timeout, poll_interval)
-        self._replace_from(updated)
+        _replace_model(self, updated)
         return self
 
 
-class AsyncDocument(DocumentData):
+class AsyncDocument(DocumentResource):
     _waiter: Callable[[str, str, float, float], Awaitable[AsyncDocument]] | None = PrivateAttr(
         default=None
     )
@@ -157,90 +137,16 @@ class AsyncDocument(DocumentData):
         if self._waiter is None:
             raise RuntimeError("Document is not bound to a client")
         updated = await self._waiter(self.kb_id, self.id, timeout, poll_interval)
-        self._replace_from(updated)
+        _replace_model(self, updated)
         return self
 
 
-class Chunk(APIModel):
-    id: str
-    document_id: str
-    document_title: str | None = None
-    content: str
-    score: float
-    vector_score: float | None = None
-    keyword_score: float | None = None
-    metadata: dict[str, Any] = Field(default_factory=dict)
+def _replace_model(target: Any, source: Any) -> None:
+    for name in type(target).model_fields:
+        setattr(target, name, getattr(source, name))
 
 
-class SearchResults(APIModel):
-    query: str
-    chunks: list[Chunk] = Field(default_factory=list)
-    total: int = 0
-
-
-class Webhook(APIModel):
-    id: str
-    url: str
-    events: list[str]
-    enabled: bool = True
-    description: str | None = None
-    last_delivery_at: datetime | None = None
-    created_at: datetime
-    updated_at: datetime | None = None
-
-
-class APIKey(APIModel):
-    id: str
-    name: str
-    key: str | None = None
-    key_prefix: str
-    scopes: list[str] = Field(default_factory=list)
-    last_used_at: datetime | None = None
-    expires_at: datetime | None = None
-    created_at: datetime
-
-
-class StorageUsage(APIModel):
-    used_bytes: int = 0
-    limit_bytes: int = 0
-    used_percentage: float = 0
-
-
-class ExtractionUsage(APIModel):
-    pages_used: int = 0
-    pages_limit: int = 0
-    reset_at: datetime | None = None
-
-
-class KnowledgeBaseUsage(APIModel):
-    used: int = 0
-    limit: int = 0
-
-
-class UsageStats(APIModel):
-    storage: StorageUsage = Field(default_factory=StorageUsage)
-    extraction: ExtractionUsage = Field(default_factory=ExtractionUsage)
-    knowledge_bases: KnowledgeBaseUsage = Field(default_factory=KnowledgeBaseUsage)
-
-
-class UsageLimits(APIModel):
-    api_calls: dict[str, Any] = Field(default_factory=dict)
-    storage: dict[str, Any] = Field(default_factory=dict)
-    files: dict[str, Any] = Field(default_factory=dict)
-
-
-class DeletionResult(APIModel):
-    id: str
-    deleted: bool = True
-
-
-class SupportedFileTypes(APIModel):
-    document_types: list[str] = Field(default_factory=list)
-    image_types: list[str] = Field(default_factory=list)
-    all_types: list[str] = Field(default_factory=list)
-
-
-def raise_for_terminal_failure(resource: ExtractionData | DocumentData) -> None:
+def raise_for_terminal_failure(resource: ExtractionResource | DocumentResource) -> None:
     if resource.status in {"failed", "cancelled"}:
         error = resource.error or {}
         raise ProcessingError(
@@ -265,13 +171,10 @@ __all__ = [
     "DeletionResult",
     "Document",
     "Extraction",
-    "ExtractionUsage",
     "File",
     "KnowledgeBase",
-    "KnowledgeBaseUsage",
     "ListResponse",
     "SearchResults",
-    "StorageUsage",
     "SupportedFileTypes",
     "UsageLimits",
     "UsageStats",

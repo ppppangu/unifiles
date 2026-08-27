@@ -17,14 +17,13 @@
   "files": ["dist", "README.md"],
   "engines": {"node": ">=22"},
   "scripts": {
-    "generate": "openapi-typescript ../../api/openapi.yaml -o src/generated/schema.d.ts",
+    "generate": "uv run python ../../scripts/generate_contract.py --typescript-only",
     "build": "tsup src/index.ts --format esm,cjs --dts --sourcemap --clean",
     "typecheck": "tsc --noEmit",
     "test": "vitest run"
   },
   "devDependencies": {
     "@types/node": "^22.10.0",
-    "openapi-typescript": "^7.5.2",
     "tsup": "^8.3.5",
     "typescript": "^5.7.2",
     "vitest": "^4.1.11"

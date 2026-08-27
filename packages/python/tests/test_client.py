@@ -51,6 +51,7 @@ def test_sync_resource_namespaces_and_file_mapping() -> None:
     client = UnifilesClient(
         "sk_test", base_url="http://example.test", max_retries=0, _http_client=http
     )
+    assert type(client.raw.files).__module__.startswith("unifiles_generated.api.")
     uploaded = client.files.upload(
         content=b"hello",
         filename="hello.txt",
