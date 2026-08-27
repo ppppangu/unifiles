@@ -52,6 +52,11 @@ def wait_for_status(
         time.sleep(0.01)
 
 
+def test_generated_protocol_router_is_mounted(client: TestClient) -> None:
+    route = next(route for route in client.app.routes if route.path == "/v1/files")
+    assert route.endpoint.__module__.startswith("unifiles_server_protocol.apis.")
+
+
 def test_complete_document_flow(client: TestClient) -> None:
     upload = client.post(
         "/v1/files",

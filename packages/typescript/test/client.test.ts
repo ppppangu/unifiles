@@ -25,6 +25,7 @@ describe("UnifilesClient", () => {
       maxRetries: 0,
       fetch: fetchMock,
     });
+    expect(client.raw.files.constructor.name).toBe("FilesApi");
 
     const file = await client.files.get("file_1");
     expect(file.contentType).toBe("text/plain");

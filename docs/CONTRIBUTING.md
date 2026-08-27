@@ -10,12 +10,14 @@ npm run check
 uv run mkdocs build --strict
 ```
 
-Protocol changes must update `api/openapi.yaml` and regenerate both private wire model sets:
+Protocol changes start in `api/openapi.yaml`, the only protocol source of truth. Regenerate the
+FastAPI bindings and both full SDK cores with:
 
 ```bash
-uv run python scripts/export_openapi.py
 uv run python scripts/generate_contract.py
 ```
 
-Do not edit generated files directly. Keep OCR, chunking, authorization, quotas and persistence in
-the Server; SDKs and CLI remain typed transport layers.
+Never edit `apps/server/generated`, `packages/python/generated`, or
+`packages/typescript/generated`. Handwritten server handlers and SDK extensions live outside those
+directories, so regeneration cannot overwrite them. Keep OCR, chunking, authorization, quotas and
+persistence in the handwritten Server implementation.

@@ -1,0 +1,4505 @@
+openapi: 3.0.3
+info:
+  description: Canonical contract for the self-hosted Unifiles document processing
+    API. Server bindings and official SDK cores are generated from this document.
+  title: Unifiles API
+  version: 1.0.0
+servers:
+- description: Hosted API
+  url: https://api.unifiles.dev
+- description: Local self-hosted API
+  url: http://localhost:8088
+tags:
+- name: System
+- name: Files
+- name: Extractions
+- name: Knowledge Bases
+- name: Documents
+- name: Search
+- name: Webhooks
+- name: API Keys
+- name: Usage
+paths:
+  /v1/health:
+    get:
+      operationId: getVersionedHealth
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthResponse"
+          description: Successful Response
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+          description: Invalid request
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+          description: Authentication failed
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+          description: Permission or quota denied
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+          description: Resource not found
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+          description: Resource state conflict
+        "422":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+          description: Validation or processing error
+        "429":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+          description: Rate limit exceeded
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+          description: Internal server error
+      summary: Health
+      tags:
+      - System
+  /health:
+    get:
+      operationId: getHealth
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthResponse"
+          description: Successful Response
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+          description: Invalid request
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+          description: Authentication failed
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+          description: Permission or quota denied
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+          description: Resource not found
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+          description: Resource state conflict
+        "422":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+          description: Validation or processing error
+        "429":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+          description: Rate limit exceeded
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+          description: Internal server error
+      summary: Health
+      tags:
+      - System
+  /v1/files/types:
+    get:
+      operationId: listSupportedFileTypes
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SupportedFileTypesResponse"
+          description: Successful Response
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+          description: Invalid request
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+          description: Authentication failed
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+          description: Permission or quota denied
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+          description: Resource not found
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+          description: Resource state conflict
+        "422":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+          description: Validation or processing error
+        "429":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+          description: Rate limit exceeded
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+          description: Internal server error
+      security:
+      - BearerAuth: []
+      summary: Supported Types
+      tags:
+      - Files
+  /v1/files:
+    get:
+      operationId: listFiles
+      parameters:
+      - explode: true
+        in: query
+        name: limit
+        required: false
+        schema:
+          default: 50
+          maximum: 100
+          minimum: 1
+          title: Limit
+          type: integer
+        style: form
+      - explode: true
+        in: query
+        name: offset
+        required: false
+        schema:
+          default: 0
+          minimum: 0
+          title: Offset
+          type: integer
+        style: form
+      - explode: true
+        in: query
+        name: tags
+        required: false
+        schema:
+          nullable: true
+          title: Tags
+          type: string
+        style: form
+      - explode: true
+        in: query
+        name: content_type
+        required: false
+        schema:
+          nullable: true
+          title: Content Type
+          type: string
+        style: form
+      - explode: true
+        in: query
+        name: sort_by
+        required: false
+        schema:
+          default: created_at
+          title: Sort By
+          type: string
+        style: form
+      - explode: true
+        in: query
+        name: order
+        required: false
+        schema:
+          default: desc
+          title: Order
+          type: string
+        style: form
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FileListResponse"
+          description: Successful Response
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+          description: Invalid request
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+          description: Authentication failed
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+          description: Permission or quota denied
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+          description: Resource not found
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+          description: Resource state conflict
+        "422":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+          description: Validation or processing error
+        "429":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+          description: Rate limit exceeded
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+          description: Internal server error
+      security:
+      - BearerAuth: []
+      summary: List Files
+      tags:
+      - Files
+    post:
+      operationId: uploadFile
+      parameters:
+      - explode: false
+        in: header
+        name: Idempotency-Key
+        required: false
+        schema:
+          nullable: true
+          title: Idempotency-Key
+          type: string
+        style: simple
+      requestBody:
+        content:
+          multipart/form-data:
+            schema:
+              $ref: "#/components/schemas/UploadFileRequest"
+        required: true
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FileResponse"
+          description: Successful Response
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+          description: Invalid request
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+          description: Authentication failed
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+          description: Permission or quota denied
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+          description: Resource not found
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+          description: Resource state conflict
+        "422":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+          description: Validation or processing error
+        "429":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+          description: Rate limit exceeded
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+          description: Internal server error
+        "413":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+          description: File too large
+      security:
+      - BearerAuth: []
+      summary: Upload File
+      tags:
+      - Files
+  /v1/files/{file_id}/extractions:
+    get:
+      operationId: listFileExtractions
+      parameters:
+      - explode: false
+        in: path
+        name: file_id
+        required: true
+        schema:
+          title: File Id
+          type: string
+        style: simple
+      - explode: true
+        in: query
+        name: limit
+        required: false
+        schema:
+          default: 50
+          maximum: 100
+          minimum: 1
+          title: Limit
+          type: integer
+        style: form
+      - explode: true
+        in: query
+        name: offset
+        required: false
+        schema:
+          default: 0
+          minimum: 0
+          title: Offset
+          type: integer
+        style: form
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ExtractionListResponse"
+          description: Successful Response
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+          description: Invalid request
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+          description: Authentication failed
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+          description: Permission or quota denied
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+          description: Resource not found
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+          description: Resource state conflict
+        "422":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+          description: Validation or processing error
+        "429":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+          description: Rate limit exceeded
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+          description: Internal server error
+      security:
+      - BearerAuth: []
+      summary: File Extractions
+      tags:
+      - Extractions
+  /v1/files/{file_id}:
+    delete:
+      operationId: deleteFile
+      parameters:
+      - explode: false
+        in: path
+        name: file_id
+        required: true
+        schema:
+          title: File Id
+          type: string
+        style: simple
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DeletionResponse"
+          description: Successful Response
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+          description: Invalid request
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+          description: Authentication failed
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+          description: Permission or quota denied
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+          description: Resource not found
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+          description: Resource state conflict
+        "422":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+          description: Validation or processing error
+        "429":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+          description: Rate limit exceeded
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+          description: Internal server error
+      security:
+      - BearerAuth: []
+      summary: Delete File
+      tags:
+      - Files
+    get:
+      operationId: getFile
+      parameters:
+      - explode: false
+        in: path
+        name: file_id
+        required: true
+        schema:
+          title: File Id
+          type: string
+        style: simple
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FileResponse"
+          description: Successful Response
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+          description: Invalid request
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+          description: Authentication failed
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+          description: Permission or quota denied
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+          description: Resource not found
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+          description: Resource state conflict
+        "422":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+          description: Validation or processing error
+        "429":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+          description: Rate limit exceeded
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+          description: Internal server error
+      security:
+      - BearerAuth: []
+      summary: Get File
+      tags:
+      - Files
+  /v1/files/{file_id}/download:
+    get:
+      operationId: downloadFile
+      parameters:
+      - explode: false
+        in: path
+        name: file_id
+        required: true
+        schema:
+          title: File Id
+          type: string
+        style: simple
+      responses:
+        "200":
+          content:
+            application/octet-stream:
+              schema:
+                format: binary
+                type: string
+          description: File content
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+          description: Invalid request
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+          description: Authentication failed
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+          description: Permission or quota denied
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+          description: Resource not found
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+          description: Resource state conflict
+        "422":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+          description: Validation or processing error
+        "429":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+          description: Rate limit exceeded
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+          description: Internal server error
+      security:
+      - BearerAuth: []
+      summary: Download File
+      tags:
+      - Files
+  /v1/extractions:
+    post:
+      operationId: createExtraction
+      parameters:
+      - explode: false
+        in: header
+        name: Idempotency-Key
+        required: false
+        schema:
+          nullable: true
+          title: Idempotency-Key
+          type: string
+        style: simple
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ExtractionCreate"
+        required: true
+      responses:
+        "202":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ExtractionResponse"
+          description: Successful Response
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+          description: Invalid request
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+          description: Authentication failed
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+          description: Permission or quota denied
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+          description: Resource not found
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+          description: Resource state conflict
+        "422":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+          description: Validation or processing error
+        "429":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+          description: Rate limit exceeded
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+          description: Internal server error
+      security:
+      - BearerAuth: []
+      summary: Create Extraction
+      tags:
+      - Extractions
+  /v1/extractions/{extraction_id}:
+    get:
+      operationId: getExtraction
+      parameters:
+      - explode: false
+        in: path
+        name: extraction_id
+        required: true
+        schema:
+          title: Extraction Id
+          type: string
+        style: simple
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ExtractionResponse"
+          description: Successful Response
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+          description: Invalid request
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+          description: Authentication failed
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+          description: Permission or quota denied
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+          description: Resource not found
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+          description: Resource state conflict
+        "422":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+          description: Validation or processing error
+        "429":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+          description: Rate limit exceeded
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+          description: Internal server error
+      security:
+      - BearerAuth: []
+      summary: Get Extraction
+      tags:
+      - Extractions
+  /v1/knowledge-bases:
+    get:
+      operationId: listKnowledgeBases
+      parameters:
+      - explode: true
+        in: query
+        name: limit
+        required: false
+        schema:
+          default: 50
+          maximum: 100
+          minimum: 1
+          title: Limit
+          type: integer
+        style: form
+      - explode: true
+        in: query
+        name: offset
+        required: false
+        schema:
+          default: 0
+          minimum: 0
+          title: Offset
+          type: integer
+        style: form
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/KnowledgeBaseListResponse"
+          description: Successful Response
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+          description: Invalid request
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+          description: Authentication failed
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+          description: Permission or quota denied
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+          description: Resource not found
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+          description: Resource state conflict
+        "422":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+          description: Validation or processing error
+        "429":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+          description: Rate limit exceeded
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+          description: Internal server error
+      security:
+      - BearerAuth: []
+      summary: List Knowledge Bases
+      tags:
+      - Knowledge Bases
+    post:
+      operationId: createKnowledgeBase
+      parameters:
+      - explode: false
+        in: header
+        name: Idempotency-Key
+        required: false
+        schema:
+          nullable: true
+          title: Idempotency-Key
+          type: string
+        style: simple
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/KnowledgeBaseCreate"
+        required: true
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/KnowledgeBaseResponse"
+          description: Successful Response
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+          description: Invalid request
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+          description: Authentication failed
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+          description: Permission or quota denied
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+          description: Resource not found
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+          description: Resource state conflict
+        "422":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+          description: Validation or processing error
+        "429":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+          description: Rate limit exceeded
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+          description: Internal server error
+      security:
+      - BearerAuth: []
+      summary: Create Knowledge Base
+      tags:
+      - Knowledge Bases
+  /v1/knowledge-bases/{kb_id}:
+    delete:
+      operationId: deleteKnowledgeBase
+      parameters:
+      - explode: false
+        in: path
+        name: kb_id
+        required: true
+        schema:
+          title: Kb Id
+          type: string
+        style: simple
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DeletionResponse"
+          description: Successful Response
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+          description: Invalid request
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+          description: Authentication failed
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+          description: Permission or quota denied
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+          description: Resource not found
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+          description: Resource state conflict
+        "422":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+          description: Validation or processing error
+        "429":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+          description: Rate limit exceeded
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+          description: Internal server error
+      security:
+      - BearerAuth: []
+      summary: Delete Knowledge Base
+      tags:
+      - Knowledge Bases
+    get:
+      operationId: getKnowledgeBase
+      parameters:
+      - explode: false
+        in: path
+        name: kb_id
+        required: true
+        schema:
+          title: Kb Id
+          type: string
+        style: simple
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/KnowledgeBaseResponse"
+          description: Successful Response
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+          description: Invalid request
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+          description: Authentication failed
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+          description: Permission or quota denied
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+          description: Resource not found
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+          description: Resource state conflict
+        "422":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+          description: Validation or processing error
+        "429":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+          description: Rate limit exceeded
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+          description: Internal server error
+      security:
+      - BearerAuth: []
+      summary: Get Knowledge Base
+      tags:
+      - Knowledge Bases
+    patch:
+      operationId: updateKnowledgeBase
+      parameters:
+      - explode: false
+        in: path
+        name: kb_id
+        required: true
+        schema:
+          title: Kb Id
+          type: string
+        style: simple
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/KnowledgeBaseUpdate"
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/KnowledgeBaseResponse"
+          description: Successful Response
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+          description: Invalid request
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+          description: Authentication failed
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+          description: Permission or quota denied
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+          description: Resource not found
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+          description: Resource state conflict
+        "422":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+          description: Validation or processing error
+        "429":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+          description: Rate limit exceeded
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+          description: Internal server error
+      security:
+      - BearerAuth: []
+      summary: Update Knowledge Base
+      tags:
+      - Knowledge Bases
+  /v1/knowledge-bases/{kb_id}/documents:
+    get:
+      operationId: listDocuments
+      parameters:
+      - explode: false
+        in: path
+        name: kb_id
+        required: true
+        schema:
+          title: Kb Id
+          type: string
+        style: simple
+      - explode: true
+        in: query
+        name: limit
+        required: false
+        schema:
+          default: 50
+          maximum: 100
+          minimum: 1
+          title: Limit
+          type: integer
+        style: form
+      - explode: true
+        in: query
+        name: offset
+        required: false
+        schema:
+          default: 0
+          minimum: 0
+          title: Offset
+          type: integer
+        style: form
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DocumentListResponse"
+          description: Successful Response
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+          description: Invalid request
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+          description: Authentication failed
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+          description: Permission or quota denied
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+          description: Resource not found
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+          description: Resource state conflict
+        "422":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+          description: Validation or processing error
+        "429":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+          description: Rate limit exceeded
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+          description: Internal server error
+      security:
+      - BearerAuth: []
+      summary: List Documents
+      tags:
+      - Documents
+    post:
+      operationId: createDocument
+      parameters:
+      - explode: false
+        in: path
+        name: kb_id
+        required: true
+        schema:
+          title: Kb Id
+          type: string
+        style: simple
+      - explode: false
+        in: header
+        name: Idempotency-Key
+        required: false
+        schema:
+          nullable: true
+          title: Idempotency-Key
+          type: string
+        style: simple
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DocumentCreate"
+        required: true
+      responses:
+        "202":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DocumentResponse"
+          description: Successful Response
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+          description: Invalid request
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+          description: Authentication failed
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+          description: Permission or quota denied
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+          description: Resource not found
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+          description: Resource state conflict
+        "422":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+          description: Validation or processing error
+        "429":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+          description: Rate limit exceeded
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+          description: Internal server error
+      security:
+      - BearerAuth: []
+      summary: Create Document
+      tags:
+      - Documents
+  /v1/knowledge-bases/{kb_id}/documents/{document_id}:
+    delete:
+      operationId: deleteDocument
+      parameters:
+      - explode: false
+        in: path
+        name: kb_id
+        required: true
+        schema:
+          title: Kb Id
+          type: string
+        style: simple
+      - explode: false
+        in: path
+        name: document_id
+        required: true
+        schema:
+          title: Document Id
+          type: string
+        style: simple
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DeletionResponse"
+          description: Successful Response
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+          description: Invalid request
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+          description: Authentication failed
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+          description: Permission or quota denied
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+          description: Resource not found
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+          description: Resource state conflict
+        "422":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+          description: Validation or processing error
+        "429":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+          description: Rate limit exceeded
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+          description: Internal server error
+      security:
+      - BearerAuth: []
+      summary: Delete Document
+      tags:
+      - Documents
+    get:
+      operationId: getDocument
+      parameters:
+      - explode: false
+        in: path
+        name: kb_id
+        required: true
+        schema:
+          title: Kb Id
+          type: string
+        style: simple
+      - explode: false
+        in: path
+        name: document_id
+        required: true
+        schema:
+          title: Document Id
+          type: string
+        style: simple
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DocumentResponse"
+          description: Successful Response
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+          description: Invalid request
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+          description: Authentication failed
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+          description: Permission or quota denied
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+          description: Resource not found
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+          description: Resource state conflict
+        "422":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+          description: Validation or processing error
+        "429":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+          description: Rate limit exceeded
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+          description: Internal server error
+      security:
+      - BearerAuth: []
+      summary: Get Document
+      tags:
+      - Documents
+  /v1/knowledge-bases/{kb_id}/search:
+    post:
+      operationId: searchKnowledgeBase
+      parameters:
+      - explode: false
+        in: path
+        name: kb_id
+        required: true
+        schema:
+          title: Kb Id
+          type: string
+        style: simple
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SearchRequest"
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SearchResponse"
+          description: Successful Response
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+          description: Invalid request
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+          description: Authentication failed
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+          description: Permission or quota denied
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+          description: Resource not found
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+          description: Resource state conflict
+        "422":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+          description: Validation or processing error
+        "429":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+          description: Rate limit exceeded
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+          description: Internal server error
+      security:
+      - BearerAuth: []
+      summary: Semantic Search
+      tags:
+      - Search
+  /v1/knowledge-bases/{kb_id}/hybrid-search:
+    post:
+      operationId: hybridSearchKnowledgeBase
+      parameters:
+      - explode: false
+        in: path
+        name: kb_id
+        required: true
+        schema:
+          title: Kb Id
+          type: string
+        style: simple
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/HybridSearchRequest"
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SearchResponse"
+          description: Successful Response
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+          description: Invalid request
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+          description: Authentication failed
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+          description: Permission or quota denied
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+          description: Resource not found
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+          description: Resource state conflict
+        "422":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+          description: Validation or processing error
+        "429":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+          description: Rate limit exceeded
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+          description: Internal server error
+      security:
+      - BearerAuth: []
+      summary: Hybrid Search
+      tags:
+      - Search
+  /v1/webhooks:
+    get:
+      operationId: listWebhooks
+      parameters:
+      - explode: true
+        in: query
+        name: limit
+        required: false
+        schema:
+          default: 50
+          maximum: 100
+          minimum: 1
+          title: Limit
+          type: integer
+        style: form
+      - explode: true
+        in: query
+        name: offset
+        required: false
+        schema:
+          default: 0
+          minimum: 0
+          title: Offset
+          type: integer
+        style: form
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WebhookListResponse"
+          description: Successful Response
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+          description: Invalid request
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+          description: Authentication failed
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+          description: Permission or quota denied
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+          description: Resource not found
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+          description: Resource state conflict
+        "422":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+          description: Validation or processing error
+        "429":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+          description: Rate limit exceeded
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+          description: Internal server error
+      security:
+      - BearerAuth: []
+      summary: List Webhooks
+      tags:
+      - Webhooks
+    post:
+      operationId: createWebhook
+      parameters:
+      - explode: false
+        in: header
+        name: Idempotency-Key
+        required: false
+        schema:
+          nullable: true
+          title: Idempotency-Key
+          type: string
+        style: simple
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/WebhookCreate"
+        required: true
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WebhookResponse"
+          description: Successful Response
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+          description: Invalid request
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+          description: Authentication failed
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+          description: Permission or quota denied
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+          description: Resource not found
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+          description: Resource state conflict
+        "422":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+          description: Validation or processing error
+        "429":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+          description: Rate limit exceeded
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+          description: Internal server error
+      security:
+      - BearerAuth: []
+      summary: Create Webhook
+      tags:
+      - Webhooks
+  /v1/webhooks/{webhook_id}:
+    delete:
+      operationId: deleteWebhook
+      parameters:
+      - explode: false
+        in: path
+        name: webhook_id
+        required: true
+        schema:
+          title: Webhook Id
+          type: string
+        style: simple
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DeletionResponse"
+          description: Successful Response
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+          description: Invalid request
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+          description: Authentication failed
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+          description: Permission or quota denied
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+          description: Resource not found
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+          description: Resource state conflict
+        "422":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+          description: Validation or processing error
+        "429":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+          description: Rate limit exceeded
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+          description: Internal server error
+      security:
+      - BearerAuth: []
+      summary: Delete Webhook
+      tags:
+      - Webhooks
+    get:
+      operationId: getWebhook
+      parameters:
+      - explode: false
+        in: path
+        name: webhook_id
+        required: true
+        schema:
+          title: Webhook Id
+          type: string
+        style: simple
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WebhookResponse"
+          description: Successful Response
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+          description: Invalid request
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+          description: Authentication failed
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+          description: Permission or quota denied
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+          description: Resource not found
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+          description: Resource state conflict
+        "422":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+          description: Validation or processing error
+        "429":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+          description: Rate limit exceeded
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+          description: Internal server error
+      security:
+      - BearerAuth: []
+      summary: Get Webhook
+      tags:
+      - Webhooks
+    patch:
+      operationId: updateWebhook
+      parameters:
+      - explode: false
+        in: path
+        name: webhook_id
+        required: true
+        schema:
+          title: Webhook Id
+          type: string
+        style: simple
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/WebhookUpdate"
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WebhookResponse"
+          description: Successful Response
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+          description: Invalid request
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+          description: Authentication failed
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+          description: Permission or quota denied
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+          description: Resource not found
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+          description: Resource state conflict
+        "422":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+          description: Validation or processing error
+        "429":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+          description: Rate limit exceeded
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+          description: Internal server error
+      security:
+      - BearerAuth: []
+      summary: Update Webhook
+      tags:
+      - Webhooks
+  /v1/api-keys:
+    get:
+      operationId: listApiKeys
+      parameters:
+      - explode: true
+        in: query
+        name: limit
+        required: false
+        schema:
+          default: 50
+          maximum: 100
+          minimum: 1
+          title: Limit
+          type: integer
+        style: form
+      - explode: true
+        in: query
+        name: offset
+        required: false
+        schema:
+          default: 0
+          minimum: 0
+          title: Offset
+          type: integer
+        style: form
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/APIKeyListResponse"
+          description: Successful Response
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+          description: Invalid request
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+          description: Authentication failed
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+          description: Permission or quota denied
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+          description: Resource not found
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+          description: Resource state conflict
+        "422":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+          description: Validation or processing error
+        "429":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+          description: Rate limit exceeded
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+          description: Internal server error
+      security:
+      - BearerAuth: []
+      summary: List Api Keys
+      tags:
+      - API Keys
+    post:
+      operationId: createApiKey
+      parameters:
+      - explode: false
+        in: header
+        name: Idempotency-Key
+        required: false
+        schema:
+          nullable: true
+          title: Idempotency-Key
+          type: string
+        style: simple
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/APIKeyCreate"
+        required: true
+        x-codegen-request-body-name: apiKeyCreate
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/APIKeyResponse"
+          description: Successful Response
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+          description: Invalid request
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+          description: Authentication failed
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+          description: Permission or quota denied
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+          description: Resource not found
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+          description: Resource state conflict
+        "422":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+          description: Validation or processing error
+        "429":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+          description: Rate limit exceeded
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+          description: Internal server error
+      security:
+      - BearerAuth: []
+      summary: Create Api Key
+      tags:
+      - API Keys
+  /v1/api-keys/{key_id}:
+    delete:
+      operationId: revokeApiKey
+      parameters:
+      - explode: false
+        in: path
+        name: key_id
+        required: true
+        schema:
+          title: Key Id
+          type: string
+        style: simple
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DeletionResponse"
+          description: Successful Response
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+          description: Invalid request
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+          description: Authentication failed
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+          description: Permission or quota denied
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+          description: Resource not found
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+          description: Resource state conflict
+        "422":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+          description: Validation or processing error
+        "429":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+          description: Rate limit exceeded
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+          description: Internal server error
+      security:
+      - BearerAuth: []
+      summary: Revoke Api Key
+      tags:
+      - API Keys
+  /v1/usage/stats:
+    get:
+      operationId: getUsageStats
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UsageStatsResponse"
+          description: Successful Response
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+          description: Invalid request
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+          description: Authentication failed
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+          description: Permission or quota denied
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+          description: Resource not found
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+          description: Resource state conflict
+        "422":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+          description: Validation or processing error
+        "429":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+          description: Rate limit exceeded
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+          description: Internal server error
+      security:
+      - BearerAuth: []
+      summary: Usage Stats
+      tags:
+      - Usage
+  /v1/usage/limits:
+    get:
+      operationId: getUsageLimits
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UsageLimitsResponse"
+          description: Successful Response
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+          description: Invalid request
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+          description: Authentication failed
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+          description: Permission or quota denied
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+          description: Resource not found
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+          description: Resource state conflict
+        "422":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+          description: Validation or processing error
+        "429":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+          description: Rate limit exceeded
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+          description: Internal server error
+      security:
+      - BearerAuth: []
+      summary: Usage Limits
+      tags:
+      - Usage
+components:
+  schemas:
+    APIKeyCreate:
+      additionalProperties: false
+      example:
+        name: name
+        scopes:
+        - scopes
+        - scopes
+        expires_at: 2000-01-23T04:56:07.000+00:00
+      properties:
+        name:
+          maxLength: 200
+          minLength: 1
+          title: Name
+          type: string
+        scopes:
+          items:
+            pattern: ^(\*|(files|extractions|kb|webhooks|api_keys|usage):(read|write|\*))$
+            type: string
+          title: Scopes
+          type: array
+        expires_at:
+          format: date-time
+          nullable: true
+          title: Expires At
+          type: string
+      required:
+      - name
+      title: APIKeyCreate
+      type: object
+    APIKeyResource:
+      additionalProperties: false
+      example:
+        id: id
+        name: name
+        key: key
+        key_prefix: key_prefix
+        scopes:
+        - scopes
+        - scopes
+        last_used_at: 2000-01-23T04:56:07.000+00:00
+        expires_at: 2000-01-23T04:56:07.000+00:00
+        created_at: 2000-01-23T04:56:07.000+00:00
+      properties:
+        id:
+          title: Id
+          type: string
+        name:
+          title: Name
+          type: string
+        key:
+          nullable: true
+          title: Key
+          type: string
+        key_prefix:
+          title: Key Prefix
+          type: string
+        scopes:
+          items:
+            type: string
+          title: Scopes
+          type: array
+        last_used_at:
+          format: date-time
+          nullable: true
+          title: Last Used At
+          type: string
+        expires_at:
+          format: date-time
+          nullable: true
+          title: Expires At
+          type: string
+        created_at:
+          format: date-time
+          title: Created At
+          type: string
+      required:
+      - created_at
+      - id
+      - key_prefix
+      - name
+      - scopes
+      title: APIKeyResource
+      type: object
+    ChunkResource:
+      additionalProperties: false
+      example:
+        id: id
+        document_id: document_id
+        document_title: document_title
+        content: content
+        score: 0.8008281904610115
+        vector_score: 6.027456183070403
+        keyword_score: 1.4658129805029452
+        metadata:
+          key: ""
+      properties:
+        id:
+          title: Id
+          type: string
+        document_id:
+          title: Document Id
+          type: string
+        document_title:
+          nullable: true
+          title: Document Title
+          type: string
+        content:
+          title: Content
+          type: string
+        score:
+          title: Score
+          type: number
+        vector_score:
+          nullable: true
+          title: Vector Score
+          type: number
+        keyword_score:
+          nullable: true
+          title: Keyword Score
+          type: number
+        metadata:
+          additionalProperties: true
+          title: Metadata
+          type: object
+      required:
+      - content
+      - document_id
+      - id
+      - score
+      title: ChunkResource
+      type: object
+    DeletionResult:
+      additionalProperties: false
+      example:
+        id: id
+        deleted: true
+      properties:
+        id:
+          title: Id
+          type: string
+        deleted:
+          default: true
+          title: Deleted
+          type: boolean
+      required:
+      - id
+      title: DeletionResult
+      type: object
+    DocumentCreate:
+      additionalProperties: false
+      example:
+        file_id: file_id
+        title: title
+        metadata:
+          key: ""
+      properties:
+        file_id:
+          title: File Id
+          type: string
+        title:
+          nullable: true
+          title: Title
+          type: string
+        metadata:
+          additionalProperties: true
+          title: Metadata
+          type: object
+      required:
+      - file_id
+      title: DocumentCreate
+      type: object
+    DocumentResource:
+      additionalProperties: false
+      example:
+        id: id
+        kb_id: kb_id
+        file_id: file_id
+        title: title
+        status: pending
+        chunk_count: 0
+        metadata:
+          key: ""
+        error:
+          key: ""
+        created_at: 2000-01-23T04:56:07.000+00:00
+        indexed_at: 2000-01-23T04:56:07.000+00:00
+      properties:
+        id:
+          title: Id
+          type: string
+        kb_id:
+          title: Kb Id
+          type: string
+        file_id:
+          title: File Id
+          type: string
+        title:
+          nullable: true
+          title: Title
+          type: string
+        status:
+          enum:
+          - pending
+          - indexing
+          - indexed
+          - failed
+          - cancelled
+          title: Status
+          type: string
+        chunk_count:
+          title: Chunk Count
+          type: integer
+        metadata:
+          additionalProperties: true
+          nullable: true
+          title: Metadata
+          type: object
+        error:
+          additionalProperties: true
+          nullable: true
+          title: Error
+          type: object
+        created_at:
+          format: date-time
+          title: Created At
+          type: string
+        indexed_at:
+          format: date-time
+          nullable: true
+          title: Indexed At
+          type: string
+      required:
+      - chunk_count
+      - created_at
+      - file_id
+      - id
+      - kb_id
+      - status
+      title: DocumentResource
+      type: object
+    ErrorDetail:
+      additionalProperties: false
+      example:
+        code: code
+        message: message
+        details:
+          key: ""
+        request_id: request_id
+      properties:
+        code:
+          title: Code
+          type: string
+        message:
+          title: Message
+          type: string
+        details:
+          additionalProperties: true
+          title: Details
+          type: object
+        request_id:
+          title: Request Id
+          type: string
+      required:
+      - code
+      - message
+      - request_id
+      title: ErrorDetail
+      type: object
+    ErrorEnvelope:
+      additionalProperties: false
+      example:
+        success: false
+        error:
+          code: code
+          message: message
+          details:
+            key: ""
+          request_id: request_id
+      properties:
+        success:
+          default: false
+          title: Success
+          type: boolean
+        error:
+          $ref: "#/components/schemas/ErrorDetail"
+      required:
+      - error
+      title: ErrorEnvelope
+      type: object
+    ExtractionCreate:
+      additionalProperties: false
+      example:
+        file_id: file_id
+        mode: normal
+        options:
+          language: language
+          ocr_provider: ocr_provider
+          extract_tables: true
+          extract_images: true
+          preserve_layout: true
+      properties:
+        file_id:
+          title: File Id
+          type: string
+        mode:
+          default: normal
+          enum:
+          - simple
+          - normal
+          - advanced
+          title: Mode
+          type: string
+        options:
+          $ref: "#/components/schemas/ExtractionOptions"
+      required:
+      - file_id
+      title: ExtractionCreate
+      type: object
+    ExtractionResource:
+      additionalProperties: false
+      example:
+        id: id
+        file_id: file_id
+        status: pending
+        mode: mode
+        progress: 0
+        markdown: markdown
+        total_pages: 6
+        metadata:
+          key: ""
+        error:
+          key: ""
+        created_at: 2000-01-23T04:56:07.000+00:00
+        completed_at: 2000-01-23T04:56:07.000+00:00
+      properties:
+        id:
+          title: Id
+          type: string
+        file_id:
+          title: File Id
+          type: string
+        status:
+          enum:
+          - pending
+          - processing
+          - completed
+          - failed
+          - cancelled
+          title: Status
+          type: string
+        mode:
+          title: Mode
+          type: string
+        progress:
+          nullable: true
+          title: Progress
+          type: integer
+        markdown:
+          nullable: true
+          title: Markdown
+          type: string
+        total_pages:
+          nullable: true
+          title: Total Pages
+          type: integer
+        metadata:
+          additionalProperties: true
+          nullable: true
+          title: Metadata
+          type: object
+        error:
+          additionalProperties: true
+          nullable: true
+          title: Error
+          type: object
+        created_at:
+          format: date-time
+          title: Created At
+          type: string
+        completed_at:
+          format: date-time
+          nullable: true
+          title: Completed At
+          type: string
+      required:
+      - created_at
+      - file_id
+      - id
+      - mode
+      - status
+      title: ExtractionResource
+      type: object
+    FileResource:
+      additionalProperties: false
+      example:
+        id: id
+        filename: filename
+        content_type: content_type
+        size: 0
+        metadata:
+          key: ""
+        tags:
+        - tags
+        - tags
+        created_at: 2000-01-23T04:56:07.000+00:00
+        updated_at: 2000-01-23T04:56:07.000+00:00
+      properties:
+        id:
+          title: Id
+          type: string
+        filename:
+          title: Filename
+          type: string
+        content_type:
+          title: Content Type
+          type: string
+        size:
+          title: Size
+          type: integer
+        metadata:
+          additionalProperties: true
+          title: Metadata
+          type: object
+        tags:
+          items:
+            type: string
+          title: Tags
+          type: array
+        created_at:
+          format: date-time
+          title: Created At
+          type: string
+        updated_at:
+          format: date-time
+          nullable: true
+          title: Updated At
+          type: string
+      required:
+      - content_type
+      - created_at
+      - filename
+      - id
+      - size
+      title: FileResource
+      type: object
+    HybridSearchRequest:
+      additionalProperties: false
+      example:
+        query: query
+        vector_weight: 0.08008281904610115
+        keyword_weight: 0.6027456183070403
+        top_k: 15
+      properties:
+        query:
+          minLength: 1
+          title: Query
+          type: string
+        vector_weight:
+          default: 0.7
+          minimum: 0.0
+          title: Vector Weight
+          type: number
+        keyword_weight:
+          default: 0.3
+          minimum: 0.0
+          title: Keyword Weight
+          type: number
+        top_k:
+          default: 5
+          maximum: 100.0
+          minimum: 1.0
+          title: Top K
+          type: integer
+      required:
+      - query
+      title: HybridSearchRequest
+      type: object
+    KnowledgeBaseCreate:
+      additionalProperties: false
+      example:
+        name: name
+        description: description
+        chunking_strategy:
+          type: semantic
+          chunk_size: 8067
+          overlap: 0
+        metadata:
+          key: ""
+      properties:
+        name:
+          maxLength: 200
+          minLength: 1
+          title: Name
+          type: string
+        description:
+          nullable: true
+          title: Description
+          type: string
+        chunking_strategy:
+          $ref: "#/components/schemas/ChunkingStrategy"
+        metadata:
+          additionalProperties: true
+          title: Metadata
+          type: object
+      required:
+      - name
+      title: KnowledgeBaseCreate
+      type: object
+    KnowledgeBaseResource:
+      additionalProperties: false
+      example:
+        id: id
+        name: name
+        description: description
+        chunking_strategy:
+          type: semantic
+          chunk_size: 8067
+          overlap: 0
+        document_count: 1
+        chunk_count: 5
+        metadata:
+          key: ""
+        created_at: 2000-01-23T04:56:07.000+00:00
+        updated_at: 2000-01-23T04:56:07.000+00:00
+      properties:
+        id:
+          title: Id
+          type: string
+        name:
+          title: Name
+          type: string
+        description:
+          nullable: true
+          title: Description
+          type: string
+        chunking_strategy:
+          $ref: "#/components/schemas/ChunkingStrategy"
+        document_count:
+          title: Document Count
+          type: integer
+        chunk_count:
+          title: Chunk Count
+          type: integer
+        metadata:
+          additionalProperties: true
+          nullable: true
+          title: Metadata
+          type: object
+        created_at:
+          format: date-time
+          title: Created At
+          type: string
+        updated_at:
+          format: date-time
+          nullable: true
+          title: Updated At
+          type: string
+      required:
+      - chunk_count
+      - chunking_strategy
+      - created_at
+      - document_count
+      - id
+      - name
+      title: KnowledgeBaseResource
+      type: object
+    KnowledgeBaseUpdate:
+      additionalProperties: false
+      example:
+        name: name
+        description: description
+        chunking_strategy:
+          type: semantic
+          chunk_size: 8067
+          overlap: 0
+        metadata:
+          key: ""
+      properties:
+        name:
+          maxLength: 200
+          minLength: 1
+          nullable: true
+          title: Name
+          type: string
+        description:
+          nullable: true
+          title: Description
+          type: string
+        chunking_strategy:
+          $ref: "#/components/schemas/ChunkingStrategy"
+        metadata:
+          additionalProperties: true
+          nullable: true
+          title: Metadata
+          type: object
+      title: KnowledgeBaseUpdate
+      type: object
+    SearchRequest:
+      additionalProperties: false
+      example:
+        query: query
+        top_k: 8
+        threshold: 0.6027456183070403
+        filter:
+          key: ""
+      properties:
+        query:
+          minLength: 1
+          title: Query
+          type: string
+        top_k:
+          default: 5
+          maximum: 100.0
+          minimum: 1.0
+          title: Top K
+          type: integer
+        threshold:
+          default: 0
+          maximum: 1.0
+          minimum: 0.0
+          title: Threshold
+          type: number
+        filter:
+          additionalProperties: true
+          nullable: true
+          title: Filter
+          type: object
+      required:
+      - query
+      title: SearchRequest
+      type: object
+    SearchResults:
+      additionalProperties: false
+      example:
+        query: query
+        chunks:
+        - id: id
+          document_id: document_id
+          document_title: document_title
+          content: content
+          score: 0.8008281904610115
+          vector_score: 6.027456183070403
+          keyword_score: 1.4658129805029452
+          metadata:
+            key: ""
+        - id: id
+          document_id: document_id
+          document_title: document_title
+          content: content
+          score: 0.8008281904610115
+          vector_score: 6.027456183070403
+          keyword_score: 1.4658129805029452
+          metadata:
+            key: ""
+        total: 5
+      properties:
+        query:
+          title: Query
+          type: string
+        chunks:
+          items:
+            $ref: "#/components/schemas/ChunkResource"
+          title: Chunks
+          type: array
+        total:
+          title: Total
+          type: integer
+      required:
+      - chunks
+      - query
+      - total
+      title: SearchResults
+      type: object
+    SupportedFileTypes:
+      additionalProperties: false
+      example:
+        document_types:
+        - document_types
+        - document_types
+        image_types:
+        - image_types
+        - image_types
+        all_types:
+        - all_types
+        - all_types
+      properties:
+        document_types:
+          items:
+            type: string
+          title: Document Types
+          type: array
+        image_types:
+          items:
+            type: string
+          title: Image Types
+          type: array
+        all_types:
+          items:
+            type: string
+          title: All Types
+          type: array
+      required:
+      - all_types
+      - document_types
+      - image_types
+      title: SupportedFileTypes
+      type: object
+    WebhookCreate:
+      additionalProperties: false
+      example:
+        url: https://openapi-generator.tech
+        events:
+        - file.uploaded
+        - file.uploaded
+        description: description
+      properties:
+        url:
+          format: uri
+          maxLength: 2083
+          minLength: 1
+          title: Url
+          type: string
+        events:
+          items:
+            enum:
+            - file.uploaded
+            - file.deleted
+            - extraction.completed
+            - extraction.failed
+            - document.indexed
+            - document.index_failed
+            type: string
+          minItems: 1
+          title: Events
+          type: array
+        description:
+          nullable: true
+          title: Description
+          type: string
+      required:
+      - events
+      - url
+      title: WebhookCreate
+      type: object
+    WebhookResource:
+      additionalProperties: false
+      example:
+        id: id
+        url: url
+        events:
+        - events
+        - events
+        enabled: true
+        description: description
+        last_delivery_at: 2000-01-23T04:56:07.000+00:00
+        created_at: 2000-01-23T04:56:07.000+00:00
+        updated_at: 2000-01-23T04:56:07.000+00:00
+      properties:
+        id:
+          title: Id
+          type: string
+        url:
+          title: Url
+          type: string
+        events:
+          items:
+            type: string
+          title: Events
+          type: array
+        enabled:
+          title: Enabled
+          type: boolean
+        description:
+          nullable: true
+          title: Description
+          type: string
+        last_delivery_at:
+          format: date-time
+          nullable: true
+          title: Last Delivery At
+          type: string
+        created_at:
+          format: date-time
+          title: Created At
+          type: string
+        updated_at:
+          format: date-time
+          nullable: true
+          title: Updated At
+          type: string
+      required:
+      - created_at
+      - enabled
+      - events
+      - id
+      - url
+      title: WebhookResource
+      type: object
+    WebhookUpdate:
+      additionalProperties: false
+      example:
+        url: https://openapi-generator.tech
+        events:
+        - file.uploaded
+        - file.uploaded
+        enabled: true
+        description: description
+      properties:
+        url:
+          format: uri
+          maxLength: 2083
+          minLength: 1
+          nullable: true
+          title: Url
+          type: string
+        events:
+          items:
+            enum:
+            - file.uploaded
+            - file.deleted
+            - extraction.completed
+            - extraction.failed
+            - document.indexed
+            - document.index_failed
+            type: string
+          nullable: true
+          title: Events
+          type: array
+        enabled:
+          nullable: true
+          title: Enabled
+          type: boolean
+        description:
+          nullable: true
+          title: Description
+          type: string
+      title: WebhookUpdate
+      type: object
+    UploadFileRequest:
+      properties:
+        file:
+          format: binary
+          title: File
+          type: string
+        metadata:
+          default: "{}"
+          title: Metadata
+          type: string
+        tags:
+          default: "[]"
+          title: Tags
+          type: string
+      required:
+      - file
+      title: UploadFileRequest
+      type: object
+    APIKeyList:
+      additionalProperties: false
+      example:
+        items:
+        - id: id
+          name: name
+          key: key
+          key_prefix: key_prefix
+          scopes:
+          - scopes
+          - scopes
+          last_used_at: 2000-01-23T04:56:07.000+00:00
+          expires_at: 2000-01-23T04:56:07.000+00:00
+          created_at: 2000-01-23T04:56:07.000+00:00
+        - id: id
+          name: name
+          key: key
+          key_prefix: key_prefix
+          scopes:
+          - scopes
+          - scopes
+          last_used_at: 2000-01-23T04:56:07.000+00:00
+          expires_at: 2000-01-23T04:56:07.000+00:00
+          created_at: 2000-01-23T04:56:07.000+00:00
+        total: 0
+        limit: 6
+        offset: 1
+        has_more: true
+      properties:
+        items:
+          items:
+            $ref: "#/components/schemas/APIKeyResource"
+          title: Items
+          type: array
+        total:
+          title: Total
+          type: integer
+        limit:
+          title: Limit
+          type: integer
+        offset:
+          title: Offset
+          type: integer
+        has_more:
+          title: Has More
+          type: boolean
+      required:
+      - has_more
+      - items
+      - limit
+      - offset
+      - total
+      title: APIKeyList
+      type: object
+    DocumentList:
+      additionalProperties: false
+      example:
+        items:
+        - id: id
+          kb_id: kb_id
+          file_id: file_id
+          title: title
+          status: pending
+          chunk_count: 0
+          metadata:
+            key: ""
+          error:
+            key: ""
+          created_at: 2000-01-23T04:56:07.000+00:00
+          indexed_at: 2000-01-23T04:56:07.000+00:00
+        - id: id
+          kb_id: kb_id
+          file_id: file_id
+          title: title
+          status: pending
+          chunk_count: 0
+          metadata:
+            key: ""
+          error:
+            key: ""
+          created_at: 2000-01-23T04:56:07.000+00:00
+          indexed_at: 2000-01-23T04:56:07.000+00:00
+        total: 6
+        limit: 1
+        offset: 5
+        has_more: true
+      properties:
+        items:
+          items:
+            $ref: "#/components/schemas/DocumentResource"
+          title: Items
+          type: array
+        total:
+          title: Total
+          type: integer
+        limit:
+          title: Limit
+          type: integer
+        offset:
+          title: Offset
+          type: integer
+        has_more:
+          title: Has More
+          type: boolean
+      required:
+      - has_more
+      - items
+      - limit
+      - offset
+      - total
+      title: DocumentList
+      type: object
+    ExtractionList:
+      additionalProperties: false
+      example:
+        items:
+        - id: id
+          file_id: file_id
+          status: pending
+          mode: mode
+          progress: 0
+          markdown: markdown
+          total_pages: 6
+          metadata:
+            key: ""
+          error:
+            key: ""
+          created_at: 2000-01-23T04:56:07.000+00:00
+          completed_at: 2000-01-23T04:56:07.000+00:00
+        - id: id
+          file_id: file_id
+          status: pending
+          mode: mode
+          progress: 0
+          markdown: markdown
+          total_pages: 6
+          metadata:
+            key: ""
+          error:
+            key: ""
+          created_at: 2000-01-23T04:56:07.000+00:00
+          completed_at: 2000-01-23T04:56:07.000+00:00
+        total: 1
+        limit: 5
+        offset: 5
+        has_more: true
+      properties:
+        items:
+          items:
+            $ref: "#/components/schemas/ExtractionResource"
+          title: Items
+          type: array
+        total:
+          title: Total
+          type: integer
+        limit:
+          title: Limit
+          type: integer
+        offset:
+          title: Offset
+          type: integer
+        has_more:
+          title: Has More
+          type: boolean
+      required:
+      - has_more
+      - items
+      - limit
+      - offset
+      - total
+      title: ExtractionList
+      type: object
+    FileList:
+      additionalProperties: false
+      example:
+        items:
+        - id: id
+          filename: filename
+          content_type: content_type
+          size: 0
+          metadata:
+            key: ""
+          tags:
+          - tags
+          - tags
+          created_at: 2000-01-23T04:56:07.000+00:00
+          updated_at: 2000-01-23T04:56:07.000+00:00
+        - id: id
+          filename: filename
+          content_type: content_type
+          size: 0
+          metadata:
+            key: ""
+          tags:
+          - tags
+          - tags
+          created_at: 2000-01-23T04:56:07.000+00:00
+          updated_at: 2000-01-23T04:56:07.000+00:00
+        total: 6
+        limit: 1
+        offset: 5
+        has_more: true
+      properties:
+        items:
+          items:
+            $ref: "#/components/schemas/FileResource"
+          title: Items
+          type: array
+        total:
+          title: Total
+          type: integer
+        limit:
+          title: Limit
+          type: integer
+        offset:
+          title: Offset
+          type: integer
+        has_more:
+          title: Has More
+          type: boolean
+      required:
+      - has_more
+      - items
+      - limit
+      - offset
+      - total
+      title: FileList
+      type: object
+    KnowledgeBaseList:
+      additionalProperties: false
+      example:
+        items:
+        - id: id
+          name: name
+          description: description
+          chunking_strategy:
+            type: semantic
+            chunk_size: 8067
+            overlap: 0
+          document_count: 1
+          chunk_count: 5
+          metadata:
+            key: ""
+          created_at: 2000-01-23T04:56:07.000+00:00
+          updated_at: 2000-01-23T04:56:07.000+00:00
+        - id: id
+          name: name
+          description: description
+          chunking_strategy:
+            type: semantic
+            chunk_size: 8067
+            overlap: 0
+          document_count: 1
+          chunk_count: 5
+          metadata:
+            key: ""
+          created_at: 2000-01-23T04:56:07.000+00:00
+          updated_at: 2000-01-23T04:56:07.000+00:00
+        total: 5
+        limit: 2
+        offset: 7
+        has_more: true
+      properties:
+        items:
+          items:
+            $ref: "#/components/schemas/KnowledgeBaseResource"
+          title: Items
+          type: array
+        total:
+          title: Total
+          type: integer
+        limit:
+          title: Limit
+          type: integer
+        offset:
+          title: Offset
+          type: integer
+        has_more:
+          title: Has More
+          type: boolean
+      required:
+      - has_more
+      - items
+      - limit
+      - offset
+      - total
+      title: KnowledgeBaseList
+      type: object
+    WebhookList:
+      additionalProperties: false
+      example:
+        items:
+        - id: id
+          url: url
+          events:
+          - events
+          - events
+          enabled: true
+          description: description
+          last_delivery_at: 2000-01-23T04:56:07.000+00:00
+          created_at: 2000-01-23T04:56:07.000+00:00
+          updated_at: 2000-01-23T04:56:07.000+00:00
+        - id: id
+          url: url
+          events:
+          - events
+          - events
+          enabled: true
+          description: description
+          last_delivery_at: 2000-01-23T04:56:07.000+00:00
+          created_at: 2000-01-23T04:56:07.000+00:00
+          updated_at: 2000-01-23T04:56:07.000+00:00
+        total: 0
+        limit: 6
+        offset: 1
+        has_more: true
+      properties:
+        items:
+          items:
+            $ref: "#/components/schemas/WebhookResource"
+          title: Items
+          type: array
+        total:
+          title: Total
+          type: integer
+        limit:
+          title: Limit
+          type: integer
+        offset:
+          title: Offset
+          type: integer
+        has_more:
+          title: Has More
+          type: boolean
+      required:
+      - has_more
+      - items
+      - limit
+      - offset
+      - total
+      title: WebhookList
+      type: object
+    APIKeyResponse:
+      additionalProperties: false
+      example:
+        success: true
+        data:
+          id: id
+          name: name
+          key: key
+          key_prefix: key_prefix
+          scopes:
+          - scopes
+          - scopes
+          last_used_at: 2000-01-23T04:56:07.000+00:00
+          expires_at: 2000-01-23T04:56:07.000+00:00
+          created_at: 2000-01-23T04:56:07.000+00:00
+      properties:
+        success:
+          default: true
+          title: Success
+          type: boolean
+        data:
+          $ref: "#/components/schemas/APIKeyResource"
+      required:
+      - data
+      title: APIKeyResponse
+      type: object
+    DeletionResponse:
+      additionalProperties: false
+      example:
+        success: true
+        data:
+          id: id
+          deleted: true
+      properties:
+        success:
+          default: true
+          title: Success
+          type: boolean
+        data:
+          $ref: "#/components/schemas/DeletionResult"
+      required:
+      - data
+      title: DeletionResponse
+      type: object
+    DocumentResponse:
+      additionalProperties: false
+      example:
+        success: true
+        data:
+          id: id
+          kb_id: kb_id
+          file_id: file_id
+          title: title
+          status: pending
+          chunk_count: 0
+          metadata:
+            key: ""
+          error:
+            key: ""
+          created_at: 2000-01-23T04:56:07.000+00:00
+          indexed_at: 2000-01-23T04:56:07.000+00:00
+      properties:
+        success:
+          default: true
+          title: Success
+          type: boolean
+        data:
+          $ref: "#/components/schemas/DocumentResource"
+      required:
+      - data
+      title: DocumentResponse
+      type: object
+    ExtractionResponse:
+      additionalProperties: false
+      example:
+        success: true
+        data:
+          id: id
+          file_id: file_id
+          status: pending
+          mode: mode
+          progress: 0
+          markdown: markdown
+          total_pages: 6
+          metadata:
+            key: ""
+          error:
+            key: ""
+          created_at: 2000-01-23T04:56:07.000+00:00
+          completed_at: 2000-01-23T04:56:07.000+00:00
+      properties:
+        success:
+          default: true
+          title: Success
+          type: boolean
+        data:
+          $ref: "#/components/schemas/ExtractionResource"
+      required:
+      - data
+      title: ExtractionResponse
+      type: object
+    FileResponse:
+      additionalProperties: false
+      example:
+        success: true
+        data:
+          id: id
+          filename: filename
+          content_type: content_type
+          size: 0
+          metadata:
+            key: ""
+          tags:
+          - tags
+          - tags
+          created_at: 2000-01-23T04:56:07.000+00:00
+          updated_at: 2000-01-23T04:56:07.000+00:00
+      properties:
+        success:
+          default: true
+          title: Success
+          type: boolean
+        data:
+          $ref: "#/components/schemas/FileResource"
+      required:
+      - data
+      title: FileResponse
+      type: object
+    KnowledgeBaseResponse:
+      additionalProperties: false
+      example:
+        success: true
+        data:
+          id: id
+          name: name
+          description: description
+          chunking_strategy:
+            type: semantic
+            chunk_size: 8067
+            overlap: 0
+          document_count: 1
+          chunk_count: 5
+          metadata:
+            key: ""
+          created_at: 2000-01-23T04:56:07.000+00:00
+          updated_at: 2000-01-23T04:56:07.000+00:00
+      properties:
+        success:
+          default: true
+          title: Success
+          type: boolean
+        data:
+          $ref: "#/components/schemas/KnowledgeBaseResource"
+      required:
+      - data
+      title: KnowledgeBaseResponse
+      type: object
+    APIKeyListResponse:
+      additionalProperties: false
+      example:
+        success: true
+        data:
+          items:
+          - id: id
+            name: name
+            key: key
+            key_prefix: key_prefix
+            scopes:
+            - scopes
+            - scopes
+            last_used_at: 2000-01-23T04:56:07.000+00:00
+            expires_at: 2000-01-23T04:56:07.000+00:00
+            created_at: 2000-01-23T04:56:07.000+00:00
+          - id: id
+            name: name
+            key: key
+            key_prefix: key_prefix
+            scopes:
+            - scopes
+            - scopes
+            last_used_at: 2000-01-23T04:56:07.000+00:00
+            expires_at: 2000-01-23T04:56:07.000+00:00
+            created_at: 2000-01-23T04:56:07.000+00:00
+          total: 0
+          limit: 6
+          offset: 1
+          has_more: true
+      properties:
+        success:
+          default: true
+          title: Success
+          type: boolean
+        data:
+          $ref: "#/components/schemas/APIKeyList"
+      required:
+      - data
+      title: APIKeyListResponse
+      type: object
+    DocumentListResponse:
+      additionalProperties: false
+      example:
+        success: true
+        data:
+          items:
+          - id: id
+            kb_id: kb_id
+            file_id: file_id
+            title: title
+            status: pending
+            chunk_count: 0
+            metadata:
+              key: ""
+            error:
+              key: ""
+            created_at: 2000-01-23T04:56:07.000+00:00
+            indexed_at: 2000-01-23T04:56:07.000+00:00
+          - id: id
+            kb_id: kb_id
+            file_id: file_id
+            title: title
+            status: pending
+            chunk_count: 0
+            metadata:
+              key: ""
+            error:
+              key: ""
+            created_at: 2000-01-23T04:56:07.000+00:00
+            indexed_at: 2000-01-23T04:56:07.000+00:00
+          total: 6
+          limit: 1
+          offset: 5
+          has_more: true
+      properties:
+        success:
+          default: true
+          title: Success
+          type: boolean
+        data:
+          $ref: "#/components/schemas/DocumentList"
+      required:
+      - data
+      title: DocumentListResponse
+      type: object
+    ExtractionListResponse:
+      additionalProperties: false
+      example:
+        success: true
+        data:
+          items:
+          - id: id
+            file_id: file_id
+            status: pending
+            mode: mode
+            progress: 0
+            markdown: markdown
+            total_pages: 6
+            metadata:
+              key: ""
+            error:
+              key: ""
+            created_at: 2000-01-23T04:56:07.000+00:00
+            completed_at: 2000-01-23T04:56:07.000+00:00
+          - id: id
+            file_id: file_id
+            status: pending
+            mode: mode
+            progress: 0
+            markdown: markdown
+            total_pages: 6
+            metadata:
+              key: ""
+            error:
+              key: ""
+            created_at: 2000-01-23T04:56:07.000+00:00
+            completed_at: 2000-01-23T04:56:07.000+00:00
+          total: 1
+          limit: 5
+          offset: 5
+          has_more: true
+      properties:
+        success:
+          default: true
+          title: Success
+          type: boolean
+        data:
+          $ref: "#/components/schemas/ExtractionList"
+      required:
+      - data
+      title: ExtractionListResponse
+      type: object
+    FileListResponse:
+      additionalProperties: false
+      example:
+        success: true
+        data:
+          items:
+          - id: id
+            filename: filename
+            content_type: content_type
+            size: 0
+            metadata:
+              key: ""
+            tags:
+            - tags
+            - tags
+            created_at: 2000-01-23T04:56:07.000+00:00
+            updated_at: 2000-01-23T04:56:07.000+00:00
+          - id: id
+            filename: filename
+            content_type: content_type
+            size: 0
+            metadata:
+              key: ""
+            tags:
+            - tags
+            - tags
+            created_at: 2000-01-23T04:56:07.000+00:00
+            updated_at: 2000-01-23T04:56:07.000+00:00
+          total: 6
+          limit: 1
+          offset: 5
+          has_more: true
+      properties:
+        success:
+          default: true
+          title: Success
+          type: boolean
+        data:
+          $ref: "#/components/schemas/FileList"
+      required:
+      - data
+      title: FileListResponse
+      type: object
+    KnowledgeBaseListResponse:
+      additionalProperties: false
+      example:
+        success: true
+        data:
+          items:
+          - id: id
+            name: name
+            description: description
+            chunking_strategy:
+              type: semantic
+              chunk_size: 8067
+              overlap: 0
+            document_count: 1
+            chunk_count: 5
+            metadata:
+              key: ""
+            created_at: 2000-01-23T04:56:07.000+00:00
+            updated_at: 2000-01-23T04:56:07.000+00:00
+          - id: id
+            name: name
+            description: description
+            chunking_strategy:
+              type: semantic
+              chunk_size: 8067
+              overlap: 0
+            document_count: 1
+            chunk_count: 5
+            metadata:
+              key: ""
+            created_at: 2000-01-23T04:56:07.000+00:00
+            updated_at: 2000-01-23T04:56:07.000+00:00
+          total: 5
+          limit: 2
+          offset: 7
+          has_more: true
+      properties:
+        success:
+          default: true
+          title: Success
+          type: boolean
+        data:
+          $ref: "#/components/schemas/KnowledgeBaseList"
+      required:
+      - data
+      title: KnowledgeBaseListResponse
+      type: object
+    WebhookListResponse:
+      additionalProperties: false
+      example:
+        success: true
+        data:
+          items:
+          - id: id
+            url: url
+            events:
+            - events
+            - events
+            enabled: true
+            description: description
+            last_delivery_at: 2000-01-23T04:56:07.000+00:00
+            created_at: 2000-01-23T04:56:07.000+00:00
+            updated_at: 2000-01-23T04:56:07.000+00:00
+          - id: id
+            url: url
+            events:
+            - events
+            - events
+            enabled: true
+            description: description
+            last_delivery_at: 2000-01-23T04:56:07.000+00:00
+            created_at: 2000-01-23T04:56:07.000+00:00
+            updated_at: 2000-01-23T04:56:07.000+00:00
+          total: 0
+          limit: 6
+          offset: 1
+          has_more: true
+      properties:
+        success:
+          default: true
+          title: Success
+          type: boolean
+        data:
+          $ref: "#/components/schemas/WebhookList"
+      required:
+      - data
+      title: WebhookListResponse
+      type: object
+    SearchResponse:
+      additionalProperties: false
+      example:
+        success: true
+        data:
+          query: query
+          chunks:
+          - id: id
+            document_id: document_id
+            document_title: document_title
+            content: content
+            score: 0.8008281904610115
+            vector_score: 6.027456183070403
+            keyword_score: 1.4658129805029452
+            metadata:
+              key: ""
+          - id: id
+            document_id: document_id
+            document_title: document_title
+            content: content
+            score: 0.8008281904610115
+            vector_score: 6.027456183070403
+            keyword_score: 1.4658129805029452
+            metadata:
+              key: ""
+          total: 5
+      properties:
+        success:
+          default: true
+          title: Success
+          type: boolean
+        data:
+          $ref: "#/components/schemas/SearchResults"
+      required:
+      - data
+      title: SearchResponse
+      type: object
+    SupportedFileTypesResponse:
+      additionalProperties: false
+      example:
+        success: true
+        data:
+          document_types:
+          - document_types
+          - document_types
+          image_types:
+          - image_types
+          - image_types
+          all_types:
+          - all_types
+          - all_types
+      properties:
+        success:
+          default: true
+          title: Success
+          type: boolean
+        data:
+          $ref: "#/components/schemas/SupportedFileTypes"
+      required:
+      - data
+      title: SupportedFileTypesResponse
+      type: object
+    WebhookResponse:
+      additionalProperties: false
+      example:
+        success: true
+        data:
+          id: id
+          url: url
+          events:
+          - events
+          - events
+          enabled: true
+          description: description
+          last_delivery_at: 2000-01-23T04:56:07.000+00:00
+          created_at: 2000-01-23T04:56:07.000+00:00
+          updated_at: 2000-01-23T04:56:07.000+00:00
+      properties:
+        success:
+          default: true
+          title: Success
+          type: boolean
+        data:
+          $ref: "#/components/schemas/WebhookResource"
+      required:
+      - data
+      title: WebhookResponse
+      type: object
+    ChunkingStrategy:
+      additionalProperties: false
+      example:
+        type: semantic
+        chunk_size: 8067
+        overlap: 0
+      properties:
+        type:
+          default: semantic
+          enum:
+          - fixed
+          - semantic
+          - hierarchical
+          - paragraph
+          title: type
+          type: string
+        chunk_size:
+          default: 512
+          maximum: 100000
+          minimum: 64
+          title: chunk_size
+          type: integer
+        overlap:
+          default: 50
+          minimum: 0
+          title: overlap
+          type: integer
+      required:
+      - chunk_size
+      - overlap
+      - type
+      title: ChunkingStrategy
+      type: object
+    ExtractionOptions:
+      additionalProperties: false
+      example:
+        language: language
+        ocr_provider: ocr_provider
+        extract_tables: true
+        extract_images: true
+        preserve_layout: true
+      properties:
+        language:
+          title: language
+          type: string
+        ocr_provider:
+          title: ocr_provider
+          type: string
+        extract_tables:
+          title: extract_tables
+          type: boolean
+        extract_images:
+          title: extract_images
+          type: boolean
+        preserve_layout:
+          title: preserve_layout
+          type: boolean
+      title: ExtractionOptions
+      type: object
+    HealthStatus:
+      additionalProperties: false
+      example:
+        status: status
+        version: version
+      properties:
+        status:
+          title: status
+          type: string
+        version:
+          title: version
+          type: string
+      required:
+      - status
+      - version
+      title: HealthStatus
+      type: object
+    StorageUsage:
+      additionalProperties: false
+      example:
+        used_bytes: 0
+        limit_bytes: 6
+        used_percentage: 1.4658129805029452
+      properties:
+        used_bytes:
+          title: used_bytes
+          type: integer
+        limit_bytes:
+          title: limit_bytes
+          type: integer
+        used_percentage:
+          title: used_percentage
+          type: number
+      required:
+      - limit_bytes
+      - used_bytes
+      - used_percentage
+      title: StorageUsage
+      type: object
+    ExtractionUsage:
+      additionalProperties: false
+      example:
+        pages_used: 5
+        pages_limit: 5
+        reset_at: 2000-01-23T04:56:07.000+00:00
+      properties:
+        pages_used:
+          title: pages_used
+          type: integer
+        pages_limit:
+          title: pages_limit
+          type: integer
+        reset_at:
+          format: date-time
+          nullable: true
+          title: reset_at
+          type: string
+      required:
+      - pages_limit
+      - pages_used
+      title: ExtractionUsage
+      type: object
+    KnowledgeBaseUsage:
+      additionalProperties: false
+      example:
+        used: 2
+        limit: 7
+      properties:
+        used:
+          title: used
+          type: integer
+        limit:
+          title: limit
+          type: integer
+      required:
+      - limit
+      - used
+      title: KnowledgeBaseUsage
+      type: object
+    UsageStats:
+      additionalProperties: false
+      example:
+        storage:
+          used_bytes: 0
+          limit_bytes: 6
+          used_percentage: 1.4658129805029452
+        extraction:
+          pages_used: 5
+          pages_limit: 5
+          reset_at: 2000-01-23T04:56:07.000+00:00
+        knowledge_bases:
+          used: 2
+          limit: 7
+      properties:
+        storage:
+          $ref: "#/components/schemas/StorageUsage"
+        extraction:
+          $ref: "#/components/schemas/ExtractionUsage"
+        knowledge_bases:
+          $ref: "#/components/schemas/KnowledgeBaseUsage"
+      required:
+      - extraction
+      - knowledge_bases
+      - storage
+      title: UsageStats
+      type: object
+    ApiCallLimits:
+      additionalProperties: false
+      example:
+        limit: 0
+        window: window
+      properties:
+        limit:
+          nullable: true
+          title: limit
+          type: integer
+        window:
+          title: window
+          type: string
+      required:
+      - limit
+      - window
+      title: ApiCallLimits
+      type: object
+    StorageLimits:
+      additionalProperties: false
+      example:
+        limit_bytes: 6
+      properties:
+        limit_bytes:
+          title: limit_bytes
+          type: integer
+      required:
+      - limit_bytes
+      title: StorageLimits
+      type: object
+    FileLimits:
+      additionalProperties: false
+      example:
+        max_file_size_bytes: 1
+      properties:
+        max_file_size_bytes:
+          title: max_file_size_bytes
+          type: integer
+      required:
+      - max_file_size_bytes
+      title: FileLimits
+      type: object
+    UsageLimits:
+      additionalProperties: false
+      example:
+        api_calls:
+          limit: 0
+          window: window
+        storage:
+          limit_bytes: 6
+        files:
+          max_file_size_bytes: 1
+      properties:
+        api_calls:
+          $ref: "#/components/schemas/ApiCallLimits"
+        storage:
+          $ref: "#/components/schemas/StorageLimits"
+        files:
+          $ref: "#/components/schemas/FileLimits"
+      required:
+      - api_calls
+      - files
+      - storage
+      title: UsageLimits
+      type: object
+    HealthResponse:
+      additionalProperties: false
+      example:
+        success: true
+        data:
+          status: status
+          version: version
+      properties:
+        success:
+          default: true
+          title: success
+          type: boolean
+        data:
+          $ref: "#/components/schemas/HealthStatus"
+      required:
+      - data
+      title: HealthResponse
+      type: object
+    UsageStatsResponse:
+      additionalProperties: false
+      example:
+        success: true
+        data:
+          storage:
+            used_bytes: 0
+            limit_bytes: 6
+            used_percentage: 1.4658129805029452
+          extraction:
+            pages_used: 5
+            pages_limit: 5
+            reset_at: 2000-01-23T04:56:07.000+00:00
+          knowledge_bases:
+            used: 2
+            limit: 7
+      properties:
+        success:
+          default: true
+          title: success
+          type: boolean
+        data:
+          $ref: "#/components/schemas/UsageStats"
+      required:
+      - data
+      title: UsageStatsResponse
+      type: object
+    UsageLimitsResponse:
+      additionalProperties: false
+      example:
+        success: true
+        data:
+          api_calls:
+            limit: 0
+            window: window
+          storage:
+            limit_bytes: 6
+          files:
+            max_file_size_bytes: 1
+      properties:
+        success:
+          default: true
+          title: success
+          type: boolean
+        data:
+          $ref: "#/components/schemas/UsageLimits"
+      required:
+      - data
+      title: UsageLimitsResponse
+      type: object
+  securitySchemes:
+    BearerAuth:
+      scheme: bearer
+      type: http

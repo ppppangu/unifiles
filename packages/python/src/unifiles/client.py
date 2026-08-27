@@ -40,6 +40,7 @@ class UnifilesClient:
             max_retries=max_retries,
             client=_http_client,
         )
+        self.raw = self._transport.apis
         self.files = FilesResource(self._transport)
         self.extractions = ExtractionsResource(self._transport)
         self.knowledge_bases = KnowledgeBasesResource(self._transport)
@@ -80,6 +81,7 @@ class AsyncUnifilesClient:
             max_retries=max_retries,
             client=_http_client,
         )
+        self.raw = self._transport.apis
         self.files = AsyncFilesResource(self._transport)
         self.extractions = AsyncExtractionsResource(self._transport)
         self.knowledge_bases = AsyncKnowledgeBasesResource(self._transport)
@@ -92,7 +94,7 @@ class AsyncUnifilesClient:
         return self._transport.base_url
 
     async def close(self) -> None:
-        await self._transport.close()
+        await self._transport.aclose()
 
     async def __aenter__(self) -> AsyncUnifilesClient:
         return self

@@ -1,11 +1,15 @@
+import { randomUUID } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import { basename } from "node:path";
-import { randomUUID } from "node:crypto";
+
+import type { APIKeyCreate } from "../generated/src/models/APIKeyCreate.js";
+import type { ExtractionCreate as GeneratedExtractionCreate } from "../generated/src/models/ExtractionCreate.js";
+import type { WebhookCreate } from "../generated/src/models/WebhookCreate.js";
+import type { WebhookUpdate } from "../generated/src/models/WebhookUpdate.js";
 
 import { Transport } from "./transport.js";
 import {
   type APIKey,
-  type Chunk,
   type ChunkingStrategy,
   type DeletionResult,
   Document,
@@ -26,149 +30,21 @@ import {
   waitTimeout,
 } from "./types.js";
 
-type Wire = Record<string, unknown>;
-
-const object = (value: unknown): Wire => (value && typeof value === "object" ? (value as Wire) : {});
-const array = (value: unknown): unknown[] => (Array.isArray(value) ? value : []);
-const compact = (value: Wire): Wire =>
-  Object.fromEntries(Object.entries(value).filter(([, item]) => item !== undefined));
-
-const listFromWire = <T>(wire: Wire, map: (item: Wire) => T): ListResponse<T> => ({
-  items: array(wire.items).map((item) => map(object(item))),
-  total: Number(wire.total ?? 0),
-  limit: Number(wire.limit ?? 50),
-  offset: Number(wire.offset ?? 0),
-  hasMore: Boolean(wire.has_more),
-});
-
-const fileFromWire = (wire: Wire): FileResource => ({
-  id: String(wire.id),
-  filename: String(wire.filename),
-  contentType: String(wire.content_type),
-  size: Number(wire.size),
-  metadata: object(wire.metadata),
-  tags: array(wire.tags).map(String),
-  createdAt: String(wire.created_at),
-  ...(wire.updated_at ? { updatedAt: String(wire.updated_at) } : {}),
-});
-
-const extractionDataFromWire = (wire: Wire): ExtractionData => ({
-  id: String(wire.id),
-  fileId: String(wire.file_id),
-  status: String(wire.status) as ExtractionData["status"],
-  mode: String(wire.mode ?? "normal"),
-  createdAt: String(wire.created_at),
-  ...(wire.progress !== undefined ? { progress: Number(wire.progress) } : {}),
-  ...(wire.markdown !== undefined && wire.markdown !== null ? { markdown: String(wire.markdown) } : {}),
-  ...(wire.total_pages !== undefined && wire.total_pages !== null ? { totalPages: Number(wire.total_pages) } : {}),
-  ...(wire.metadata ? { metadata: object(wire.metadata) } : {}),
-  ...(wire.error ? { error: object(wire.error) } : {}),
-  ...(wire.completed_at ? { completedAt: String(wire.completed_at) } : {}),
-});
-
-const kbFromWire = (wire: Wire): KnowledgeBase => ({
-  id: String(wire.id),
-  name: String(wire.name),
-  chunkingStrategy: chunkingFromWire(object(wire.chunking_strategy)),
-  documentCount: Number(wire.document_count ?? 0),
-  chunkCount: Number(wire.chunk_count ?? 0),
-  createdAt: String(wire.created_at),
-  ...(wire.description !== undefined && wire.description !== null ? { description: String(wire.description) } : {}),
-  ...(wire.metadata ? { metadata: object(wire.metadata) } : {}),
-  ...(wire.updated_at ? { updatedAt: String(wire.updated_at) } : {}),
-});
-
-const chunkingFromWire = (wire: Wire): ChunkingStrategy => {
-  const { chunk_size, ...rest } = wire;
-  return {
-    ...rest,
-    type: String(wire.type ?? "semantic") as ChunkingStrategy["type"],
-    chunkSize: Number(chunk_size ?? 512),
-    overlap: Number(wire.overlap ?? 50),
-  };
-};
-
-const chunkingToWire = (value: Partial<ChunkingStrategy> | undefined): Wire | undefined => {
-  if (!value) return undefined;
-  const { chunkSize, overlap, ...rest } = value;
-  return compact({ ...rest, chunk_size: chunkSize, overlap });
-};
-
-const extractionOptionsToWire = (value: ExtractionOptions | undefined): Wire => {
-  if (!value) return {};
-  const { ocrProvider, extractTables, extractImages, preserveLayout, ...rest } = value;
-  return compact({
-    ...rest,
-    ocr_provider: ocrProvider,
-    extract_tables: extractTables,
-    extract_images: extractImages,
-    preserve_layout: preserveLayout,
-  });
-};
-
-const documentDataFromWire = (wire: Wire): DocumentData => ({
-  id: String(wire.id),
-  kbId: String(wire.kb_id),
-  fileId: String(wire.file_id),
-  status: String(wire.status) as DocumentData["status"],
-  chunkCount: Number(wire.chunk_count ?? 0),
-  createdAt: String(wire.created_at),
-  ...(wire.title !== undefined && wire.title !== null ? { title: String(wire.title) } : {}),
-  ...(wire.metadata ? { metadata: object(wire.metadata) } : {}),
-  ...(wire.error ? { error: object(wire.error) } : {}),
-  ...(wire.indexed_at ? { indexedAt: String(wire.indexed_at) } : {}),
-});
-
-const chunkFromWire = (wire: Wire): Chunk => ({
-  id: String(wire.id),
-  documentId: String(wire.document_id),
-  content: String(wire.content),
-  score: Number(wire.score),
-  metadata: object(wire.metadata),
-  ...(wire.document_title ? { documentTitle: String(wire.document_title) } : {}),
-  ...(wire.vector_score !== undefined ? { vectorScore: Number(wire.vector_score) } : {}),
-  ...(wire.keyword_score !== undefined ? { keywordScore: Number(wire.keyword_score) } : {}),
-});
-
-const searchFromWire = (wire: Wire): SearchResults => ({
-  query: String(wire.query),
-  chunks: array(wire.chunks).map((item) => chunkFromWire(object(item))),
-  total: Number(wire.total ?? 0),
-});
-
-const webhookFromWire = (wire: Wire): Webhook => ({
-  id: String(wire.id),
-  url: String(wire.url),
-  events: array(wire.events).map(String),
-  enabled: Boolean(wire.enabled ?? true),
-  createdAt: String(wire.created_at),
-  ...(wire.description ? { description: String(wire.description) } : {}),
-  ...(wire.last_delivery_at ? { lastDeliveryAt: String(wire.last_delivery_at) } : {}),
-  ...(wire.updated_at ? { updatedAt: String(wire.updated_at) } : {}),
-});
-
-const apiKeyFromWire = (wire: Wire): APIKey => ({
-  id: String(wire.id),
-  name: String(wire.name),
-  keyPrefix: String(wire.key_prefix),
-  scopes: array(wire.scopes).map(String),
-  createdAt: String(wire.created_at),
-  ...(wire.key ? { key: String(wire.key) } : {}),
-  ...(wire.last_used_at ? { lastUsedAt: String(wire.last_used_at) } : {}),
-  ...(wire.expires_at ? { expiresAt: String(wire.expires_at) } : {}),
-});
-
-const deletionFromWire = (wire: Wire): DeletionResult => ({
-  id: String(wire.id),
-  deleted: Boolean(wire.deleted),
-});
-
 export interface UploadOptions {
   filename?: string;
   contentType?: string;
   metadata?: Record<string, unknown>;
   tags?: string[];
 }
+
+const chunking = (value: Partial<ChunkingStrategy> | undefined): ChunkingStrategy | undefined =>
+  value
+    ? {
+        type: value.type ?? "semantic",
+        chunkSize: value.chunkSize ?? 512,
+        overlap: value.overlap ?? 50,
+      }
+    : undefined;
 
 export class FilesResource {
   constructor(private readonly transport: Transport) {}
@@ -177,19 +53,17 @@ export class FilesResource {
     const content = typeof input === "string" ? await readFile(input) : input;
     const filename = options.filename ?? (typeof input === "string" ? basename(input) : undefined);
     if (!filename) throw new TypeError("filename is required when uploading bytes");
-    const form = new FormData();
     const bytes = Uint8Array.from(content);
-    const blob = options.contentType
-      ? new Blob([bytes.buffer], { type: options.contentType })
-      : new Blob([bytes.buffer]);
-    form.set("file", blob, filename);
-    form.set("metadata", JSON.stringify(options.metadata ?? {}));
-    form.set("tags", JSON.stringify(options.tags ?? []));
-    const wire = await this.transport.request<Wire>("POST", "files", {
-      form,
-      idempotencyKey: randomUUID(),
+    const file = new File([bytes.buffer], filename, {
+      type: options.contentType ?? "application/octet-stream",
     });
-    return fileFromWire(wire);
+    const response = await this.transport.apis.files.uploadFile({
+      file,
+      idempotencyKey: randomUUID(),
+      metadata: JSON.stringify(options.metadata ?? {}),
+      tags: JSON.stringify(options.tags ?? []),
+    });
+    return response.data;
   }
 
   async list(options: {
@@ -200,67 +74,69 @@ export class FilesResource {
     sortBy?: string;
     order?: "asc" | "desc";
   } = {}): Promise<ListResponse<FileResource>> {
-    const wire = await this.transport.request<Wire>("GET", "files", {
-      query: {
-        limit: options.limit ?? 50,
-        offset: options.offset ?? 0,
-        tags: options.tags?.join(","),
-        content_type: options.contentType,
-        sort_by: options.sortBy ?? "created_at",
-        order: options.order ?? "desc",
-      },
+    const response = await this.transport.apis.files.listFiles({
+      limit: options.limit ?? 50,
+      offset: options.offset ?? 0,
+      ...(options.tags ? { tags: options.tags.join(",") } : {}),
+      ...(options.contentType ? { contentType: options.contentType } : {}),
+      sortBy: options.sortBy ?? "created_at",
+      order: options.order ?? "desc",
     });
-    return listFromWire(wire, fileFromWire);
+    return response.data;
   }
 
   async get(fileId: string): Promise<FileResource> {
-    return fileFromWire(await this.transport.request<Wire>("GET", `files/${fileId}`));
+    return (await this.transport.apis.files.getFile({ fileId })).data;
   }
 
-  download(fileId: string): Promise<Uint8Array> {
-    return this.transport.binary(`files/${fileId}/download`);
+  async download(fileId: string): Promise<Uint8Array> {
+    const blob = await this.transport.apis.files.downloadFile({ fileId });
+    return new Uint8Array(await blob.arrayBuffer());
   }
 
   async delete(fileId: string): Promise<DeletionResult> {
-    return deletionFromWire(await this.transport.request<Wire>("DELETE", `files/${fileId}`));
+    return (await this.transport.apis.files.deleteFile({ fileId })).data;
   }
 
   async listSupportedTypes(): Promise<SupportedFileTypes> {
-    const wire = await this.transport.request<Wire>("GET", "files/types");
-    return {
-      documentTypes: array(wire.document_types).map(String),
-      imageTypes: array(wire.image_types).map(String),
-      allTypes: array(wire.all_types).map(String),
-    };
+    return (await this.transport.apis.files.listSupportedFileTypes()).data;
   }
 }
 
 export class ExtractionsResource {
   constructor(private readonly transport: Transport) {}
 
-  #fromWire = (wire: Wire): Extraction => new Extraction(extractionDataFromWire(wire), this.#wait);
+  #bind = (data: ExtractionData): Extraction => new Extraction(data, this.#wait);
 
-  async create(fileId: string, options: { mode?: string; options?: ExtractionOptions } = {}): Promise<Extraction> {
-    const wire = await this.transport.request<Wire>("POST", "extractions", {
-      body: {
-        file_id: fileId,
-        mode: options.mode ?? "normal",
-        options: extractionOptionsToWire(options.options),
+  async create(
+    fileId: string,
+    options: { mode?: string; options?: ExtractionOptions } = {},
+  ): Promise<Extraction> {
+    const response = await this.transport.apis.extractions.createExtraction({
+      extractionCreate: {
+        fileId,
+        mode: (options.mode ?? "normal") as NonNullable<GeneratedExtractionCreate["mode"]>,
+        ...(options.options ? { options: options.options } : {}),
       },
       idempotencyKey: randomUUID(),
     });
-    return this.#fromWire(wire);
+    return this.#bind(response.data);
   }
 
   async get(extractionId: string): Promise<Extraction> {
-    return this.#fromWire(await this.transport.request<Wire>("GET", `extractions/${extractionId}`));
+    return this.#bind((await this.transport.apis.extractions.getExtraction({ extractionId })).data);
   }
 
-  async list(fileId: string, options: { limit?: number; offset?: number } = {}): Promise<ListResponse<Extraction>> {
-    const wire = await this.transport.request<Wire>("GET", `files/${fileId}/extractions`, {
-      query: { limit: options.limit ?? 50, offset: options.offset ?? 0 },
+  async list(
+    fileId: string,
+    options: { limit?: number; offset?: number } = {},
+  ): Promise<ListResponse<Extraction>> {
+    const response = await this.transport.apis.extractions.listFileExtractions({
+      fileId,
+      limit: options.limit ?? 50,
+      offset: options.offset ?? 0,
     });
-    return listFromWire(wire, this.#fromWire);
+    return { ...response.data, items: response.data.items.map(this.#bind) };
   }
 
   #wait = async (id: string, options: WaitOptions): Promise<Extraction> => {
@@ -280,37 +156,45 @@ export class ExtractionsResource {
 export class DocumentsResource {
   constructor(private readonly transport: Transport) {}
 
-  #fromWire = (wire: Wire): Document => new Document(documentDataFromWire(wire), this.#wait);
+  #bind = (data: DocumentData): Document => new Document(data, this.#wait);
 
   async create(
     kbId: string,
     fileId: string,
     options: { title?: string; metadata?: Record<string, unknown> } = {},
   ): Promise<Document> {
-    const wire = await this.transport.request<Wire>("POST", `knowledge-bases/${kbId}/documents`, {
-      body: compact({ file_id: fileId, title: options.title, metadata: options.metadata }),
+    const response = await this.transport.apis.documents.createDocument({
+      kbId,
+      documentCreate: {
+        fileId,
+        ...(options.title !== undefined ? { title: options.title } : {}),
+        ...(options.metadata ? { metadata: options.metadata } : {}),
+      },
       idempotencyKey: randomUUID(),
     });
-    return this.#fromWire(wire);
+    return this.#bind(response.data);
   }
 
-  async list(kbId: string, options: { limit?: number; offset?: number } = {}): Promise<ListResponse<Document>> {
-    const wire = await this.transport.request<Wire>("GET", `knowledge-bases/${kbId}/documents`, {
-      query: { limit: options.limit ?? 50, offset: options.offset ?? 0 },
+  async list(
+    kbId: string,
+    options: { limit?: number; offset?: number } = {},
+  ): Promise<ListResponse<Document>> {
+    const response = await this.transport.apis.documents.listDocuments({
+      kbId,
+      limit: options.limit ?? 50,
+      offset: options.offset ?? 0,
     });
-    return listFromWire(wire, this.#fromWire);
+    return { ...response.data, items: response.data.items.map(this.#bind) };
   }
 
   async get(kbId: string, documentId: string): Promise<Document> {
-    return this.#fromWire(
-      await this.transport.request<Wire>("GET", `knowledge-bases/${kbId}/documents/${documentId}`),
+    return this.#bind(
+      (await this.transport.apis.documents.getDocument({ kbId, documentId })).data,
     );
   }
 
   async delete(kbId: string, documentId: string): Promise<DeletionResult> {
-    return deletionFromWire(
-      await this.transport.request<Wire>("DELETE", `knowledge-bases/${kbId}/documents/${documentId}`),
-    );
+    return (await this.transport.apis.documents.deleteDocument({ kbId, documentId })).data;
   }
 
   #wait = async (kbId: string, id: string, options: WaitOptions): Promise<Document> => {
@@ -336,48 +220,65 @@ export class KnowledgeBasesResource {
 
   async create(
     name: string,
-    options: { description?: string; chunkingStrategy?: Partial<ChunkingStrategy>; metadata?: Record<string, unknown> } = {},
+    options: {
+      description?: string;
+      chunkingStrategy?: Partial<ChunkingStrategy>;
+      metadata?: Record<string, unknown>;
+    } = {},
   ): Promise<KnowledgeBase> {
-    const wire = await this.transport.request<Wire>("POST", "knowledge-bases", {
-      body: compact({
+    const response = await this.transport.apis.knowledgeBases.createKnowledgeBase({
+      knowledgeBaseCreate: {
         name,
-        description: options.description,
-        chunking_strategy: chunkingToWire(options.chunkingStrategy),
-        metadata: options.metadata,
-      }),
+        ...(options.description !== undefined ? { description: options.description } : {}),
+        ...(options.chunkingStrategy
+          ? { chunkingStrategy: chunking(options.chunkingStrategy) as ChunkingStrategy }
+          : {}),
+        ...(options.metadata ? { metadata: options.metadata } : {}),
+      },
       idempotencyKey: randomUUID(),
     });
-    return kbFromWire(wire);
+    return response.data;
   }
 
   async list(options: { limit?: number; offset?: number } = {}): Promise<ListResponse<KnowledgeBase>> {
-    const wire = await this.transport.request<Wire>("GET", "knowledge-bases", {
-      query: { limit: options.limit ?? 50, offset: options.offset ?? 0 },
-    });
-    return listFromWire(wire, kbFromWire);
+    return (
+      await this.transport.apis.knowledgeBases.listKnowledgeBases({
+        limit: options.limit ?? 50,
+        offset: options.offset ?? 0,
+      })
+    ).data;
   }
 
   async get(kbId: string): Promise<KnowledgeBase> {
-    return kbFromWire(await this.transport.request<Wire>("GET", `knowledge-bases/${kbId}`));
+    return (await this.transport.apis.knowledgeBases.getKnowledgeBase({ kbId })).data;
   }
 
   async update(
     kbId: string,
-    changes: { name?: string; description?: string; chunkingStrategy?: Partial<ChunkingStrategy>; metadata?: Record<string, unknown> },
+    changes: {
+      name?: string;
+      description?: string;
+      chunkingStrategy?: Partial<ChunkingStrategy>;
+      metadata?: Record<string, unknown>;
+    },
   ): Promise<KnowledgeBase> {
-    const wire = await this.transport.request<Wire>("PATCH", `knowledge-bases/${kbId}`, {
-      body: compact({
-        name: changes.name,
-        description: changes.description,
-        chunking_strategy: chunkingToWire(changes.chunkingStrategy),
-        metadata: changes.metadata,
-      }),
-    });
-    return kbFromWire(wire);
+    return (
+      await this.transport.apis.knowledgeBases.updateKnowledgeBase({
+        kbId,
+        knowledgeBaseUpdate: {
+          ...(changes.name !== undefined ? { name: changes.name } : {}),
+          ...(changes.description !== undefined ? { description: changes.description } : {}),
+          ...(changes.chunkingStrategy
+            ? { chunkingStrategy: chunking(changes.chunkingStrategy) as ChunkingStrategy }
+            : {}),
+          ...(changes.metadata ? { metadata: changes.metadata } : {}),
+        },
+      })
+    ).data;
   }
 
   async delete(kbId: string): Promise<DeletionResult> {
-    return deletionFromWire(await this.transport.request<Wire>("DELETE", `knowledge-bases/${kbId}`));
+    return (await this.transport.apis.knowledgeBases.deleteKnowledgeBase({ kbId })).data;
   }
 
   async search(
@@ -385,11 +286,17 @@ export class KnowledgeBasesResource {
     query: string,
     options: { topK?: number; threshold?: number; filter?: Record<string, unknown> } = {},
   ): Promise<SearchResults> {
-    const wire = await this.transport.request<Wire>("POST", `knowledge-bases/${kbId}/search`, {
-      body: compact({ query, top_k: options.topK ?? 5, threshold: options.threshold ?? 0, filter: options.filter }),
-      idempotencyKey: randomUUID(),
-    });
-    return searchFromWire(wire);
+    return (
+      await this.transport.apis.search.searchKnowledgeBase({
+        kbId,
+        searchRequest: {
+          query,
+          topK: options.topK ?? 5,
+          threshold: options.threshold ?? 0,
+          ...(options.filter ? { filter: options.filter } : {}),
+        },
+      })
+    ).data;
   }
 
   async hybridSearch(
@@ -397,70 +304,108 @@ export class KnowledgeBasesResource {
     query: string,
     options: { vectorWeight?: number; keywordWeight?: number; topK?: number } = {},
   ): Promise<SearchResults> {
-    const wire = await this.transport.request<Wire>("POST", `knowledge-bases/${kbId}/hybrid-search`, {
-      body: {
-        query,
-        vector_weight: options.vectorWeight ?? 0.7,
-        keyword_weight: options.keywordWeight ?? 0.3,
-        top_k: options.topK ?? 5,
-      },
-      idempotencyKey: randomUUID(),
-    });
-    return searchFromWire(wire);
+    return (
+      await this.transport.apis.search.hybridSearchKnowledgeBase({
+        kbId,
+        hybridSearchRequest: {
+          query,
+          vectorWeight: options.vectorWeight ?? 0.7,
+          keywordWeight: options.keywordWeight ?? 0.3,
+          topK: options.topK ?? 5,
+        },
+      })
+    ).data;
   }
 }
 
 export class WebhooksResource {
   constructor(private readonly transport: Transport) {}
 
-  async create(url: string, events: string[], options: { description?: string } = {}): Promise<Webhook> {
-    const wire = await this.transport.request<Wire>("POST", "webhooks", {
-      body: compact({ url, events, description: options.description }),
-      idempotencyKey: randomUUID(),
-    });
-    return webhookFromWire(wire);
+  async create(
+    url: string,
+    events: string[],
+    options: { description?: string } = {},
+  ): Promise<Webhook> {
+    return (
+      await this.transport.apis.webhooks.createWebhook({
+        webhookCreate: {
+          url,
+          events: events as WebhookCreate["events"],
+          ...(options.description !== undefined ? { description: options.description } : {}),
+        },
+        idempotencyKey: randomUUID(),
+      })
+    ).data;
   }
 
   async list(options: { limit?: number; offset?: number } = {}): Promise<ListResponse<Webhook>> {
-    const wire = await this.transport.request<Wire>("GET", "webhooks", {
-      query: { limit: options.limit ?? 50, offset: options.offset ?? 0 },
-    });
-    return listFromWire(wire, webhookFromWire);
+    return (
+      await this.transport.apis.webhooks.listWebhooks({
+        limit: options.limit ?? 50,
+        offset: options.offset ?? 0,
+      })
+    ).data;
   }
 
   async get(id: string): Promise<Webhook> {
-    return webhookFromWire(await this.transport.request<Wire>("GET", `webhooks/${id}`));
+    return (await this.transport.apis.webhooks.getWebhook({ webhookId: id })).data;
   }
 
-  async update(id: string, changes: Partial<Pick<Webhook, "url" | "events" | "enabled" | "description">>): Promise<Webhook> {
-    return webhookFromWire(await this.transport.request<Wire>("PATCH", `webhooks/${id}`, { body: changes }));
+  async update(
+    id: string,
+    changes: Partial<Pick<Webhook, "url" | "events" | "enabled" | "description">>,
+  ): Promise<Webhook> {
+    const { url, events, enabled, description } = changes;
+    return (
+      await this.transport.apis.webhooks.updateWebhook({
+        webhookId: id,
+        webhookUpdate: {
+          ...(url !== undefined ? { url } : {}),
+          ...(events !== undefined
+            ? { events: events as NonNullable<WebhookUpdate["events"]> }
+            : {}),
+          ...(enabled !== undefined ? { enabled } : {}),
+          ...(description !== undefined ? { description } : {}),
+        },
+      })
+    ).data;
   }
 
   async delete(id: string): Promise<DeletionResult> {
-    return deletionFromWire(await this.transport.request<Wire>("DELETE", `webhooks/${id}`));
+    return (await this.transport.apis.webhooks.deleteWebhook({ webhookId: id })).data;
   }
 }
 
 export class APIKeysResource {
   constructor(private readonly transport: Transport) {}
 
-  async create(name: string, options: { scopes?: string[]; expiresAt?: string } = {}): Promise<APIKey> {
-    const wire = await this.transport.request<Wire>("POST", "api-keys", {
-      body: compact({ name, scopes: options.scopes, expires_at: options.expiresAt }),
-      idempotencyKey: randomUUID(),
-    });
-    return apiKeyFromWire(wire);
+  async create(
+    name: string,
+    options: { scopes?: string[]; expiresAt?: string } = {},
+  ): Promise<APIKey> {
+    return (
+      await this.transport.apis.apiKeys.createApiKey({
+        apiKeyCreate: {
+          name,
+          ...(options.scopes ? { scopes: options.scopes } : {}),
+          ...(options.expiresAt ? { expiresAt: options.expiresAt } : {}),
+        } satisfies APIKeyCreate,
+        idempotencyKey: randomUUID(),
+      })
+    ).data;
   }
 
   async list(options: { limit?: number; offset?: number } = {}): Promise<ListResponse<APIKey>> {
-    const wire = await this.transport.request<Wire>("GET", "api-keys", {
-      query: { limit: options.limit ?? 50, offset: options.offset ?? 0 },
-    });
-    return listFromWire(wire, apiKeyFromWire);
+    return (
+      await this.transport.apis.apiKeys.listApiKeys({
+        limit: options.limit ?? 50,
+        offset: options.offset ?? 0,
+      })
+    ).data;
   }
 
   async delete(id: string): Promise<DeletionResult> {
-    return deletionFromWire(await this.transport.request<Wire>("DELETE", `api-keys/${id}`));
+    return (await this.transport.apis.apiKeys.revokeApiKey({ keyId: id })).data;
   }
 
   revoke(id: string): Promise<DeletionResult> {
@@ -472,30 +417,10 @@ export class UsageResource {
   constructor(private readonly transport: Transport) {}
 
   async getStats(): Promise<UsageStats> {
-    const wire = await this.transport.request<Wire>("GET", "usage/stats");
-    const storage = object(wire.storage);
-    const extraction = object(wire.extraction);
-    const knowledgeBases = object(wire.knowledge_bases);
-    return {
-      storage: {
-        usedBytes: Number(storage.used_bytes ?? 0),
-        limitBytes: Number(storage.limit_bytes ?? 0),
-        usedPercentage: Number(storage.used_percentage ?? 0),
-      },
-      extraction: {
-        pagesUsed: Number(extraction.pages_used ?? 0),
-        pagesLimit: Number(extraction.pages_limit ?? 0),
-        ...(extraction.reset_at ? { resetAt: String(extraction.reset_at) } : {}),
-      },
-      knowledgeBases: {
-        used: Number(knowledgeBases.used ?? 0),
-        limit: Number(knowledgeBases.limit ?? 0),
-      },
-    };
+    return (await this.transport.apis.usage.getUsageStats()).data;
   }
 
   async getLimits(): Promise<UsageLimits> {
-    const wire = await this.transport.request<Wire>("GET", "usage/limits");
-    return { apiCalls: object(wire.api_calls), storage: object(wire.storage), files: object(wire.files) };
+    return (await this.transport.apis.usage.getUsageLimits()).data;
   }
 }

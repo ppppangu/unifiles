@@ -1,7 +1,9 @@
-openapi: 3.1.0
+# Canonical, hand-maintained OpenAPI contract. Generated code must never edit this file.
+openapi: 3.0.3
 info:
   title: Unifiles API
-  description: Self-hosted document processing infrastructure
+  description: Canonical contract for the self-hosted Unifiles document processing API. Server bindings
+    and official SDK cores are generated from this document.
   version: 1.0.0
 paths:
   /v1/health:
@@ -9,14 +11,14 @@ paths:
       tags:
       - System
       summary: Health
-      operationId: health_v1_health_get
+      operationId: getVersionedHealth
       responses:
         '200':
           description: Successful Response
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/SuccessEnvelope_dict_str__Any__'
+                $ref: '#/components/schemas/HealthResponse'
         '400':
           description: Invalid request
           content:
@@ -70,14 +72,14 @@ paths:
       tags:
       - System
       summary: Health
-      operationId: health_health_get
+      operationId: getHealth
       responses:
         '200':
           description: Successful Response
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/SuccessEnvelope_dict_str__Any__'
+                $ref: '#/components/schemas/HealthResponse'
         '400':
           description: Invalid request
           content:
@@ -131,14 +133,14 @@ paths:
       tags:
       - Files
       summary: Supported Types
-      operationId: supported_types_v1_files_types_get
+      operationId: listSupportedFileTypes
       responses:
         '200':
           description: Successful Response
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/SuccessEnvelope_SupportedFileTypes_'
+                $ref: '#/components/schemas/SupportedFileTypesResponse'
         '400':
           description: Invalid request
           content:
@@ -194,7 +196,7 @@ paths:
       tags:
       - Files
       summary: Upload File
-      operationId: upload_file_v1_files_post
+      operationId: uploadFile
       security:
       - BearerAuth: []
       parameters:
@@ -202,23 +204,22 @@ paths:
         in: header
         required: false
         schema:
-          anyOf:
-          - type: string
-          - type: 'null'
+          type: string
           title: Idempotency-Key
+          nullable: true
       requestBody:
         required: true
         content:
           multipart/form-data:
             schema:
-              $ref: '#/components/schemas/Body_upload_file_v1_files_post'
+              $ref: '#/components/schemas/UploadFileRequest'
       responses:
         '201':
           description: Successful Response
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/SuccessEnvelope_FileResource_'
+                $ref: '#/components/schemas/FileResponse'
         '400':
           description: Invalid request
           content:
@@ -267,11 +268,17 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorEnvelope'
+        '413':
+          description: File too large
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
     get:
       tags:
       - Files
       summary: List Files
-      operationId: list_files_v1_files_get
+      operationId: listFiles
       security:
       - BearerAuth: []
       parameters:
@@ -296,18 +303,16 @@ paths:
         in: query
         required: false
         schema:
-          anyOf:
-          - type: string
-          - type: 'null'
+          type: string
           title: Tags
+          nullable: true
       - name: content_type
         in: query
         required: false
         schema:
-          anyOf:
-          - type: string
-          - type: 'null'
+          type: string
           title: Content Type
+          nullable: true
       - name: sort_by
         in: query
         required: false
@@ -328,7 +333,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/SuccessEnvelope_ListData_FileResource__'
+                $ref: '#/components/schemas/FileListResponse'
         '400':
           description: Invalid request
           content:
@@ -382,7 +387,7 @@ paths:
       tags:
       - Extractions
       summary: File Extractions
-      operationId: file_extractions_v1_files__file_id__extractions_get
+      operationId: listFileExtractions
       security:
       - BearerAuth: []
       parameters:
@@ -415,7 +420,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/SuccessEnvelope_ListData_ExtractionResource__'
+                $ref: '#/components/schemas/ExtractionListResponse'
         '400':
           description: Invalid request
           content:
@@ -469,7 +474,7 @@ paths:
       tags:
       - Files
       summary: Get File
-      operationId: get_file_v1_files__file_id__get
+      operationId: getFile
       security:
       - BearerAuth: []
       parameters:
@@ -485,7 +490,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/SuccessEnvelope_FileResource_'
+                $ref: '#/components/schemas/FileResponse'
         '400':
           description: Invalid request
           content:
@@ -538,7 +543,7 @@ paths:
       tags:
       - Files
       summary: Delete File
-      operationId: delete_file_v1_files__file_id__delete
+      operationId: deleteFile
       security:
       - BearerAuth: []
       parameters:
@@ -554,7 +559,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/SuccessEnvelope_DeletionResult_'
+                $ref: '#/components/schemas/DeletionResponse'
         '400':
           description: Invalid request
           content:
@@ -608,7 +613,7 @@ paths:
       tags:
       - Files
       summary: Download File
-      operationId: download_file_v1_files__file_id__download_get
+      operationId: downloadFile
       security:
       - BearerAuth: []
       parameters:
@@ -620,7 +625,12 @@ paths:
           title: File Id
       responses:
         '200':
-          description: Successful Response
+          description: File content
+          content:
+            application/octet-stream:
+              schema:
+                type: string
+                format: binary
         '400':
           description: Invalid request
           content:
@@ -674,7 +684,7 @@ paths:
       tags:
       - Extractions
       summary: Create Extraction
-      operationId: create_extraction_v1_extractions_post
+      operationId: createExtraction
       security:
       - BearerAuth: []
       parameters:
@@ -682,10 +692,9 @@ paths:
         in: header
         required: false
         schema:
-          anyOf:
-          - type: string
-          - type: 'null'
+          type: string
           title: Idempotency-Key
+          nullable: true
       requestBody:
         required: true
         content:
@@ -698,7 +707,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/SuccessEnvelope_ExtractionResource_'
+                $ref: '#/components/schemas/ExtractionResponse'
         '400':
           description: Invalid request
           content:
@@ -752,7 +761,7 @@ paths:
       tags:
       - Extractions
       summary: Get Extraction
-      operationId: get_extraction_v1_extractions__extraction_id__get
+      operationId: getExtraction
       security:
       - BearerAuth: []
       parameters:
@@ -768,7 +777,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/SuccessEnvelope_ExtractionResource_'
+                $ref: '#/components/schemas/ExtractionResponse'
         '400':
           description: Invalid request
           content:
@@ -822,7 +831,7 @@ paths:
       tags:
       - Knowledge Bases
       summary: Create Knowledge Base
-      operationId: create_knowledge_base_v1_knowledge_bases_post
+      operationId: createKnowledgeBase
       security:
       - BearerAuth: []
       parameters:
@@ -830,10 +839,9 @@ paths:
         in: header
         required: false
         schema:
-          anyOf:
-          - type: string
-          - type: 'null'
+          type: string
           title: Idempotency-Key
+          nullable: true
       requestBody:
         required: true
         content:
@@ -846,7 +854,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/SuccessEnvelope_KnowledgeBaseResource_'
+                $ref: '#/components/schemas/KnowledgeBaseResponse'
         '400':
           description: Invalid request
           content:
@@ -899,7 +907,7 @@ paths:
       tags:
       - Knowledge Bases
       summary: List Knowledge Bases
-      operationId: list_knowledge_bases_v1_knowledge_bases_get
+      operationId: listKnowledgeBases
       security:
       - BearerAuth: []
       parameters:
@@ -926,7 +934,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/SuccessEnvelope_ListData_KnowledgeBaseResource__'
+                $ref: '#/components/schemas/KnowledgeBaseListResponse'
         '400':
           description: Invalid request
           content:
@@ -980,7 +988,7 @@ paths:
       tags:
       - Knowledge Bases
       summary: Get Knowledge Base
-      operationId: get_knowledge_base_v1_knowledge_bases__kb_id__get
+      operationId: getKnowledgeBase
       security:
       - BearerAuth: []
       parameters:
@@ -996,7 +1004,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/SuccessEnvelope_KnowledgeBaseResource_'
+                $ref: '#/components/schemas/KnowledgeBaseResponse'
         '400':
           description: Invalid request
           content:
@@ -1049,7 +1057,7 @@ paths:
       tags:
       - Knowledge Bases
       summary: Update Knowledge Base
-      operationId: update_knowledge_base_v1_knowledge_bases__kb_id__patch
+      operationId: updateKnowledgeBase
       security:
       - BearerAuth: []
       parameters:
@@ -1071,7 +1079,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/SuccessEnvelope_KnowledgeBaseResource_'
+                $ref: '#/components/schemas/KnowledgeBaseResponse'
         '400':
           description: Invalid request
           content:
@@ -1124,7 +1132,7 @@ paths:
       tags:
       - Knowledge Bases
       summary: Delete Knowledge Base
-      operationId: delete_knowledge_base_v1_knowledge_bases__kb_id__delete
+      operationId: deleteKnowledgeBase
       security:
       - BearerAuth: []
       parameters:
@@ -1140,7 +1148,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/SuccessEnvelope_DeletionResult_'
+                $ref: '#/components/schemas/DeletionResponse'
         '400':
           description: Invalid request
           content:
@@ -1194,7 +1202,7 @@ paths:
       tags:
       - Documents
       summary: Create Document
-      operationId: create_document_v1_knowledge_bases__kb_id__documents_post
+      operationId: createDocument
       security:
       - BearerAuth: []
       parameters:
@@ -1208,10 +1216,9 @@ paths:
         in: header
         required: false
         schema:
-          anyOf:
-          - type: string
-          - type: 'null'
+          type: string
           title: Idempotency-Key
+          nullable: true
       requestBody:
         required: true
         content:
@@ -1224,7 +1231,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/SuccessEnvelope_DocumentResource_'
+                $ref: '#/components/schemas/DocumentResponse'
         '400':
           description: Invalid request
           content:
@@ -1277,7 +1284,7 @@ paths:
       tags:
       - Documents
       summary: List Documents
-      operationId: list_documents_v1_knowledge_bases__kb_id__documents_get
+      operationId: listDocuments
       security:
       - BearerAuth: []
       parameters:
@@ -1310,7 +1317,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/SuccessEnvelope_ListData_DocumentResource__'
+                $ref: '#/components/schemas/DocumentListResponse'
         '400':
           description: Invalid request
           content:
@@ -1364,7 +1371,7 @@ paths:
       tags:
       - Documents
       summary: Get Document
-      operationId: get_document_v1_knowledge_bases__kb_id__documents__document_id__get
+      operationId: getDocument
       security:
       - BearerAuth: []
       parameters:
@@ -1386,7 +1393,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/SuccessEnvelope_DocumentResource_'
+                $ref: '#/components/schemas/DocumentResponse'
         '400':
           description: Invalid request
           content:
@@ -1439,7 +1446,7 @@ paths:
       tags:
       - Documents
       summary: Delete Document
-      operationId: delete_document_v1_knowledge_bases__kb_id__documents__document_id__delete
+      operationId: deleteDocument
       security:
       - BearerAuth: []
       parameters:
@@ -1461,7 +1468,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/SuccessEnvelope_DeletionResult_'
+                $ref: '#/components/schemas/DeletionResponse'
         '400':
           description: Invalid request
           content:
@@ -1515,7 +1522,7 @@ paths:
       tags:
       - Search
       summary: Semantic Search
-      operationId: semantic_search_v1_knowledge_bases__kb_id__search_post
+      operationId: searchKnowledgeBase
       security:
       - BearerAuth: []
       parameters:
@@ -1537,7 +1544,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/SuccessEnvelope_SearchResults_'
+                $ref: '#/components/schemas/SearchResponse'
         '400':
           description: Invalid request
           content:
@@ -1591,7 +1598,7 @@ paths:
       tags:
       - Search
       summary: Hybrid Search
-      operationId: hybrid_search_v1_knowledge_bases__kb_id__hybrid_search_post
+      operationId: hybridSearchKnowledgeBase
       security:
       - BearerAuth: []
       parameters:
@@ -1613,7 +1620,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/SuccessEnvelope_SearchResults_'
+                $ref: '#/components/schemas/SearchResponse'
         '400':
           description: Invalid request
           content:
@@ -1667,7 +1674,7 @@ paths:
       tags:
       - Webhooks
       summary: Create Webhook
-      operationId: create_webhook_v1_webhooks_post
+      operationId: createWebhook
       security:
       - BearerAuth: []
       parameters:
@@ -1675,10 +1682,9 @@ paths:
         in: header
         required: false
         schema:
-          anyOf:
-          - type: string
-          - type: 'null'
+          type: string
           title: Idempotency-Key
+          nullable: true
       requestBody:
         required: true
         content:
@@ -1691,7 +1697,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/SuccessEnvelope_WebhookResource_'
+                $ref: '#/components/schemas/WebhookResponse'
         '400':
           description: Invalid request
           content:
@@ -1744,7 +1750,7 @@ paths:
       tags:
       - Webhooks
       summary: List Webhooks
-      operationId: list_webhooks_v1_webhooks_get
+      operationId: listWebhooks
       security:
       - BearerAuth: []
       parameters:
@@ -1771,7 +1777,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/SuccessEnvelope_ListData_WebhookResource__'
+                $ref: '#/components/schemas/WebhookListResponse'
         '400':
           description: Invalid request
           content:
@@ -1825,7 +1831,7 @@ paths:
       tags:
       - Webhooks
       summary: Get Webhook
-      operationId: get_webhook_v1_webhooks__webhook_id__get
+      operationId: getWebhook
       security:
       - BearerAuth: []
       parameters:
@@ -1841,7 +1847,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/SuccessEnvelope_WebhookResource_'
+                $ref: '#/components/schemas/WebhookResponse'
         '400':
           description: Invalid request
           content:
@@ -1894,7 +1900,7 @@ paths:
       tags:
       - Webhooks
       summary: Update Webhook
-      operationId: update_webhook_v1_webhooks__webhook_id__patch
+      operationId: updateWebhook
       security:
       - BearerAuth: []
       parameters:
@@ -1916,7 +1922,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/SuccessEnvelope_WebhookResource_'
+                $ref: '#/components/schemas/WebhookResponse'
         '400':
           description: Invalid request
           content:
@@ -1969,7 +1975,7 @@ paths:
       tags:
       - Webhooks
       summary: Delete Webhook
-      operationId: delete_webhook_v1_webhooks__webhook_id__delete
+      operationId: deleteWebhook
       security:
       - BearerAuth: []
       parameters:
@@ -1985,7 +1991,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/SuccessEnvelope_DeletionResult_'
+                $ref: '#/components/schemas/DeletionResponse'
         '400':
           description: Invalid request
           content:
@@ -2039,7 +2045,7 @@ paths:
       tags:
       - API Keys
       summary: Create Api Key
-      operationId: create_api_key_v1_api_keys_post
+      operationId: createApiKey
       security:
       - BearerAuth: []
       parameters:
@@ -2047,11 +2053,11 @@ paths:
         in: header
         required: false
         schema:
-          anyOf:
-          - type: string
-          - type: 'null'
+          type: string
           title: Idempotency-Key
+          nullable: true
       requestBody:
+        x-codegen-request-body-name: apiKeyCreate
         required: true
         content:
           application/json:
@@ -2063,7 +2069,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/SuccessEnvelope_APIKeyResource_'
+                $ref: '#/components/schemas/APIKeyResponse'
         '400':
           description: Invalid request
           content:
@@ -2116,7 +2122,7 @@ paths:
       tags:
       - API Keys
       summary: List Api Keys
-      operationId: list_api_keys_v1_api_keys_get
+      operationId: listApiKeys
       security:
       - BearerAuth: []
       parameters:
@@ -2143,7 +2149,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/SuccessEnvelope_ListData_APIKeyResource__'
+                $ref: '#/components/schemas/APIKeyListResponse'
         '400':
           description: Invalid request
           content:
@@ -2197,7 +2203,7 @@ paths:
       tags:
       - API Keys
       summary: Revoke Api Key
-      operationId: revoke_api_key_v1_api_keys__key_id__delete
+      operationId: revokeApiKey
       security:
       - BearerAuth: []
       parameters:
@@ -2213,7 +2219,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/SuccessEnvelope_DeletionResult_'
+                $ref: '#/components/schemas/DeletionResponse'
         '400':
           description: Invalid request
           content:
@@ -2267,14 +2273,14 @@ paths:
       tags:
       - Usage
       summary: Usage Stats
-      operationId: usage_stats_v1_usage_stats_get
+      operationId: getUsageStats
       responses:
         '200':
           description: Successful Response
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/SuccessEnvelope_dict_str__Any__'
+                $ref: '#/components/schemas/UsageStatsResponse'
         '400':
           description: Invalid request
           content:
@@ -2330,14 +2336,14 @@ paths:
       tags:
       - Usage
       summary: Usage Limits
-      operationId: usage_limits_v1_usage_limits_get
+      operationId: getUsageLimits
       responses:
         '200':
           description: Successful Response
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/SuccessEnvelope_dict_str__Any__'
+                $ref: '#/components/schemas/UsageLimitsResponse'
         '400':
           description: Invalid request
           content:
@@ -2400,14 +2406,14 @@ components:
         scopes:
           items:
             type: string
+            pattern: ^(\*|(files|extractions|kb|webhooks|api_keys|usage):(read|write|\*))$
           type: array
           title: Scopes
         expires_at:
-          anyOf:
-          - type: string
-            format: date-time
-          - type: 'null'
+          type: string
+          format: date-time
           title: Expires At
+          nullable: true
       additionalProperties: false
       type: object
       required:
@@ -2422,10 +2428,9 @@ components:
           type: string
           title: Name
         key:
-          anyOf:
-          - type: string
-          - type: 'null'
+          type: string
           title: Key
+          nullable: true
         key_prefix:
           type: string
           title: Key Prefix
@@ -2435,17 +2440,15 @@ components:
           type: array
           title: Scopes
         last_used_at:
-          anyOf:
-          - type: string
-            format: date-time
-          - type: 'null'
+          type: string
+          format: date-time
           title: Last Used At
+          nullable: true
         expires_at:
-          anyOf:
-          - type: string
-            format: date-time
-          - type: 'null'
+          type: string
+          format: date-time
           title: Expires At
+          nullable: true
         created_at:
           type: string
           format: date-time
@@ -2459,24 +2462,6 @@ components:
       - scopes
       - created_at
       title: APIKeyResource
-    Body_upload_file_v1_files_post:
-      properties:
-        file:
-          type: string
-          format: binary
-          title: File
-        metadata:
-          type: string
-          title: Metadata
-          default: '{}'
-        tags:
-          type: string
-          title: Tags
-          default: '[]'
-      type: object
-      required:
-      - file
-      title: Body_upload_file_v1_files_post
     ChunkResource:
       properties:
         id:
@@ -2486,10 +2471,9 @@ components:
           type: string
           title: Document Id
         document_title:
-          anyOf:
-          - type: string
-          - type: 'null'
+          type: string
           title: Document Title
+          nullable: true
         content:
           type: string
           title: Content
@@ -2497,15 +2481,13 @@ components:
           type: number
           title: Score
         vector_score:
-          anyOf:
-          - type: number
-          - type: 'null'
+          type: number
           title: Vector Score
+          nullable: true
         keyword_score:
-          anyOf:
-          - type: number
-          - type: 'null'
+          type: number
           title: Keyword Score
+          nullable: true
         metadata:
           additionalProperties: true
           type: object
@@ -2538,10 +2520,9 @@ components:
           type: string
           title: File Id
         title:
-          anyOf:
-          - type: string
-          - type: 'null'
+          type: string
           title: Title
+          nullable: true
         metadata:
           additionalProperties: true
           type: object
@@ -2563,10 +2544,9 @@ components:
           type: string
           title: File Id
         title:
-          anyOf:
-          - type: string
-          - type: 'null'
+          type: string
           title: Title
+          nullable: true
         status:
           type: string
           enum:
@@ -2580,27 +2560,24 @@ components:
           type: integer
           title: Chunk Count
         metadata:
-          anyOf:
-          - additionalProperties: true
-            type: object
-          - type: 'null'
+          additionalProperties: true
+          type: object
           title: Metadata
+          nullable: true
         error:
-          anyOf:
-          - additionalProperties: true
-            type: object
-          - type: 'null'
+          additionalProperties: true
+          type: object
           title: Error
+          nullable: true
         created_at:
           type: string
           format: date-time
           title: Created At
         indexed_at:
-          anyOf:
-          - type: string
-            format: date-time
-          - type: 'null'
+          type: string
+          format: date-time
           title: Indexed At
+          nullable: true
       additionalProperties: false
       type: object
       required:
@@ -2637,7 +2614,6 @@ components:
       properties:
         success:
           type: boolean
-          const: false
           title: Success
           default: false
         error:
@@ -2661,9 +2637,8 @@ components:
           title: Mode
           default: normal
         options:
-          additionalProperties: true
-          type: object
-          title: Options
+          $ref: '#/components/schemas/ExtractionOptions'
+          default: {}
       additionalProperties: false
       type: object
       required:
@@ -2690,42 +2665,36 @@ components:
           type: string
           title: Mode
         progress:
-          anyOf:
-          - type: integer
-          - type: 'null'
+          type: integer
           title: Progress
+          nullable: true
         markdown:
-          anyOf:
-          - type: string
-          - type: 'null'
+          type: string
           title: Markdown
+          nullable: true
         total_pages:
-          anyOf:
-          - type: integer
-          - type: 'null'
+          type: integer
           title: Total Pages
+          nullable: true
         metadata:
-          anyOf:
-          - additionalProperties: true
-            type: object
-          - type: 'null'
+          additionalProperties: true
+          type: object
           title: Metadata
+          nullable: true
         error:
-          anyOf:
-          - additionalProperties: true
-            type: object
-          - type: 'null'
+          additionalProperties: true
+          type: object
           title: Error
+          nullable: true
         created_at:
           type: string
           format: date-time
           title: Created At
         completed_at:
-          anyOf:
-          - type: string
-            format: date-time
-          - type: 'null'
+          type: string
+          format: date-time
           title: Completed At
+          nullable: true
       additionalProperties: false
       type: object
       required:
@@ -2763,11 +2732,10 @@ components:
           format: date-time
           title: Created At
         updated_at:
-          anyOf:
-          - type: string
-            format: date-time
-          - type: 'null'
+          type: string
+          format: date-time
           title: Updated At
+          nullable: true
       additionalProperties: false
       type: object
       required:
@@ -2812,14 +2780,15 @@ components:
           minLength: 1
           title: Name
         description:
-          anyOf:
-          - type: string
-          - type: 'null'
+          type: string
           title: Description
+          nullable: true
         chunking_strategy:
-          additionalProperties: true
-          type: object
-          title: Chunking Strategy
+          $ref: '#/components/schemas/ChunkingStrategy'
+          default:
+            type: semantic
+            chunk_size: 512
+            overlap: 50
         metadata:
           additionalProperties: true
           type: object
@@ -2838,14 +2807,11 @@ components:
           type: string
           title: Name
         description:
-          anyOf:
-          - type: string
-          - type: 'null'
+          type: string
           title: Description
+          nullable: true
         chunking_strategy:
-          additionalProperties: true
-          type: object
-          title: Chunking Strategy
+          $ref: '#/components/schemas/ChunkingStrategy'
         document_count:
           type: integer
           title: Document Count
@@ -2853,21 +2819,19 @@ components:
           type: integer
           title: Chunk Count
         metadata:
-          anyOf:
-          - additionalProperties: true
-            type: object
-          - type: 'null'
+          additionalProperties: true
+          type: object
           title: Metadata
+          nullable: true
         created_at:
           type: string
           format: date-time
           title: Created At
         updated_at:
-          anyOf:
-          - type: string
-            format: date-time
-          - type: 'null'
+          type: string
+          format: date-time
           title: Updated At
+          nullable: true
       additionalProperties: false
       type: object
       required:
@@ -2881,200 +2845,26 @@ components:
     KnowledgeBaseUpdate:
       properties:
         name:
-          anyOf:
-          - type: string
-            maxLength: 200
-            minLength: 1
-          - type: 'null'
+          type: string
+          maxLength: 200
+          minLength: 1
           title: Name
+          nullable: true
         description:
-          anyOf:
-          - type: string
-          - type: 'null'
+          type: string
           title: Description
+          nullable: true
         chunking_strategy:
-          anyOf:
-          - additionalProperties: true
-            type: object
-          - type: 'null'
-          title: Chunking Strategy
+          $ref: '#/components/schemas/ChunkingStrategy'
+          nullable: true
         metadata:
-          anyOf:
-          - additionalProperties: true
-            type: object
-          - type: 'null'
+          additionalProperties: true
+          type: object
           title: Metadata
+          nullable: true
       additionalProperties: false
       type: object
       title: KnowledgeBaseUpdate
-    ListData_APIKeyResource_:
-      properties:
-        items:
-          items:
-            $ref: '#/components/schemas/APIKeyResource'
-          type: array
-          title: Items
-        total:
-          type: integer
-          title: Total
-        limit:
-          type: integer
-          title: Limit
-        offset:
-          type: integer
-          title: Offset
-        has_more:
-          type: boolean
-          title: Has More
-      additionalProperties: false
-      type: object
-      required:
-      - items
-      - total
-      - limit
-      - offset
-      - has_more
-      title: ListData[APIKeyResource]
-    ListData_DocumentResource_:
-      properties:
-        items:
-          items:
-            $ref: '#/components/schemas/DocumentResource'
-          type: array
-          title: Items
-        total:
-          type: integer
-          title: Total
-        limit:
-          type: integer
-          title: Limit
-        offset:
-          type: integer
-          title: Offset
-        has_more:
-          type: boolean
-          title: Has More
-      additionalProperties: false
-      type: object
-      required:
-      - items
-      - total
-      - limit
-      - offset
-      - has_more
-      title: ListData[DocumentResource]
-    ListData_ExtractionResource_:
-      properties:
-        items:
-          items:
-            $ref: '#/components/schemas/ExtractionResource'
-          type: array
-          title: Items
-        total:
-          type: integer
-          title: Total
-        limit:
-          type: integer
-          title: Limit
-        offset:
-          type: integer
-          title: Offset
-        has_more:
-          type: boolean
-          title: Has More
-      additionalProperties: false
-      type: object
-      required:
-      - items
-      - total
-      - limit
-      - offset
-      - has_more
-      title: ListData[ExtractionResource]
-    ListData_FileResource_:
-      properties:
-        items:
-          items:
-            $ref: '#/components/schemas/FileResource'
-          type: array
-          title: Items
-        total:
-          type: integer
-          title: Total
-        limit:
-          type: integer
-          title: Limit
-        offset:
-          type: integer
-          title: Offset
-        has_more:
-          type: boolean
-          title: Has More
-      additionalProperties: false
-      type: object
-      required:
-      - items
-      - total
-      - limit
-      - offset
-      - has_more
-      title: ListData[FileResource]
-    ListData_KnowledgeBaseResource_:
-      properties:
-        items:
-          items:
-            $ref: '#/components/schemas/KnowledgeBaseResource'
-          type: array
-          title: Items
-        total:
-          type: integer
-          title: Total
-        limit:
-          type: integer
-          title: Limit
-        offset:
-          type: integer
-          title: Offset
-        has_more:
-          type: boolean
-          title: Has More
-      additionalProperties: false
-      type: object
-      required:
-      - items
-      - total
-      - limit
-      - offset
-      - has_more
-      title: ListData[KnowledgeBaseResource]
-    ListData_WebhookResource_:
-      properties:
-        items:
-          items:
-            $ref: '#/components/schemas/WebhookResource'
-          type: array
-          title: Items
-        total:
-          type: integer
-          title: Total
-        limit:
-          type: integer
-          title: Limit
-        offset:
-          type: integer
-          title: Offset
-        has_more:
-          type: boolean
-          title: Has More
-      additionalProperties: false
-      type: object
-      required:
-      - items
-      - total
-      - limit
-      - offset
-      - has_more
-      title: ListData[WebhookResource]
     SearchRequest:
       properties:
         query:
@@ -3094,11 +2884,10 @@ components:
           title: Threshold
           default: 0
         filter:
-          anyOf:
-          - additionalProperties: true
-            type: object
-          - type: 'null'
+          additionalProperties: true
+          type: object
           title: Filter
+          nullable: true
       additionalProperties: false
       type: object
       required:
@@ -3124,232 +2913,6 @@ components:
       - chunks
       - total
       title: SearchResults
-    SuccessEnvelope_APIKeyResource_:
-      properties:
-        success:
-          type: boolean
-          const: true
-          title: Success
-          default: true
-        data:
-          $ref: '#/components/schemas/APIKeyResource'
-      additionalProperties: false
-      type: object
-      required:
-      - data
-      title: SuccessEnvelope[APIKeyResource]
-    SuccessEnvelope_DeletionResult_:
-      properties:
-        success:
-          type: boolean
-          const: true
-          title: Success
-          default: true
-        data:
-          $ref: '#/components/schemas/DeletionResult'
-      additionalProperties: false
-      type: object
-      required:
-      - data
-      title: SuccessEnvelope[DeletionResult]
-    SuccessEnvelope_DocumentResource_:
-      properties:
-        success:
-          type: boolean
-          const: true
-          title: Success
-          default: true
-        data:
-          $ref: '#/components/schemas/DocumentResource'
-      additionalProperties: false
-      type: object
-      required:
-      - data
-      title: SuccessEnvelope[DocumentResource]
-    SuccessEnvelope_ExtractionResource_:
-      properties:
-        success:
-          type: boolean
-          const: true
-          title: Success
-          default: true
-        data:
-          $ref: '#/components/schemas/ExtractionResource'
-      additionalProperties: false
-      type: object
-      required:
-      - data
-      title: SuccessEnvelope[ExtractionResource]
-    SuccessEnvelope_FileResource_:
-      properties:
-        success:
-          type: boolean
-          const: true
-          title: Success
-          default: true
-        data:
-          $ref: '#/components/schemas/FileResource'
-      additionalProperties: false
-      type: object
-      required:
-      - data
-      title: SuccessEnvelope[FileResource]
-    SuccessEnvelope_KnowledgeBaseResource_:
-      properties:
-        success:
-          type: boolean
-          const: true
-          title: Success
-          default: true
-        data:
-          $ref: '#/components/schemas/KnowledgeBaseResource'
-      additionalProperties: false
-      type: object
-      required:
-      - data
-      title: SuccessEnvelope[KnowledgeBaseResource]
-    SuccessEnvelope_ListData_APIKeyResource__:
-      properties:
-        success:
-          type: boolean
-          const: true
-          title: Success
-          default: true
-        data:
-          $ref: '#/components/schemas/ListData_APIKeyResource_'
-      additionalProperties: false
-      type: object
-      required:
-      - data
-      title: SuccessEnvelope[ListData[APIKeyResource]]
-    SuccessEnvelope_ListData_DocumentResource__:
-      properties:
-        success:
-          type: boolean
-          const: true
-          title: Success
-          default: true
-        data:
-          $ref: '#/components/schemas/ListData_DocumentResource_'
-      additionalProperties: false
-      type: object
-      required:
-      - data
-      title: SuccessEnvelope[ListData[DocumentResource]]
-    SuccessEnvelope_ListData_ExtractionResource__:
-      properties:
-        success:
-          type: boolean
-          const: true
-          title: Success
-          default: true
-        data:
-          $ref: '#/components/schemas/ListData_ExtractionResource_'
-      additionalProperties: false
-      type: object
-      required:
-      - data
-      title: SuccessEnvelope[ListData[ExtractionResource]]
-    SuccessEnvelope_ListData_FileResource__:
-      properties:
-        success:
-          type: boolean
-          const: true
-          title: Success
-          default: true
-        data:
-          $ref: '#/components/schemas/ListData_FileResource_'
-      additionalProperties: false
-      type: object
-      required:
-      - data
-      title: SuccessEnvelope[ListData[FileResource]]
-    SuccessEnvelope_ListData_KnowledgeBaseResource__:
-      properties:
-        success:
-          type: boolean
-          const: true
-          title: Success
-          default: true
-        data:
-          $ref: '#/components/schemas/ListData_KnowledgeBaseResource_'
-      additionalProperties: false
-      type: object
-      required:
-      - data
-      title: SuccessEnvelope[ListData[KnowledgeBaseResource]]
-    SuccessEnvelope_ListData_WebhookResource__:
-      properties:
-        success:
-          type: boolean
-          const: true
-          title: Success
-          default: true
-        data:
-          $ref: '#/components/schemas/ListData_WebhookResource_'
-      additionalProperties: false
-      type: object
-      required:
-      - data
-      title: SuccessEnvelope[ListData[WebhookResource]]
-    SuccessEnvelope_SearchResults_:
-      properties:
-        success:
-          type: boolean
-          const: true
-          title: Success
-          default: true
-        data:
-          $ref: '#/components/schemas/SearchResults'
-      additionalProperties: false
-      type: object
-      required:
-      - data
-      title: SuccessEnvelope[SearchResults]
-    SuccessEnvelope_SupportedFileTypes_:
-      properties:
-        success:
-          type: boolean
-          const: true
-          title: Success
-          default: true
-        data:
-          $ref: '#/components/schemas/SupportedFileTypes'
-      additionalProperties: false
-      type: object
-      required:
-      - data
-      title: SuccessEnvelope[SupportedFileTypes]
-    SuccessEnvelope_WebhookResource_:
-      properties:
-        success:
-          type: boolean
-          const: true
-          title: Success
-          default: true
-        data:
-          $ref: '#/components/schemas/WebhookResource'
-      additionalProperties: false
-      type: object
-      required:
-      - data
-      title: SuccessEnvelope[WebhookResource]
-    SuccessEnvelope_dict_str__Any__:
-      properties:
-        success:
-          type: boolean
-          const: true
-          title: Success
-          default: true
-        data:
-          additionalProperties: true
-          type: object
-          title: Data
-      additionalProperties: false
-      type: object
-      required:
-      - data
-      title: SuccessEnvelope[dict[str, Any]]
     SupportedFileTypes:
       properties:
         document_types:
@@ -3385,14 +2948,20 @@ components:
         events:
           items:
             type: string
+            enum:
+            - file.uploaded
+            - file.deleted
+            - extraction.completed
+            - extraction.failed
+            - document.indexed
+            - document.index_failed
           type: array
           minItems: 1
           title: Events
         description:
-          anyOf:
-          - type: string
-          - type: 'null'
+          type: string
           title: Description
+          nullable: true
       additionalProperties: false
       type: object
       required:
@@ -3416,26 +2985,23 @@ components:
           type: boolean
           title: Enabled
         description:
-          anyOf:
-          - type: string
-          - type: 'null'
+          type: string
           title: Description
+          nullable: true
         last_delivery_at:
-          anyOf:
-          - type: string
-            format: date-time
-          - type: 'null'
+          type: string
+          format: date-time
           title: Last Delivery At
+          nullable: true
         created_at:
           type: string
           format: date-time
           title: Created At
         updated_at:
-          anyOf:
-          - type: string
-            format: date-time
-          - type: 'null'
+          type: string
+          format: date-time
           title: Updated At
+          nullable: true
       additionalProperties: false
       type: object
       required:
@@ -3448,34 +3014,626 @@ components:
     WebhookUpdate:
       properties:
         url:
-          anyOf:
-          - type: string
-            maxLength: 2083
-            minLength: 1
-            format: uri
-          - type: 'null'
+          type: string
+          maxLength: 2083
+          minLength: 1
+          format: uri
           title: Url
+          nullable: true
         events:
-          anyOf:
-          - items:
-              type: string
-            type: array
-          - type: 'null'
+          items:
+            type: string
+            enum:
+            - file.uploaded
+            - file.deleted
+            - extraction.completed
+            - extraction.failed
+            - document.indexed
+            - document.index_failed
+          type: array
           title: Events
+          nullable: true
         enabled:
-          anyOf:
-          - type: boolean
-          - type: 'null'
+          type: boolean
           title: Enabled
+          nullable: true
         description:
-          anyOf:
-          - type: string
-          - type: 'null'
+          type: string
           title: Description
+          nullable: true
       additionalProperties: false
       type: object
       title: WebhookUpdate
+    UploadFileRequest:
+      properties:
+        file:
+          type: string
+          format: binary
+          title: File
+        metadata:
+          type: string
+          title: Metadata
+          default: '{}'
+        tags:
+          type: string
+          title: Tags
+          default: '[]'
+      type: object
+      required:
+      - file
+      title: UploadFileRequest
+    APIKeyList:
+      properties:
+        items:
+          items:
+            $ref: '#/components/schemas/APIKeyResource'
+          type: array
+          title: Items
+        total:
+          type: integer
+          title: Total
+        limit:
+          type: integer
+          title: Limit
+        offset:
+          type: integer
+          title: Offset
+        has_more:
+          type: boolean
+          title: Has More
+      additionalProperties: false
+      type: object
+      required:
+      - items
+      - total
+      - limit
+      - offset
+      - has_more
+      title: APIKeyList
+    DocumentList:
+      properties:
+        items:
+          items:
+            $ref: '#/components/schemas/DocumentResource'
+          type: array
+          title: Items
+        total:
+          type: integer
+          title: Total
+        limit:
+          type: integer
+          title: Limit
+        offset:
+          type: integer
+          title: Offset
+        has_more:
+          type: boolean
+          title: Has More
+      additionalProperties: false
+      type: object
+      required:
+      - items
+      - total
+      - limit
+      - offset
+      - has_more
+      title: DocumentList
+    ExtractionList:
+      properties:
+        items:
+          items:
+            $ref: '#/components/schemas/ExtractionResource'
+          type: array
+          title: Items
+        total:
+          type: integer
+          title: Total
+        limit:
+          type: integer
+          title: Limit
+        offset:
+          type: integer
+          title: Offset
+        has_more:
+          type: boolean
+          title: Has More
+      additionalProperties: false
+      type: object
+      required:
+      - items
+      - total
+      - limit
+      - offset
+      - has_more
+      title: ExtractionList
+    FileList:
+      properties:
+        items:
+          items:
+            $ref: '#/components/schemas/FileResource'
+          type: array
+          title: Items
+        total:
+          type: integer
+          title: Total
+        limit:
+          type: integer
+          title: Limit
+        offset:
+          type: integer
+          title: Offset
+        has_more:
+          type: boolean
+          title: Has More
+      additionalProperties: false
+      type: object
+      required:
+      - items
+      - total
+      - limit
+      - offset
+      - has_more
+      title: FileList
+    KnowledgeBaseList:
+      properties:
+        items:
+          items:
+            $ref: '#/components/schemas/KnowledgeBaseResource'
+          type: array
+          title: Items
+        total:
+          type: integer
+          title: Total
+        limit:
+          type: integer
+          title: Limit
+        offset:
+          type: integer
+          title: Offset
+        has_more:
+          type: boolean
+          title: Has More
+      additionalProperties: false
+      type: object
+      required:
+      - items
+      - total
+      - limit
+      - offset
+      - has_more
+      title: KnowledgeBaseList
+    WebhookList:
+      properties:
+        items:
+          items:
+            $ref: '#/components/schemas/WebhookResource'
+          type: array
+          title: Items
+        total:
+          type: integer
+          title: Total
+        limit:
+          type: integer
+          title: Limit
+        offset:
+          type: integer
+          title: Offset
+        has_more:
+          type: boolean
+          title: Has More
+      additionalProperties: false
+      type: object
+      required:
+      - items
+      - total
+      - limit
+      - offset
+      - has_more
+      title: WebhookList
+    APIKeyResponse:
+      properties:
+        success:
+          type: boolean
+          title: Success
+          default: true
+        data:
+          $ref: '#/components/schemas/APIKeyResource'
+      additionalProperties: false
+      type: object
+      required:
+      - data
+      title: APIKeyResponse
+    DeletionResponse:
+      properties:
+        success:
+          type: boolean
+          title: Success
+          default: true
+        data:
+          $ref: '#/components/schemas/DeletionResult'
+      additionalProperties: false
+      type: object
+      required:
+      - data
+      title: DeletionResponse
+    DocumentResponse:
+      properties:
+        success:
+          type: boolean
+          title: Success
+          default: true
+        data:
+          $ref: '#/components/schemas/DocumentResource'
+      additionalProperties: false
+      type: object
+      required:
+      - data
+      title: DocumentResponse
+    ExtractionResponse:
+      properties:
+        success:
+          type: boolean
+          title: Success
+          default: true
+        data:
+          $ref: '#/components/schemas/ExtractionResource'
+      additionalProperties: false
+      type: object
+      required:
+      - data
+      title: ExtractionResponse
+    FileResponse:
+      properties:
+        success:
+          type: boolean
+          title: Success
+          default: true
+        data:
+          $ref: '#/components/schemas/FileResource'
+      additionalProperties: false
+      type: object
+      required:
+      - data
+      title: FileResponse
+    KnowledgeBaseResponse:
+      properties:
+        success:
+          type: boolean
+          title: Success
+          default: true
+        data:
+          $ref: '#/components/schemas/KnowledgeBaseResource'
+      additionalProperties: false
+      type: object
+      required:
+      - data
+      title: KnowledgeBaseResponse
+    APIKeyListResponse:
+      properties:
+        success:
+          type: boolean
+          title: Success
+          default: true
+        data:
+          $ref: '#/components/schemas/APIKeyList'
+      additionalProperties: false
+      type: object
+      required:
+      - data
+      title: APIKeyListResponse
+    DocumentListResponse:
+      properties:
+        success:
+          type: boolean
+          title: Success
+          default: true
+        data:
+          $ref: '#/components/schemas/DocumentList'
+      additionalProperties: false
+      type: object
+      required:
+      - data
+      title: DocumentListResponse
+    ExtractionListResponse:
+      properties:
+        success:
+          type: boolean
+          title: Success
+          default: true
+        data:
+          $ref: '#/components/schemas/ExtractionList'
+      additionalProperties: false
+      type: object
+      required:
+      - data
+      title: ExtractionListResponse
+    FileListResponse:
+      properties:
+        success:
+          type: boolean
+          title: Success
+          default: true
+        data:
+          $ref: '#/components/schemas/FileList'
+      additionalProperties: false
+      type: object
+      required:
+      - data
+      title: FileListResponse
+    KnowledgeBaseListResponse:
+      properties:
+        success:
+          type: boolean
+          title: Success
+          default: true
+        data:
+          $ref: '#/components/schemas/KnowledgeBaseList'
+      additionalProperties: false
+      type: object
+      required:
+      - data
+      title: KnowledgeBaseListResponse
+    WebhookListResponse:
+      properties:
+        success:
+          type: boolean
+          title: Success
+          default: true
+        data:
+          $ref: '#/components/schemas/WebhookList'
+      additionalProperties: false
+      type: object
+      required:
+      - data
+      title: WebhookListResponse
+    SearchResponse:
+      properties:
+        success:
+          type: boolean
+          title: Success
+          default: true
+        data:
+          $ref: '#/components/schemas/SearchResults'
+      additionalProperties: false
+      type: object
+      required:
+      - data
+      title: SearchResponse
+    SupportedFileTypesResponse:
+      properties:
+        success:
+          type: boolean
+          title: Success
+          default: true
+        data:
+          $ref: '#/components/schemas/SupportedFileTypes'
+      additionalProperties: false
+      type: object
+      required:
+      - data
+      title: SupportedFileTypesResponse
+    WebhookResponse:
+      properties:
+        success:
+          type: boolean
+          title: Success
+          default: true
+        data:
+          $ref: '#/components/schemas/WebhookResource'
+      additionalProperties: false
+      type: object
+      required:
+      - data
+      title: WebhookResponse
+    ChunkingStrategy:
+      type: object
+      additionalProperties: false
+      properties:
+        type:
+          type: string
+          enum:
+          - fixed
+          - semantic
+          - hierarchical
+          - paragraph
+          default: semantic
+        chunk_size:
+          type: integer
+          minimum: 64
+          maximum: 100000
+          default: 512
+        overlap:
+          type: integer
+          minimum: 0
+          default: 50
+      required:
+      - type
+      - chunk_size
+      - overlap
+      title: ChunkingStrategy
+    ExtractionOptions:
+      type: object
+      additionalProperties: false
+      properties:
+        language:
+          type: string
+        ocr_provider:
+          type: string
+        extract_tables:
+          type: boolean
+        extract_images:
+          type: boolean
+        preserve_layout:
+          type: boolean
+      title: ExtractionOptions
+    HealthStatus:
+      type: object
+      additionalProperties: false
+      properties:
+        status:
+          type: string
+        version:
+          type: string
+      required:
+      - status
+      - version
+      title: HealthStatus
+    StorageUsage:
+      type: object
+      additionalProperties: false
+      properties:
+        used_bytes:
+          type: integer
+        limit_bytes:
+          type: integer
+        used_percentage:
+          type: number
+      required:
+      - used_bytes
+      - limit_bytes
+      - used_percentage
+      title: StorageUsage
+    ExtractionUsage:
+      type: object
+      additionalProperties: false
+      properties:
+        pages_used:
+          type: integer
+        pages_limit:
+          type: integer
+        reset_at:
+          type: string
+          format: date-time
+          nullable: true
+      required:
+      - pages_used
+      - pages_limit
+      title: ExtractionUsage
+    KnowledgeBaseUsage:
+      type: object
+      additionalProperties: false
+      properties:
+        used:
+          type: integer
+        limit:
+          type: integer
+      required:
+      - used
+      - limit
+      title: KnowledgeBaseUsage
+    UsageStats:
+      type: object
+      additionalProperties: false
+      properties:
+        storage:
+          $ref: '#/components/schemas/StorageUsage'
+        extraction:
+          $ref: '#/components/schemas/ExtractionUsage'
+        knowledge_bases:
+          $ref: '#/components/schemas/KnowledgeBaseUsage'
+      required:
+      - storage
+      - extraction
+      - knowledge_bases
+      title: UsageStats
+    ApiCallLimits:
+      type: object
+      additionalProperties: false
+      properties:
+        limit:
+          type: integer
+          nullable: true
+        window:
+          type: string
+      required:
+      - limit
+      - window
+      title: ApiCallLimits
+    StorageLimits:
+      type: object
+      additionalProperties: false
+      properties:
+        limit_bytes:
+          type: integer
+      required:
+      - limit_bytes
+      title: StorageLimits
+    FileLimits:
+      type: object
+      additionalProperties: false
+      properties:
+        max_file_size_bytes:
+          type: integer
+      required:
+      - max_file_size_bytes
+      title: FileLimits
+    UsageLimits:
+      type: object
+      additionalProperties: false
+      properties:
+        api_calls:
+          $ref: '#/components/schemas/ApiCallLimits'
+        storage:
+          $ref: '#/components/schemas/StorageLimits'
+        files:
+          $ref: '#/components/schemas/FileLimits'
+      required:
+      - api_calls
+      - storage
+      - files
+      title: UsageLimits
+    HealthResponse:
+      type: object
+      additionalProperties: false
+      properties:
+        success:
+          type: boolean
+          default: true
+        data:
+          $ref: '#/components/schemas/HealthStatus'
+      required:
+      - data
+      title: HealthResponse
+    UsageStatsResponse:
+      type: object
+      additionalProperties: false
+      properties:
+        success:
+          type: boolean
+          default: true
+        data:
+          $ref: '#/components/schemas/UsageStats'
+      required:
+      - data
+      title: UsageStatsResponse
+    UsageLimitsResponse:
+      type: object
+      additionalProperties: false
+      properties:
+        success:
+          type: boolean
+          default: true
+        data:
+          $ref: '#/components/schemas/UsageLimits'
+      required:
+      - data
+      title: UsageLimitsResponse
   securitySchemes:
     BearerAuth:
       type: http
       scheme: bearer
+servers:
+- url: https://api.unifiles.dev
+  description: Hosted API
+- url: http://localhost:8088
+  description: Local self-hosted API
+tags:
+- name: System
+- name: Files
+- name: Extractions
+- name: Knowledge Bases
+- name: Documents
+- name: Search
+- name: Webhooks
+- name: API Keys
+- name: Usage

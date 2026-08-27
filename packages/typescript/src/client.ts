@@ -6,7 +6,7 @@ import {
   UsageResource,
   WebhooksResource,
 } from "./resources.js";
-import { Transport, type TransportOptions } from "./transport.js";
+import { Transport, type GeneratedAPIs, type TransportOptions } from "./transport.js";
 
 export interface UnifilesClientOptions extends TransportOptions {}
 
@@ -17,11 +17,13 @@ export class UnifilesClient {
   readonly webhooks: WebhooksResource;
   readonly apiKeys: APIKeysResource;
   readonly usage: UsageResource;
+  readonly raw: GeneratedAPIs;
   readonly baseUrl: string;
 
   constructor(options: UnifilesClientOptions = {}) {
     const transport = new Transport(options);
     this.baseUrl = transport.baseUrl;
+    this.raw = transport.apis;
     this.files = new FilesResource(transport);
     this.extractions = new ExtractionsResource(transport);
     this.knowledgeBases = new KnowledgeBasesResource(transport);

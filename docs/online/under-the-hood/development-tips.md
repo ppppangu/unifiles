@@ -30,7 +30,7 @@ Extraction 与 Document 任务。
 ```bash
 # Python Server 与 SDK
 uv run ruff check apps packages/python scripts
-uv run mypy packages/python/src apps/server/src --exclude _generated
+uv run mypy packages/python/src apps/server/src --exclude generated
 uv run pytest
 
 # TypeScript SDK 与 CLI
@@ -43,15 +43,15 @@ uv run mkdocs build --strict
 
 ## 修改 API
 
-FastAPI `/v1` 路由与 `api/openapi.yaml` 必须同步。修改路由后执行：
+`api/openapi.yaml` 是唯一协议源。先修改契约，再重新生成 FastAPI 协议层和两个 SDK core：
 
 ```bash
-uv run python scripts/export_openapi.py
 uv run python scripts/generate_contract.py
 ```
 
-CI 会重新生成 Python/TypeScript wire types 并检查 diff。公开 SDK facade 保持手写，以便
-Python 使用 snake_case、TypeScript 使用 camelCase。
+CI 会重新生成三套代码并检查 diff。生成目录可以整体替换；手写 Handler、业务服务和 SDK
+扩展层位于生成目录之外，不会被覆盖。Python/TypeScript 的 URL、参数和 wire 序列化由生成
+core 负责，手写 facade 只补充 `wait()`、重试和异常映射等协议之外的体验。
 
 ## 本机 CLI profile
 

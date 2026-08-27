@@ -1,15 +1,31 @@
-"""Shared synchronous and asynchronous HTTP transports."""
+"""Transport policy around the generated Python SDK core."""
 
 from __future__ import annotations
 
 import asyncio
+import json
 import os
 import random
 import time
+from collections.abc import Callable
+from dataclasses import dataclass
 from email.utils import parsedate_to_datetime
 from typing import Any
 
 import httpx
+from unifiles_generated.api.api_keys_api import APIKeysApi
+from unifiles_generated.api.documents_api import DocumentsApi
+from unifiles_generated.api.extractions_api import ExtractionsApi
+from unifiles_generated.api.files_api import FilesApi
+from unifiles_generated.api.knowledge_bases_api import KnowledgeBasesApi
+from unifiles_generated.api.search_api import SearchApi
+from unifiles_generated.api.system_api import SystemApi
+from unifiles_generated.api.usage_api import UsageApi
+from unifiles_generated.api.webhooks_api import WebhooksApi
+from unifiles_generated.api_client import ApiClient
+from unifiles_generated.configuration import Configuration
+from unifiles_generated.exceptions import ApiException
+from unifiles_generated.sync_helper import run_sync
 
 from .exceptions import (
     AuthenticationError,
@@ -21,12 +37,8 @@ from .exceptions import (
     UnifilesError,
     ValidationError,
 )
-from .exceptions import (
-    PermissionError as UnifilesPermissionError,
-)
-from .exceptions import (
-    TimeoutError as UnifilesTimeoutError,
-)
+from .exceptions import PermissionError as UnifilesPermissionError
+from .exceptions import TimeoutError as UnifilesTimeoutError
 
 DEFAULT_BASE_URL = "https://api.unifiles.dev/v1"
 RETRYABLE_STATUS = {408, 429, 500, 502, 503, 504}
@@ -35,6 +47,10 @@ RETRYABLE_STATUS = {408, 429, 500, 502, 503, 504}
 def _normalize_base_url(value: str | None) -> str:
     base = (value or os.getenv("UNIFILES_BASE_URL") or DEFAULT_BASE_URL).rstrip("/")
     return base if base.endswith("/v1") else f"{base}/v1"
+
+
+def _api_origin(base_url: str) -> str:
+    return base_url.removesuffix("/v1")
 
 
 def _api_key(value: str | None) -> str:
@@ -47,107 +63,124 @@ def _api_key(value: str | None) -> str:
     return key
 
 
-def _retry_after(response: httpx.Response) -> float | None:
-    raw = response.headers.get("retry-after")
+def _retry_after(headers: Any) -> float | None:
+    raw = headers.get("retry-after") if headers else None
     if not raw:
         return None
     try:
         return max(0.0, float(raw))
-    except ValueError:
+    except (TypeError, ValueError):
         try:
             return max(
                 0.0,
                 (
-                    parsedate_to_datetime(raw) - parsedate_to_datetime(response.headers["date"])
+                    parsedate_to_datetime(str(raw)) - parsedate_to_datetime(str(headers["date"]))
                 ).total_seconds(),
             )
         except (KeyError, TypeError, ValueError):
             return None
 
 
-def _backoff(attempt: int, response: httpx.Response | None = None) -> float:
-    if response is not None:
-        explicit = _retry_after(response)
-        if explicit is not None:
-            return explicit
-    cap = min(8.0, 0.5 * (2**attempt))
-    return random.uniform(0, cap)  # noqa: S311 - retry jitter is not security-sensitive
+def _backoff(attempt: int, headers: Any = None) -> float:
+    explicit = _retry_after(headers)
+    if explicit is not None:
+        return explicit
+    return random.uniform(0, min(8.0, 0.5 * (2**attempt)))  # noqa: S311
 
 
-def _error_from_response(response: httpx.Response) -> UnifilesError:
-    request_id = response.headers.get("x-request-id")
-    code = f"HTTP_{response.status_code}"
-    message = response.reason_phrase or "Request failed"
+def _error_fields(error: ApiException) -> tuple[str, str, dict[str, Any], str | None]:
+    status = int(error.status or 0)
+    code = f"HTTP_{status}"
+    message = str(error.reason or "Request failed")
     details: dict[str, Any] = {}
-    retry_after = _retry_after(response)
+    request_id = error.headers.get("x-request-id") if error.headers else None
+
+    detail = getattr(error.data, "error", None)
+    if detail is not None:
+        code = str(getattr(detail, "code", code))
+        message = str(getattr(detail, "message", message))
+        details = getattr(detail, "details", None) or {}
+        request_id = getattr(detail, "request_id", None) or request_id
+        return code, message, details, request_id
 
     try:
-        body = response.json()
-        if isinstance(body, dict):
-            error = body.get("error")
-            if isinstance(error, dict):
-                code = str(error.get("code", code))
-                message = str(error.get("message", message))
-                details_value = error.get("details")
-                details = details_value if isinstance(details_value, dict) else {}
-                request_id = str(error.get("request_id") or request_id or "") or None
-                raw_retry = error.get("retry_after")
-                if isinstance(raw_retry, (int, float)):
-                    retry_after = float(raw_retry)
-            elif "detail" in body:
-                message = str(body["detail"])
-    except ValueError:
-        if response.text:
-            message = response.text[:500]
+        body = json.loads(error.body or "")
+    except (TypeError, ValueError):
+        body = None
+    if isinstance(body, dict) and isinstance(body.get("error"), dict):
+        wire = body["error"]
+        code = str(wire.get("code", code))
+        message = str(wire.get("message", message))
+        details = wire.get("details") if isinstance(wire.get("details"), dict) else {}
+        request_id = str(wire.get("request_id") or request_id or "") or None
+    return code, message, details, request_id
 
+
+def _public_error(error: ApiException) -> UnifilesError:
+    status = int(error.status or 0)
+    code, message, details, request_id = _error_fields(error)
     kwargs: dict[str, Any] = {
         "code": code,
-        "status_code": response.status_code,
+        "status_code": status or None,
         "request_id": request_id,
         "details": details,
     }
-    if response.status_code == 401:
+    if status == 401:
         return AuthenticationError(message, **kwargs)
-    if response.status_code == 403:
+    if status == 403:
         return UnifilesPermissionError(message, **kwargs)
-    if response.status_code == 404:
+    if status == 404:
         return NotFoundError(message, **kwargs)
-    if response.status_code in {400, 413, 415, 422}:
+    if status in {400, 413, 415, 422}:
         return ValidationError(message, **kwargs)
-    if response.status_code == 409:
+    if status == 409:
         return ConflictError(message, **kwargs)
-    if response.status_code == 429:
-        return RateLimitError(message, retry_after=retry_after, **kwargs)
-    if response.status_code in {408, 504}:
+    if status == 429:
+        return RateLimitError(message, retry_after=_retry_after(error.headers), **kwargs)
+    if status in {408, 504}:
         return UnifilesTimeoutError(message, **kwargs)
-    if response.status_code >= 500:
+    if status >= 500:
         return ServerError(message, **kwargs)
     return UnifilesError(message, **kwargs)
 
 
-def _unwrap(response: httpx.Response) -> Any:
-    if response.is_error:
-        raise _error_from_response(response)
-    try:
-        body = response.json()
-    except ValueError as exc:
-        raise TransportError(
-            "The API returned invalid JSON",
-            code="INVALID_RESPONSE",
-            status_code=response.status_code,
-            request_id=response.headers.get("x-request-id"),
-        ) from exc
-    if not isinstance(body, dict) or body.get("success") is not True or "data" not in body:
-        raise TransportError(
-            "The API returned an invalid success envelope",
-            code="INVALID_RESPONSE",
-            status_code=response.status_code,
-            request_id=response.headers.get("x-request-id"),
-        )
-    return body["data"]
+def _as_async_client(
+    client: httpx.Client | httpx.AsyncClient | None,
+    *,
+    timeout: float,
+) -> tuple[httpx.AsyncClient, bool]:
+    if isinstance(client, httpx.AsyncClient):
+        return client, False
+    if client is None:
+        return httpx.AsyncClient(timeout=timeout), True
+
+    app = getattr(client, "app", None)
+    if app is not None:
+        return httpx.AsyncClient(transport=httpx.ASGITransport(app=app), timeout=timeout), True
+    transport = getattr(client, "_transport", None)
+    if transport is not None and hasattr(transport, "handle_async_request"):
+        return httpx.AsyncClient(transport=transport, timeout=timeout), True
+    raise TypeError("_http_client must use an async-capable transport")
 
 
-class SyncTransport:
+@dataclass(frozen=True)
+class GeneratedAPIs:
+    """Direct access to every endpoint generated from the OpenAPI contract."""
+
+    files: FilesApi
+    extractions: ExtractionsApi
+    knowledge_bases: KnowledgeBasesApi
+    documents: DocumentsApi
+    search: SearchApi
+    webhooks: WebhooksApi
+    api_keys: APIKeysApi
+    usage: UsageApi
+    system: SystemApi
+
+
+class ProtocolTransport:
+    """Configure generated APIs and apply handwritten retry/error policy once."""
+
     def __init__(
         self,
         *,
@@ -155,161 +188,100 @@ class SyncTransport:
         base_url: str | None = None,
         timeout: float = 30,
         max_retries: int = 3,
-        client: httpx.Client | None = None,
+        client: httpx.Client | httpx.AsyncClient | None = None,
     ) -> None:
         self.base_url = _normalize_base_url(base_url)
+        self.timeout = timeout
         self.max_retries = max(0, max_retries)
-        self._owns_client = client is None
-        self.client = client or httpx.Client(timeout=timeout)
-        self.headers = {
-            "Authorization": f"Bearer {_api_key(api_key)}",
-            "Accept": "application/json",
-            "User-Agent": "unifiles-python/0.1.0",
-        }
-
-    def request(
-        self,
-        method: str,
-        path: str,
-        *,
-        params: dict[str, Any] | None = None,
-        json: Any = None,
-        data: dict[str, Any] | None = None,
-        files: dict[str, Any] | None = None,
-        idempotency_key: str | None = None,
-    ) -> Any:
-        headers = dict(self.headers)
-        if idempotency_key:
-            headers["Idempotency-Key"] = idempotency_key
-        retry_allowed = method.upper() in {"GET", "HEAD", "OPTIONS", "DELETE"} or bool(
-            idempotency_key
+        configuration = Configuration(
+            host=_api_origin(self.base_url), access_token=_api_key(api_key)
         )
-        response: httpx.Response | None = None
+        self.api_client = ApiClient(configuration)
+        self.http, self._owns_http = _as_async_client(client, timeout=timeout)
+        self.api_client.rest_client.pool_manager = self.http
+        self.api_client.user_agent = "unifiles-python/0.1.0"
+        self.apis = GeneratedAPIs(
+            files=FilesApi(self.api_client),
+            extractions=ExtractionsApi(self.api_client),
+            knowledge_bases=KnowledgeBasesApi(self.api_client),
+            documents=DocumentsApi(self.api_client),
+            search=SearchApi(self.api_client),
+            webhooks=WebhooksApi(self.api_client),
+            api_keys=APIKeysApi(self.api_client),
+            usage=UsageApi(self.api_client),
+            system=SystemApi(self.api_client),
+        )
+
+    def call_sync(
+        self,
+        method: Callable[..., Any],
+        *,
+        retry_allowed: bool = False,
+        **kwargs: Any,
+    ) -> Any:
+        kwargs.setdefault("_request_timeout", self.timeout)
         for attempt in range(self.max_retries + 1):
             try:
-                response = self.client.request(
-                    method,
-                    f"{self.base_url}/{path.lstrip('/')}",
-                    headers=headers,
-                    params=params,
-                    json=json,
-                    data=data,
-                    files=files,
-                )
-            except httpx.TimeoutException as exc:
+                return method(**kwargs)
+            except ApiException as error:
+                status = int(error.status or 0)
+                if retry_allowed and status in RETRYABLE_STATUS and attempt < self.max_retries:
+                    time.sleep(_backoff(attempt, error.headers))
+                    continue
+                raise _public_error(error) from error
+            except httpx.TimeoutException as error:
                 if retry_allowed and attempt < self.max_retries:
                     time.sleep(_backoff(attempt))
                     continue
-                raise UnifilesTimeoutError(str(exc), code="REQUEST_TIMEOUT") from exc
-            except httpx.HTTPError as exc:
+                raise UnifilesTimeoutError(str(error), code="REQUEST_TIMEOUT") from error
+            except httpx.HTTPError as error:
                 if retry_allowed and attempt < self.max_retries:
                     time.sleep(_backoff(attempt))
                     continue
-                raise TransportError(str(exc), code="TRANSPORT_ERROR") from exc
-            if (
-                retry_allowed
-                and response.status_code in RETRYABLE_STATUS
-                and attempt < self.max_retries
-            ):
-                time.sleep(_backoff(attempt, response))
-                continue
-            return _unwrap(response)
+                raise TransportError(str(error), code="TRANSPORT_ERROR") from error
         raise AssertionError("unreachable")
 
-    def request_binary(self, path: str) -> bytes:
-        response = self.client.get(
-            f"{self.base_url}/{path.lstrip('/')}",
-            headers=self.headers,
-        )
-        if response.is_error:
-            raise _error_from_response(response)
-        return response.content
+    async def call_async(
+        self,
+        method: Callable[..., Any],
+        *,
+        retry_allowed: bool = False,
+        **kwargs: Any,
+    ) -> Any:
+        kwargs.setdefault("_request_timeout", self.timeout)
+        for attempt in range(self.max_retries + 1):
+            try:
+                return await method(**kwargs)
+            except ApiException as error:
+                status = int(error.status or 0)
+                if retry_allowed and status in RETRYABLE_STATUS and attempt < self.max_retries:
+                    await asyncio.sleep(_backoff(attempt, error.headers))
+                    continue
+                raise _public_error(error) from error
+            except httpx.TimeoutException as error:
+                if retry_allowed and attempt < self.max_retries:
+                    await asyncio.sleep(_backoff(attempt))
+                    continue
+                raise UnifilesTimeoutError(str(error), code="REQUEST_TIMEOUT") from error
+            except httpx.HTTPError as error:
+                if retry_allowed and attempt < self.max_retries:
+                    await asyncio.sleep(_backoff(attempt))
+                    continue
+                raise TransportError(str(error), code="TRANSPORT_ERROR") from error
+        raise AssertionError("unreachable")
 
     def close(self) -> None:
-        if self._owns_client:
-            self.client.close()
+        if self._owns_http:
+            run_sync(self.http.aclose())
+
+    async def aclose(self) -> None:
+        if self._owns_http:
+            await self.http.aclose()
 
 
-class AsyncTransport:
-    def __init__(
-        self,
-        *,
-        api_key: str | None = None,
-        base_url: str | None = None,
-        timeout: float = 30,
-        max_retries: int = 3,
-        client: httpx.AsyncClient | None = None,
-    ) -> None:
-        self.base_url = _normalize_base_url(base_url)
-        self.max_retries = max(0, max_retries)
-        self._owns_client = client is None
-        self.client = client or httpx.AsyncClient(timeout=timeout)
-        self.headers = {
-            "Authorization": f"Bearer {_api_key(api_key)}",
-            "Accept": "application/json",
-            "User-Agent": "unifiles-python-async/0.1.0",
-        }
-
-    async def request(
-        self,
-        method: str,
-        path: str,
-        *,
-        params: dict[str, Any] | None = None,
-        json: Any = None,
-        data: dict[str, Any] | None = None,
-        files: dict[str, Any] | None = None,
-        idempotency_key: str | None = None,
-    ) -> Any:
-        headers = dict(self.headers)
-        if idempotency_key:
-            headers["Idempotency-Key"] = idempotency_key
-        retry_allowed = method.upper() in {"GET", "HEAD", "OPTIONS", "DELETE"} or bool(
-            idempotency_key
-        )
-        for attempt in range(self.max_retries + 1):
-            try:
-                response = await self.client.request(
-                    method,
-                    f"{self.base_url}/{path.lstrip('/')}",
-                    headers=headers,
-                    params=params,
-                    json=json,
-                    data=data,
-                    files=files,
-                )
-            except httpx.TimeoutException as exc:
-                if retry_allowed and attempt < self.max_retries:
-                    await asyncio.sleep(_backoff(attempt))
-                    continue
-                raise UnifilesTimeoutError(str(exc), code="REQUEST_TIMEOUT") from exc
-            except httpx.HTTPError as exc:
-                if retry_allowed and attempt < self.max_retries:
-                    await asyncio.sleep(_backoff(attempt))
-                    continue
-                raise TransportError(str(exc), code="TRANSPORT_ERROR") from exc
-            if (
-                retry_allowed
-                and response.status_code in RETRYABLE_STATUS
-                and attempt < self.max_retries
-            ):
-                await asyncio.sleep(_backoff(attempt, response))
-                continue
-            return _unwrap(response)
-        raise AssertionError("unreachable")
-
-    async def request_binary(self, path: str) -> bytes:
-        response = await self.client.get(
-            f"{self.base_url}/{path.lstrip('/')}",
-            headers=self.headers,
-        )
-        if response.is_error:
-            raise _error_from_response(response)
-        return response.content
-
-    async def close(self) -> None:
-        if self._owns_client:
-            await self.client.aclose()
+class SyncTransport(ProtocolTransport):
+    pass
 
 
-__all__ = ["AsyncTransport", "SyncTransport"]
+class AsyncTransport(ProtocolTransport):
+    pass
