@@ -22,3 +22,6 @@ Never edit a target below `packages/generated/`. Each leaf is owned by one manif
 be deleted and rebuilt independently. Handwritten feature modules, SDK facades and the product CLI
 live outside that tree, so regeneration cannot overwrite them. Keep OCR, chunking, authorization,
 quotas and persistence in the handwritten Server modules.
+
+Package tags publish coupled generated and handwritten artifacts in dependency order. See
+[`RELEASING.md`](RELEASING.md) before creating a release tag.
