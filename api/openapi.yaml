@@ -12,6 +12,7 @@ paths:
       - System
       summary: Health
       operationId: getVersionedHealth
+      security: []
       responses:
         '200':
           description: Successful Response
@@ -106,6 +107,7 @@ paths:
       - System
       summary: Health
       operationId: getHealth
+      security: []
       responses:
         '200':
           description: Successful Response

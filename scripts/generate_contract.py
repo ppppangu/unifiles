@@ -13,8 +13,6 @@ from pathlib import Path
 
 import yaml
 
-GENERATOR_VERSION = "7.24.0"
-
 
 def generator_environment() -> dict[str, str]:
     environment = dict(os.environ)
@@ -48,9 +46,10 @@ def generate(
         command.extend(["--openapi-generator-ignore-list", ",".join(ignored_paths)])
     subprocess.run(command, check=True, cwd=root, env=generator_environment())
     actual_version = (output / ".openapi-generator" / "VERSION").read_text(encoding="utf-8").strip()
-    if actual_version != GENERATOR_VERSION:
+    expected_version = (root / "codegen" / "VERSION").read_text(encoding="utf-8").strip()
+    if actual_version != expected_version:
         raise RuntimeError(
-            f"OpenAPI Generator {actual_version} produced {output}; expected {GENERATOR_VERSION}"
+            f"OpenAPI Generator {actual_version} produced {output}; expected {expected_version}"
         )
 
 
