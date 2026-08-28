@@ -13,4 +13,5 @@ Use `GET /health` for health checks and `/docs` for interactive OpenAPI document
 FastAPI routers, request/response models and base API interfaces are generated from the canonical
 `contracts/openapi/unifiles.yaml` contract under
 `packages/generated/server-protocol-python/`. Business logic lives in
-`src/unifiles_server/implementation/` and is never overwritten by regeneration.
+`src/unifiles_server/modules/` (with temporary compatibility code under
+`src/unifiles_server/implementation/`) and is never overwritten by regeneration.
