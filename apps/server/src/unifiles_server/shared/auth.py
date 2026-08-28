@@ -5,8 +5,9 @@ from __future__ import annotations
 from contextvars import ContextVar
 from typing import Any
 
-from fastapi import BackgroundTasks, Request
-from fastapi.security import HTTPAuthorizationCredentials
+from fastapi import BackgroundTasks, Depends, Request
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from unifiles_server_protocol.models.extra_models import TokenModel
 
 from .database import Store
 from .errors import APIError
@@ -14,6 +15,7 @@ from .errors import APIError
 _request_context: ContextVar[Request] = ContextVar("unifiles_request")
 _principal_context: ContextVar[dict[str, Any]] = ContextVar("unifiles_principal")
 _background_context: ContextVar[BackgroundTasks] = ContextVar("unifiles_background_tasks")
+bearer_auth = HTTPBearer(auto_error=False)
 
 
 def authenticate_request(
@@ -46,6 +48,15 @@ def authenticate_request(
     _principal_context.set(principal)
     _background_context.set(background_tasks)
     return principal
+
+
+async def get_bearer_auth(
+    request: Request,
+    background_tasks: BackgroundTasks,
+    credentials: HTTPAuthorizationCredentials | None = Depends(bearer_auth),
+) -> TokenModel:
+    principal = authenticate_request(request, credentials, background_tasks)
+    return TokenModel(sub=str(principal["user_id"]))
 
 
 def current_context() -> tuple[Request, dict[str, Any], Store]:

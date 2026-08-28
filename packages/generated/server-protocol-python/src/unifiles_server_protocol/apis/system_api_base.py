@@ -1,31 +1,30 @@
 # coding: utf-8
 
-from typing import ClassVar, Dict, List, Tuple  # noqa: F401
+from abc import ABC, abstractmethod
+from typing import Dict, List  # noqa: F401
 
 from unifiles_server_protocol.models.error_envelope import ErrorEnvelope
 from unifiles_server_protocol.models.health_details_response import HealthDetailsResponse
 from unifiles_server_protocol.models.health_response import HealthResponse
-from unifiles_server_protocol.security_api import get_token_BearerAuth
 
-class BaseSystemApi:
-    subclasses: ClassVar[Tuple] = ()
 
-    def __init_subclass__(cls, **kwargs):
-        super().__init_subclass__(**kwargs)
-        BaseSystemApi.subclasses = BaseSystemApi.subclasses + (cls,)
+class BaseSystemApi(ABC):
+    @abstractmethod
     async def get_versioned_health(
         self,
     ) -> HealthResponse:
-        ...
+        raise NotImplementedError
 
 
+    @abstractmethod
     async def get_health_details(
         self,
     ) -> HealthDetailsResponse:
-        ...
+        raise NotImplementedError
 
 
+    @abstractmethod
     async def get_health(
         self,
     ) -> HealthResponse:
-        ...
+        raise NotImplementedError

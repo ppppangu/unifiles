@@ -1,0 +1,28 @@
+# coding: utf-8
+
+from abc import ABC, abstractmethod
+from typing import Dict, List  # noqa: F401
+
+{{#imports}}
+{{import}}
+{{/imports}}
+
+
+class Base{{classname}}(ABC):
+{{#operations}}
+{{#operation}}
+    @abstractmethod
+    async def {{operationId}}(
+        self,
+        {{#allParams}}
+        {{>impl_argument_definition}},
+        {{/allParams}}
+    ) -> {{returnType}}{{^returnType}}None{{/returnType}}:
+        {{#notes}}"""{{.}}"""
+        {{/notes}}raise NotImplementedError
+{{^-last}}
+
+
+{{/-last}}
+{{/operation}}
+{{/operations}}

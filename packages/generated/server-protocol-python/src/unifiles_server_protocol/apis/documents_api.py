@@ -1,9 +1,9 @@
 # coding: utf-8
 
-from typing import Annotated, Dict, List  # noqa: F401
+from collections.abc import Callable
+from typing import Annotated, Dict, List, TypeAlias  # noqa: F401
 
 from unifiles_server_protocol.apis.documents_api_base import BaseDocumentsApi
-from unifiles_server.implementation.providers import get_documents_api_implementation
 
 from fastapi import (  # noqa: F401
     APIRouter,
@@ -31,136 +31,156 @@ from unifiles_server_protocol.models.document_create import DocumentCreate
 from unifiles_server_protocol.models.document_list_response import DocumentListResponse
 from unifiles_server_protocol.models.document_response import DocumentResponse
 from unifiles_server_protocol.models.error_envelope import ErrorEnvelope
-from unifiles_server_protocol.security_api import get_token_BearerAuth
+from unifiles_server_protocol.security_api import SecurityProvider
 
-router = APIRouter()
+ImplementationProvider: TypeAlias = Callable[..., BaseDocumentsApi]
 
-@router.get(
-    "/v1/knowledge-bases/{kb_id}/documents",
-    status_code=200,
-    responses={
-        200: {"model": DocumentListResponse, "description": "Successful Response"},
-        400: {"model": ErrorEnvelope, "description": "Invalid request"},
-        401: {"model": ErrorEnvelope, "description": "Authentication failed"},
-        403: {"model": ErrorEnvelope, "description": "Permission or quota denied"},
-        404: {"model": ErrorEnvelope, "description": "Resource not found"},
-        409: {"model": ErrorEnvelope, "description": "Resource state conflict"},
-        422: {"model": ErrorEnvelope, "description": "Validation or processing error"},
-        429: {"model": ErrorEnvelope, "description": "Rate limit exceeded"},
-        500: {"model": ErrorEnvelope, "description": "Internal server error"},
-    },
-    tags=["Documents"],
-    operation_id="listDocuments",
-    summary="List Documents",
-    response_model_by_alias=True,
-)
-async def list_documents(
-    implementation: Annotated[
-        BaseDocumentsApi,
-        Depends(get_documents_api_implementation),
-    ],
-    kb_id: StrictStr = Path(..., description=""),
-    limit: Optional[Annotated[int, Field(le=100, strict=True, ge=1)]] = Query(50, description="", alias="limit", ge=1, le=100),
-    offset: Optional[Annotated[int, Field(strict=True, ge=0)]] = Query(0, description="", alias="offset", ge=0),
-    token_BearerAuth: TokenModel = Security(
-        get_token_BearerAuth
-    ),
-) -> DocumentListResponse:
-    return await implementation.list_documents(kb_id, limit, offset)
 
-@router.post(
-    "/v1/knowledge-bases/{kb_id}/documents",
-    status_code=202,
-    responses={
-        202: {"model": DocumentResponse, "description": "Successful Response"},
-        400: {"model": ErrorEnvelope, "description": "Invalid request"},
-        401: {"model": ErrorEnvelope, "description": "Authentication failed"},
-        403: {"model": ErrorEnvelope, "description": "Permission or quota denied"},
-        404: {"model": ErrorEnvelope, "description": "Resource not found"},
-        409: {"model": ErrorEnvelope, "description": "Resource state conflict"},
-        422: {"model": ErrorEnvelope, "description": "Validation or processing error"},
-        429: {"model": ErrorEnvelope, "description": "Rate limit exceeded"},
-        500: {"model": ErrorEnvelope, "description": "Internal server error"},
-    },
-    tags=["Documents"],
-    operation_id="createDocument",
-    summary="Create Document",
-    response_model_by_alias=True,
-)
-async def create_document(
-    implementation: Annotated[
-        BaseDocumentsApi,
-        Depends(get_documents_api_implementation),
-    ],
-    kb_id: StrictStr = Path(..., description=""),
-    document_create: DocumentCreate = Body(None, description=""),
-    idempotency_key: Optional[StrictStr] = Header(None, description=""),
-    token_BearerAuth: TokenModel = Security(
-        get_token_BearerAuth
-    ),
-) -> DocumentResponse:
-    return await implementation.create_document(kb_id, document_create, idempotency_key)
+def create_router(
+    get_implementation: ImplementationProvider,
+    get_token_BearerAuth: SecurityProvider,
+) -> APIRouter:
+    router = APIRouter()
 
-@router.get(
-    "/v1/knowledge-bases/{kb_id}/documents/{document_id}",
-    status_code=200,
-    responses={
-        200: {"model": DocumentResponse, "description": "Successful Response"},
-        400: {"model": ErrorEnvelope, "description": "Invalid request"},
-        401: {"model": ErrorEnvelope, "description": "Authentication failed"},
-        403: {"model": ErrorEnvelope, "description": "Permission or quota denied"},
-        404: {"model": ErrorEnvelope, "description": "Resource not found"},
-        409: {"model": ErrorEnvelope, "description": "Resource state conflict"},
-        422: {"model": ErrorEnvelope, "description": "Validation or processing error"},
-        429: {"model": ErrorEnvelope, "description": "Rate limit exceeded"},
-        500: {"model": ErrorEnvelope, "description": "Internal server error"},
-    },
-    tags=["Documents"],
-    operation_id="getDocument",
-    summary="Get Document",
-    response_model_by_alias=True,
-)
-async def get_document(
-    implementation: Annotated[
-        BaseDocumentsApi,
-        Depends(get_documents_api_implementation),
-    ],
-    kb_id: StrictStr = Path(..., description=""),
-    document_id: StrictStr = Path(..., description=""),
-    token_BearerAuth: TokenModel = Security(
-        get_token_BearerAuth
-    ),
-) -> DocumentResponse:
-    return await implementation.get_document(kb_id, document_id)
+    @router.get(
+        "/v1/knowledge-bases/{kb_id}/documents",
+        status_code=200,
+        responses={
+            200: {"model": DocumentListResponse, "description": "Successful Response"},
+            400: {"model": ErrorEnvelope, "description": "Invalid request"},
+            401: {"model": ErrorEnvelope, "description": "Authentication failed"},
+            403: {"model": ErrorEnvelope, "description": "Permission or quota denied"},
+            404: {"model": ErrorEnvelope, "description": "Resource not found"},
+            409: {"model": ErrorEnvelope, "description": "Resource state conflict"},
+            422: {"model": ErrorEnvelope, "description": "Validation or processing error"},
+            429: {"model": ErrorEnvelope, "description": "Rate limit exceeded"},
+            500: {"model": ErrorEnvelope, "description": "Internal server error"},
+        },
+        tags=["Documents"],
+        operation_id="listDocuments",
+        summary="List Documents",
+        response_model_by_alias=True,
+    )
+    async def list_documents(
+        token_BearerAuth: Annotated[
+            TokenModel,
+            Security(
+                get_token_BearerAuth
+            ),
+        ],
+        implementation: Annotated[
+            BaseDocumentsApi,
+            Depends(get_implementation),
+        ],
+        kb_id: StrictStr = Path(..., description=""),
+        limit: Optional[Annotated[int, Field(le=100, strict=True, ge=1)]] = Query(50, description="", alias="limit", ge=1, le=100),
+        offset: Optional[Annotated[int, Field(strict=True, ge=0)]] = Query(0, description="", alias="offset", ge=0),
+    ) -> DocumentListResponse:
+        return await implementation.list_documents(kb_id, limit, offset)
 
-@router.delete(
-    "/v1/knowledge-bases/{kb_id}/documents/{document_id}",
-    status_code=200,
-    responses={
-        200: {"model": DeletionResponse, "description": "Successful Response"},
-        400: {"model": ErrorEnvelope, "description": "Invalid request"},
-        401: {"model": ErrorEnvelope, "description": "Authentication failed"},
-        403: {"model": ErrorEnvelope, "description": "Permission or quota denied"},
-        404: {"model": ErrorEnvelope, "description": "Resource not found"},
-        409: {"model": ErrorEnvelope, "description": "Resource state conflict"},
-        422: {"model": ErrorEnvelope, "description": "Validation or processing error"},
-        429: {"model": ErrorEnvelope, "description": "Rate limit exceeded"},
-        500: {"model": ErrorEnvelope, "description": "Internal server error"},
-    },
-    tags=["Documents"],
-    operation_id="deleteDocument",
-    summary="Delete Document",
-    response_model_by_alias=True,
-)
-async def delete_document(
-    implementation: Annotated[
-        BaseDocumentsApi,
-        Depends(get_documents_api_implementation),
-    ],
-    kb_id: StrictStr = Path(..., description=""),
-    document_id: StrictStr = Path(..., description=""),
-    token_BearerAuth: TokenModel = Security(
-        get_token_BearerAuth
-    ),
-) -> DeletionResponse:
-    return await implementation.delete_document(kb_id, document_id)
+    @router.post(
+        "/v1/knowledge-bases/{kb_id}/documents",
+        status_code=202,
+        responses={
+            202: {"model": DocumentResponse, "description": "Successful Response"},
+            400: {"model": ErrorEnvelope, "description": "Invalid request"},
+            401: {"model": ErrorEnvelope, "description": "Authentication failed"},
+            403: {"model": ErrorEnvelope, "description": "Permission or quota denied"},
+            404: {"model": ErrorEnvelope, "description": "Resource not found"},
+            409: {"model": ErrorEnvelope, "description": "Resource state conflict"},
+            422: {"model": ErrorEnvelope, "description": "Validation or processing error"},
+            429: {"model": ErrorEnvelope, "description": "Rate limit exceeded"},
+            500: {"model": ErrorEnvelope, "description": "Internal server error"},
+        },
+        tags=["Documents"],
+        operation_id="createDocument",
+        summary="Create Document",
+        response_model_by_alias=True,
+    )
+    async def create_document(
+        token_BearerAuth: Annotated[
+            TokenModel,
+            Security(
+                get_token_BearerAuth
+            ),
+        ],
+        implementation: Annotated[
+            BaseDocumentsApi,
+            Depends(get_implementation),
+        ],
+        kb_id: StrictStr = Path(..., description=""),
+        document_create: DocumentCreate = Body(None, description=""),
+        idempotency_key: Optional[StrictStr] = Header(None, description=""),
+    ) -> DocumentResponse:
+        return await implementation.create_document(kb_id, document_create, idempotency_key)
+
+    @router.get(
+        "/v1/knowledge-bases/{kb_id}/documents/{document_id}",
+        status_code=200,
+        responses={
+            200: {"model": DocumentResponse, "description": "Successful Response"},
+            400: {"model": ErrorEnvelope, "description": "Invalid request"},
+            401: {"model": ErrorEnvelope, "description": "Authentication failed"},
+            403: {"model": ErrorEnvelope, "description": "Permission or quota denied"},
+            404: {"model": ErrorEnvelope, "description": "Resource not found"},
+            409: {"model": ErrorEnvelope, "description": "Resource state conflict"},
+            422: {"model": ErrorEnvelope, "description": "Validation or processing error"},
+            429: {"model": ErrorEnvelope, "description": "Rate limit exceeded"},
+            500: {"model": ErrorEnvelope, "description": "Internal server error"},
+        },
+        tags=["Documents"],
+        operation_id="getDocument",
+        summary="Get Document",
+        response_model_by_alias=True,
+    )
+    async def get_document(
+        token_BearerAuth: Annotated[
+            TokenModel,
+            Security(
+                get_token_BearerAuth
+            ),
+        ],
+        implementation: Annotated[
+            BaseDocumentsApi,
+            Depends(get_implementation),
+        ],
+        kb_id: StrictStr = Path(..., description=""),
+        document_id: StrictStr = Path(..., description=""),
+    ) -> DocumentResponse:
+        return await implementation.get_document(kb_id, document_id)
+
+    @router.delete(
+        "/v1/knowledge-bases/{kb_id}/documents/{document_id}",
+        status_code=200,
+        responses={
+            200: {"model": DeletionResponse, "description": "Successful Response"},
+            400: {"model": ErrorEnvelope, "description": "Invalid request"},
+            401: {"model": ErrorEnvelope, "description": "Authentication failed"},
+            403: {"model": ErrorEnvelope, "description": "Permission or quota denied"},
+            404: {"model": ErrorEnvelope, "description": "Resource not found"},
+            409: {"model": ErrorEnvelope, "description": "Resource state conflict"},
+            422: {"model": ErrorEnvelope, "description": "Validation or processing error"},
+            429: {"model": ErrorEnvelope, "description": "Rate limit exceeded"},
+            500: {"model": ErrorEnvelope, "description": "Internal server error"},
+        },
+        tags=["Documents"],
+        operation_id="deleteDocument",
+        summary="Delete Document",
+        response_model_by_alias=True,
+    )
+    async def delete_document(
+        token_BearerAuth: Annotated[
+            TokenModel,
+            Security(
+                get_token_BearerAuth
+            ),
+        ],
+        implementation: Annotated[
+            BaseDocumentsApi,
+            Depends(get_implementation),
+        ],
+        kb_id: StrictStr = Path(..., description=""),
+        document_id: StrictStr = Path(..., description=""),
+    ) -> DeletionResponse:
+        return await implementation.delete_document(kb_id, document_id)
+    return router

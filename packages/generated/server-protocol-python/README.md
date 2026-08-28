@@ -14,6 +14,5 @@ Build the package with:
 
     uv build --package unifiles-server-protocol
 
-The generated route and security modules temporarily import the server
-application during the staged C+ migration. Router factories remove that
-reverse dependency in the dedicated composition phase.
+Generated route factories receive implementation and security providers from
+the consuming application. This package never imports unifiles_server.

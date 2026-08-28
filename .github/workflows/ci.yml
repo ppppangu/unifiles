@@ -46,6 +46,11 @@ jobs:
       - run: uv run pytest
       - run: uv run python codegen/scripts/validate_contract.py
       - run: uv build --package unifiles-server-protocol
+      - name: Import protocol wheel without server application
+        run: |
+          uv run --no-project \
+            --with ./dist/unifiles_server_protocol-0.1.0-py3-none-any.whl \
+            python -c "import importlib, pkgutil; from unifiles_server_protocol import apis; [importlib.import_module(name) for _, name, _ in pkgutil.iter_modules(apis.__path__, apis.__name__ + '.')]"
       - run: uv build --package unifiles-client
       - run: uv build --package unifiles-server
       - run: uv run python codegen/scripts/check_python_artifacts.py

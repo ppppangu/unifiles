@@ -1,18 +1,11 @@
 from __future__ import annotations
 
 import pytest
-from unifiles_server.implementation.providers import (
-    get_system_api_implementation as compatibility_provider,
-)
 from unifiles_server.modules.system.dependencies import (
     get_system_api_implementation,
     get_system_service,
 )
 from unifiles_server.modules.system.implementation import SystemImplementation
-
-
-def test_compatibility_provider_is_static_reexport() -> None:
-    assert compatibility_provider is get_system_api_implementation
 
 
 @pytest.mark.asyncio

@@ -7,9 +7,9 @@ import httpx
 import pytest
 from fastapi.testclient import TestClient
 from unifiles_server.app import create_app
-from unifiles_server.errors import APIError
-from unifiles_server.settings import Settings
-from unifiles_server.store import Store, identifier
+from unifiles_server.shared.database import Store, identifier
+from unifiles_server.shared.errors import APIError
+from unifiles_server.shared.settings import Settings
 
 
 @pytest.fixture

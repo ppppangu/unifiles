@@ -1,19 +1,10 @@
 # coding: utf-8
 
-from fastapi import BackgroundTasks, Depends, Request
-from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from collections.abc import Awaitable, Callable
+from typing import TypeAlias
 
 from unifiles_server_protocol.models.extra_models import TokenModel
-from unifiles_server.auth import authenticate_request
 
+SecurityProvider: TypeAlias = Callable[..., TokenModel | Awaitable[TokenModel]]
 
-bearer_auth = HTTPBearer(auto_error=False)
-
-
-async def get_token_BearerAuth(
-    request: Request,
-    background_tasks: BackgroundTasks,
-    credentials: HTTPAuthorizationCredentials | None = Depends(bearer_auth),
-) -> TokenModel:
-    principal = authenticate_request(request, credentials, background_tasks)
-    return TokenModel(sub=str(principal["user_id"]))
+__all__ = ["SecurityProvider"]
