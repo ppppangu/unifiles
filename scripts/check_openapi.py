@@ -7,34 +7,46 @@ import json
 import re
 from pathlib import Path
 
-import yaml
+from openapi_common import BUSINESS_TAGS, iter_operations, load_openapi
 from openapi_spec_validator import validate
-
-GENERATOR_VERSION = "7.24.0"
-HTTP_METHODS = {"get", "post", "put", "patch", "delete", "head", "options"}
 
 
 def main() -> None:
     root = Path(__file__).parents[1]
     contract = root / "api" / "openapi.yaml"
-    document = yaml.safe_load(contract.read_text(encoding="utf-8"))
+    document = load_openapi(contract)
     validate(document)
 
+    generator_version = (root / "codegen" / "VERSION").read_text(encoding="utf-8").strip()
+    tool_configuration = json.loads((root / "openapitools.json").read_text(encoding="utf-8"))
+    configured_version = tool_configuration["generator-cli"]["version"]
+    if configured_version != generator_version:
+        raise SystemExit(
+            "generator version mismatch: "
+            f"codegen/VERSION={generator_version}, openapitools.json={configured_version}"
+        )
+
     operation_ids: list[str] = []
-    for path, path_item in document["paths"].items():
-        for method, operation in path_item.items():
-            if method not in HTTP_METHODS:
-                continue
-            operation_id = operation.get("operationId")
-            if not operation_id:
-                raise SystemExit(f"{method.upper()} {path} is missing operationId")
-            if not re.fullmatch(r"[a-z][A-Za-z0-9]*", operation_id):
-                raise SystemExit(f"operationId must be lower camelCase: {operation_id}")
-            operation_ids.append(operation_id)
-            if path not in {"/health", "/v1/health"} and operation.get("security") != [
-                {"BearerAuth": []}
-            ]:
-                raise SystemExit(f"{method.upper()} {path} must require BearerAuth")
+    for path, method, operation in iter_operations(document):
+        operation_id = operation.get("operationId")
+        if not operation_id:
+            raise SystemExit(f"{method.upper()} {path} is missing operationId")
+        if not re.fullmatch(r"[a-z][A-Za-z0-9]*", operation_id):
+            raise SystemExit(f"operationId must be lower camelCase: {operation_id}")
+        operation_ids.append(operation_id)
+
+        tags = operation.get("tags")
+        if not isinstance(tags, list) or len(tags) != 1:
+            raise SystemExit(f"{method.upper()} {path} must have exactly one business tag")
+        if tags[0] not in BUSINESS_TAGS:
+            raise SystemExit(f"{method.upper()} {path} uses unknown business tag: {tags[0]}")
+
+        expected_security: list[dict[str, list[str]]] = (
+            [] if path in {"/health", "/v1/health"} else [{"BearerAuth": []}]
+        )
+        if operation.get("security") != expected_security:
+            requirement = "public security: []" if not expected_security else "BearerAuth"
+            raise SystemExit(f"{method.upper()} {path} must require {requirement}")
 
     duplicates = sorted({item for item in operation_ids if operation_ids.count(item) > 1})
     if duplicates:
@@ -51,9 +63,9 @@ def main() -> None:
         if not version_file.exists():
             raise SystemExit(f"missing generated output: {generated}")
         version = version_file.read_text(encoding="utf-8").strip()
-        if version != GENERATOR_VERSION:
+        if version != generator_version:
             raise SystemExit(
-                f"{generated} uses OpenAPI Generator {version}; expected {GENERATOR_VERSION}"
+                f"{generated} uses OpenAPI Generator {version}; expected {generator_version}"
             )
         digest_file = generated / ".openapi-generator" / "CONTRACT_SHA256"
         if (
@@ -81,7 +93,7 @@ def main() -> None:
     print(
         "OpenAPI contract is valid: "
         f"{len(document['paths'])} paths, {len(operation_ids)} operations, "
-        f"generator {GENERATOR_VERSION}"
+        f"generator {generator_version}"
     )
 
 

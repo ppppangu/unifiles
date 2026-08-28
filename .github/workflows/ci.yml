@@ -25,8 +25,18 @@ jobs:
       - run: npm ci
       - run: uv sync --all-packages --group dev
       - run: uv run python scripts/check_openapi.py
+      - run: uv run python scripts/export_operation_ownership.py --check
       - run: uv run python scripts/generate_contract.py
-      - run: git diff --exit-code -- apps/server/generated packages/python/generated packages/typescript/generated
+      - name: Check generated drift, including untracked files
+        run: |
+          generated_status="$(git status --porcelain -- \
+            apps/server/generated \
+            packages/python/generated \
+            packages/typescript/generated)"
+          if [[ -n "$generated_status" ]]; then
+            echo "$generated_status"
+            exit 1
+          fi
 
   python:
     runs-on: ubuntu-latest
@@ -42,6 +52,7 @@ jobs:
           enable-cache: true
       - run: uv sync --all-packages --group dev
       - run: uv run ruff check apps packages/python scripts
+      - run: uv run mypy apps/server/src packages/python/src scripts
       - run: uv run pytest
       - run: uv run python scripts/check_openapi.py
       - run: uv build --package unifiles-client

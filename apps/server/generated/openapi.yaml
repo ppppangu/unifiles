@@ -78,6 +78,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorEnvelope"
           description: Internal server error
+      security: []
       summary: Health
       tags:
       - System
@@ -172,6 +173,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorEnvelope"
           description: Internal server error
+      security: []
       summary: Health
       tags:
       - System

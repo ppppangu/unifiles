@@ -1,0 +1,34 @@
+operation_id,path,method,tag,module,base_api,implementation,provider
+getVersionedHealth,/v1/health,GET,System,system,BaseSystemApi,SystemImplementation,get_system_api_implementation
+getHealthDetails,/v1/health/details,GET,System,system,BaseSystemApi,SystemImplementation,get_system_api_implementation
+getHealth,/health,GET,System,system,BaseSystemApi,SystemImplementation,get_system_api_implementation
+listSupportedFileTypes,/v1/files/types,GET,Files,files,BaseFilesApi,FilesImplementation,get_files_api_implementation
+uploadFile,/v1/files,POST,Files,files,BaseFilesApi,FilesImplementation,get_files_api_implementation
+listFiles,/v1/files,GET,Files,files,BaseFilesApi,FilesImplementation,get_files_api_implementation
+listFileExtractions,/v1/files/{file_id}/extractions,GET,Extractions,extractions,BaseExtractionsApi,ExtractionsImplementation,get_extractions_api_implementation
+getFile,/v1/files/{file_id},GET,Files,files,BaseFilesApi,FilesImplementation,get_files_api_implementation
+deleteFile,/v1/files/{file_id},DELETE,Files,files,BaseFilesApi,FilesImplementation,get_files_api_implementation
+downloadFile,/v1/files/{file_id}/download,GET,Files,files,BaseFilesApi,FilesImplementation,get_files_api_implementation
+createExtraction,/v1/extractions,POST,Extractions,extractions,BaseExtractionsApi,ExtractionsImplementation,get_extractions_api_implementation
+getExtraction,/v1/extractions/{extraction_id},GET,Extractions,extractions,BaseExtractionsApi,ExtractionsImplementation,get_extractions_api_implementation
+createKnowledgeBase,/v1/knowledge-bases,POST,Knowledge Bases,knowledge_bases,BaseKnowledgeBasesApi,KnowledgeBasesImplementation,get_knowledge_bases_api_implementation
+listKnowledgeBases,/v1/knowledge-bases,GET,Knowledge Bases,knowledge_bases,BaseKnowledgeBasesApi,KnowledgeBasesImplementation,get_knowledge_bases_api_implementation
+getKnowledgeBase,/v1/knowledge-bases/{kb_id},GET,Knowledge Bases,knowledge_bases,BaseKnowledgeBasesApi,KnowledgeBasesImplementation,get_knowledge_bases_api_implementation
+updateKnowledgeBase,/v1/knowledge-bases/{kb_id},PATCH,Knowledge Bases,knowledge_bases,BaseKnowledgeBasesApi,KnowledgeBasesImplementation,get_knowledge_bases_api_implementation
+deleteKnowledgeBase,/v1/knowledge-bases/{kb_id},DELETE,Knowledge Bases,knowledge_bases,BaseKnowledgeBasesApi,KnowledgeBasesImplementation,get_knowledge_bases_api_implementation
+createDocument,/v1/knowledge-bases/{kb_id}/documents,POST,Documents,documents,BaseDocumentsApi,DocumentsImplementation,get_documents_api_implementation
+listDocuments,/v1/knowledge-bases/{kb_id}/documents,GET,Documents,documents,BaseDocumentsApi,DocumentsImplementation,get_documents_api_implementation
+getDocument,/v1/knowledge-bases/{kb_id}/documents/{document_id},GET,Documents,documents,BaseDocumentsApi,DocumentsImplementation,get_documents_api_implementation
+deleteDocument,/v1/knowledge-bases/{kb_id}/documents/{document_id},DELETE,Documents,documents,BaseDocumentsApi,DocumentsImplementation,get_documents_api_implementation
+searchKnowledgeBase,/v1/knowledge-bases/{kb_id}/search,POST,Search,search,BaseSearchApi,SearchImplementation,get_search_api_implementation
+hybridSearchKnowledgeBase,/v1/knowledge-bases/{kb_id}/hybrid-search,POST,Search,search,BaseSearchApi,SearchImplementation,get_search_api_implementation
+createWebhook,/v1/webhooks,POST,Webhooks,webhooks,BaseWebhooksApi,WebhooksImplementation,get_webhooks_api_implementation
+listWebhooks,/v1/webhooks,GET,Webhooks,webhooks,BaseWebhooksApi,WebhooksImplementation,get_webhooks_api_implementation
+getWebhook,/v1/webhooks/{webhook_id},GET,Webhooks,webhooks,BaseWebhooksApi,WebhooksImplementation,get_webhooks_api_implementation
+updateWebhook,/v1/webhooks/{webhook_id},PATCH,Webhooks,webhooks,BaseWebhooksApi,WebhooksImplementation,get_webhooks_api_implementation
+deleteWebhook,/v1/webhooks/{webhook_id},DELETE,Webhooks,webhooks,BaseWebhooksApi,WebhooksImplementation,get_webhooks_api_implementation
+createApiKey,/v1/api-keys,POST,API Keys,api_keys,BaseAPIKeysApi,APIKeysImplementation,get_api_keys_api_implementation
+listApiKeys,/v1/api-keys,GET,API Keys,api_keys,BaseAPIKeysApi,APIKeysImplementation,get_api_keys_api_implementation
+revokeApiKey,/v1/api-keys/{key_id},DELETE,API Keys,api_keys,BaseAPIKeysApi,APIKeysImplementation,get_api_keys_api_implementation
+getUsageStats,/v1/usage/stats,GET,Usage,usage,BaseUsageApi,UsageImplementation,get_usage_api_implementation
+getUsageLimits,/v1/usage/limits,GET,Usage,usage,BaseUsageApi,UsageImplementation,get_usage_api_implementation
