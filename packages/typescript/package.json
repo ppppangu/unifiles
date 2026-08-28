@@ -2,6 +2,11 @@
   "name": "@wyy/unifiles",
   "version": "0.1.0",
   "description": "Official Node.js SDK for the Unifiles API",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ppppangu/unifiles.git",
+    "directory": "packages/typescript"
+  },
   "license": "Apache-2.0",
   "type": "module",
   "main": "./dist/index.cjs",

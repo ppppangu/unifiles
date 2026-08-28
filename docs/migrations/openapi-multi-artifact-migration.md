@@ -1,6 +1,6 @@
 # UniFiles 服务端模块化与 OpenAPI 多产物生成迁移
 
-状态：实施中
+状态：已完成（2026-08-29）
 目标架构：C+
 适用范围：UniFiles monorepo
 
@@ -489,7 +489,33 @@ CI 至少包含：
 - CLI 依赖 SDK，不复制 HTTP 协议；
 - 发布物仅进入 dist 或制品仓库。
 
-## 17. 非目标
+## 17. 实施结果
+
+七个阶段均已完成。最终仓库满足：
+
+- 22 paths、33 operations 由唯一 contract 驱动；
+- 三个 codegen target 各自拥有 `packages/generated/` 下的独立 artifact root；
+- server protocol 不导入应用，九个 feature module 本地静态绑定 router factory；
+- 无 registry、`resolve_api()`、动态 router discovery 或生成后按 tag 搬运；
+- Python generated/public wheel、TypeScript generated/public package 和手写 CLI 均有真实分发边界；
+- CI 验证生成漂移、依赖方向、路由集合、认证顺序、wheel/npm tarball 与容器运行；
+- 发布流水线按 generated dependency → public consumer 的顺序发布，并校验 tag 版本；
+- 旧 contract、codegen、generated、CLI 路径和兼容生成脚本均已删除。
+
+最终本地验收命令：
+
+    uv sync --all-packages --group dev --group docs
+    npm ci
+    uv run python codegen/scripts/codegen.py validate
+    uv run python codegen/scripts/codegen.py check all
+    uv run ruff check apps packages/python scripts codegen
+    uv run mypy apps/server/src packages/python/src scripts codegen/scripts
+    uv run pytest
+    npm run check
+    uv run --group docs mkdocs build --strict
+    docker build --file apps/server/Dockerfile --tag unifiles-server:test .
+
+## 18. 非目标
 
 本迁移不采用 per-tag generated 物理拆分，不维护 tag-to-directory codegen 映射，不通过
 custom generator 或生成后搬运换取生成源码共址。只有当模块独立部署、独立 contract、

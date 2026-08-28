@@ -105,4 +105,8 @@ Generated directories are replaceable artifacts; server implementations and SDK 
 outside them and are never overwritten. See [`contracts/openapi/README.md`](contracts/openapi/README.md) for the maintenance
 workflow and directory boundaries.
 
+The three generated package roots are `server-protocol-python`, `sdk-python`, and `sdk-typescript`
+under [`packages/generated`](packages/generated). They are independently rebuildable distribution
+dependencies; the product CLI remains handwritten under [`apps/cli`](apps/cli).
+
 See [unifiles.dev](https://unifiles.dev) for full documentation.

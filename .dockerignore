@@ -13,5 +13,7 @@ site
 .unifiles-data
 packages/python
 packages/typescript
+packages/generated/sdk-python
+packages/generated/sdk-typescript
 apps/cli
 docs

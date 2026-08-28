@@ -48,13 +48,27 @@ jobs:
       - run: uv build --package unifiles-server-protocol
       - name: Import protocol wheel without server application
         run: |
+          shopt -s nullglob
+          protocol_wheels=(./dist/unifiles_server_protocol-*.whl)
+          test "${#protocol_wheels[@]}" -eq 1
           uv run --no-project \
-            --with ./dist/unifiles_server_protocol-0.1.0-py3-none-any.whl \
+            --with "${protocol_wheels[0]}" \
             python -c "import importlib, pkgutil; from unifiles_server_protocol import apis; [importlib.import_module(name) for _, name, _ in pkgutil.iter_modules(apis.__path__, apis.__name__ + '.')]"
-      - run: uv build --package unifiles-client
       - run: uv build --package unifiles-generated
+      - run: uv build --package unifiles-client
       - run: uv build --package unifiles-server
       - run: uv run python codegen/scripts/check_python_artifacts.py
+      - name: Import generated and public Python SDK wheels together
+        run: |
+          shopt -s nullglob
+          generated_wheels=(./dist/unifiles_generated-*.whl)
+          client_wheels=(./dist/unifiles_client-*.whl)
+          test "${#generated_wheels[@]}" -eq 1
+          test "${#client_wheels[@]}" -eq 1
+          uv run --no-project \
+            --with "${generated_wheels[0]}" \
+            --with "${client_wheels[0]}" \
+            python -c "from unifiles import UnifilesClient; from unifiles_generated import FilesApi; assert UnifilesClient and FilesApi"
 
   node:
     runs-on: ubuntu-latest
@@ -79,12 +93,19 @@ jobs:
           npm pack --workspace @wyy/unifiles-generated --pack-destination dist/npm
           npm pack --workspace @wyy/unifiles --pack-destination dist/npm
           npm pack --workspace @wyy/unifiles-cli --pack-destination dist/npm
+          shopt -s nullglob
+          generated_packages=("$PWD"/dist/npm/wyy-unifiles-generated-*.tgz)
+          public_packages=("$PWD"/dist/npm/wyy-unifiles-[0-9]*.tgz)
+          cli_packages=("$PWD"/dist/npm/wyy-unifiles-cli-*.tgz)
+          test "${#generated_packages[@]}" -eq 1
+          test "${#public_packages[@]}" -eq 1
+          test "${#cli_packages[@]}" -eq 1
           smoke_dir="$(mktemp -d)"
           trap 'rm -rf "$smoke_dir"' EXIT
           npm install --prefix "$smoke_dir" \
-            "$PWD/dist/npm/wyy-unifiles-generated-0.1.0.tgz" \
-            "$PWD/dist/npm/wyy-unifiles-0.1.0.tgz" \
-            "$PWD/dist/npm/wyy-unifiles-cli-0.1.0.tgz"
+            "${generated_packages[0]}" \
+            "${public_packages[0]}" \
+            "${cli_packages[0]}"
           "$smoke_dir/node_modules/.bin/unifiles" --help | grep \
             "Unix-style client for the Unifiles API"
 

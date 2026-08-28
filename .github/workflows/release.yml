@@ -22,8 +22,15 @@ jobs:
       - uses: astral-sh/setup-uv@v6
         with:
           python-version: "3.11"
-      - run: uv build --package unifiles-client
+      - run: uv run --frozen python scripts/check_release_versions.py --tag "$GITHUB_REF_NAME"
+      - run: uv build --package unifiles-generated --out-dir dist/generated
       - uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          packages-dir: dist/generated/
+      - run: uv build --package unifiles-client --out-dir dist/public
+      - uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          packages-dir: dist/public/
 
   server:
     if: startsWith(github.ref_name, 'server-v')
@@ -34,8 +41,15 @@ jobs:
       - uses: astral-sh/setup-uv@v6
         with:
           python-version: "3.11"
-      - run: uv build --package unifiles-server
+      - run: uv run --frozen python scripts/check_release_versions.py --tag "$GITHUB_REF_NAME"
+      - run: uv build --package unifiles-server-protocol --out-dir dist/protocol
       - uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          packages-dir: dist/protocol/
+      - run: uv build --package unifiles-server --out-dir dist/server
+      - uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          packages-dir: dist/server/
 
   npm:
     if: startsWith(github.ref_name, 'typescript-v') || startsWith(github.ref_name, 'cli-v')
@@ -48,10 +62,17 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version: 24
           registry-url: https://registry.npmjs.org
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: "3.11"
+      - run: npm install --global npm@11.5.1
       - run: npm ci
       - run: npm run check
+      - run: uv run --frozen python scripts/check_release_versions.py --tag "$GITHUB_REF_NAME"
+      - if: startsWith(github.ref_name, 'typescript-v')
+        run: npm publish --workspace @wyy/unifiles-generated --provenance --access public
       - if: startsWith(github.ref_name, 'typescript-v')
         run: npm publish --workspace @wyy/unifiles --provenance --access public
       - if: startsWith(github.ref_name, 'cli-v')
