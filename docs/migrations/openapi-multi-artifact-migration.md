@@ -381,9 +381,10 @@ packages/generated 保存参与编译和测试的源码投影。dist 只保存 w
 
 ### 提交 6：SDK target 与 CLI 边界
 
-- 迁移 sdk-python 和 sdk-typescript；
+- 将 sdk-python 和 sdk-typescript 迁入独立的 `packages/generated/<target>`；
 - 公开 SDK 手写层依赖对应 generated core；
-- 移动手写 CLI 到 apps/cli；
+- Python 公开 wheel 不再内嵌 generated core；TypeScript 公开构建显式消费 generated workspace；
+- 移动手写 CLI 到 `apps/cli`；
 - 保持 CLI 语言和行为；
 - 分别 build/pack/smoke test。
 

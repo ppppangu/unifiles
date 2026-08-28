@@ -1,18 +1,20 @@
-import type { APIKeyResource } from "../generated/src/models/APIKeyResource.js";
-import type { ChunkResource } from "../generated/src/models/ChunkResource.js";
-import type { ChunkingStrategy as GeneratedChunkingStrategy } from "../generated/src/models/ChunkingStrategy.js";
-import type { DeletionResult as GeneratedDeletionResult } from "../generated/src/models/DeletionResult.js";
-import type { DocumentResource } from "../generated/src/models/DocumentResource.js";
-import type { ExtractionOptions as GeneratedExtractionOptions } from "../generated/src/models/ExtractionOptions.js";
-import type { ExtractionResource } from "../generated/src/models/ExtractionResource.js";
-import type { FileList } from "../generated/src/models/FileList.js";
-import type { FileResource as GeneratedFileResource } from "../generated/src/models/FileResource.js";
-import type { KnowledgeBaseResource } from "../generated/src/models/KnowledgeBaseResource.js";
-import type { SearchResults as GeneratedSearchResults } from "../generated/src/models/SearchResults.js";
-import type { SupportedFileTypes as GeneratedSupportedFileTypes } from "../generated/src/models/SupportedFileTypes.js";
-import type { UsageLimits as GeneratedUsageLimits } from "../generated/src/models/UsageLimits.js";
-import type { UsageStats as GeneratedUsageStats } from "../generated/src/models/UsageStats.js";
-import type { WebhookResource } from "../generated/src/models/WebhookResource.js";
+import type {
+  APIKeyResource,
+  ChunkResource,
+  ChunkingStrategy as GeneratedChunkingStrategy,
+  DeletionResult as GeneratedDeletionResult,
+  DocumentResource,
+  ExtractionOptions as GeneratedExtractionOptions,
+  ExtractionResource,
+  FileList,
+  FileResource as GeneratedFileResource,
+  KnowledgeBaseResource,
+  SearchResults as GeneratedSearchResults,
+  SupportedFileTypes as GeneratedSupportedFileTypes,
+  UsageLimits as GeneratedUsageLimits,
+  UsageStats as GeneratedUsageStats,
+  WebhookResource,
+} from "@wyy/unifiles-generated";
 
 import { ProcessingError, TimeoutError } from "./errors.js";
 

@@ -22,6 +22,12 @@ post-processed before its manifest-owned destination is replaced. Existing
 destinations require a matching `.codegen-target.json`; arbitrary output paths
 are not accepted.
 
-During the staged migration, Python and TypeScript client cores are manifest
-targets with exact legacy output allowlists. Their output roots move under
-`packages/generated/` in the SDK artifact phase.
+Every target owns exactly one direct child of `packages/generated/`:
+
+- `server-protocol-python`: independently buildable FastAPI protocol wheel;
+- `sdk-python`: independently buildable generated Python client wheel;
+- `sdk-typescript`: independently buildable and packable TypeScript client package.
+
+Package-local `dist/`, `build/`, `node_modules/` and cache directories are build
+outputs rather than generated source, so drift comparison ignores them. The
+target's source, package metadata, marker and generator metadata remain strict.

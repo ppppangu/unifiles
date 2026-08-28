@@ -1,6 +1,8 @@
+import { spawnSync } from "node:child_process";
 import { mkdtemp, readFile, stat } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { fileURLToPath } from "node:url";
 
 import { afterEach, describe, expect, it, vi } from "vitest";
 
@@ -54,5 +56,21 @@ describe("CLI", () => {
     const code = await run(["node", "unifiles", "--output", "json", "status"]);
     expect(code).toBe(0);
     expect(output.mock.calls.flat().join("")).toContain('"ok": true');
+  });
+
+  it("runs through the npm bin symlink", () => {
+    const executable = fileURLToPath(
+      new URL(
+        `../../../node_modules/.bin/unifiles${process.platform === "win32" ? ".cmd" : ""}`,
+        import.meta.url,
+      ),
+    );
+    const result = spawnSync(executable, ["--help"], {
+      encoding: "utf8",
+      shell: process.platform === "win32",
+    });
+
+    expect(result.status, result.stderr).toBe(0);
+    expect(result.stdout).toContain("Unix-style client for the Unifiles API");
   });
 });

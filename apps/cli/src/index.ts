@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 
+import { realpathSync } from "node:fs";
 import { readFile, writeFile } from "node:fs/promises";
-import { pathToFileURL } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import process from "node:process";
 
 import {
@@ -385,6 +386,15 @@ export async function run(argv = process.argv): Promise<number> {
   }
 }
 
-if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+const isMainModule = (moduleUrl: string, argvPath: string | undefined): boolean => {
+  if (!argvPath) return false;
+  try {
+    return realpathSync(fileURLToPath(moduleUrl)) === realpathSync(argvPath);
+  } catch {
+    return moduleUrl === pathToFileURL(argvPath).href;
+  }
+};
+
+if (isMainModule(import.meta.url, process.argv[1])) {
   process.exitCode = await run();
 }

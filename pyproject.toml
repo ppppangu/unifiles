@@ -2,11 +2,13 @@
 members = [
     "apps/server",
     "packages/generated/server-protocol-python",
+    "packages/generated/sdk-python",
     "packages/python",
 ]
 
 [tool.uv.sources]
 unifiles-server-protocol = { workspace = true }
+unifiles-generated = { workspace = true }
 
 [dependency-groups]
 dev = [

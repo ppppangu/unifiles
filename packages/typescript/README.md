@@ -16,6 +16,7 @@ await extraction.wait();
 ```
 
 Endpoint calls, models and JSON conversion are generated from
-`contracts/openapi/unifiles.yaml` under
-`generated/src`. The public facade adds retries, typed errors and polling; `client.raw` exposes the
-complete generated API surface directly.
+`contracts/openapi/unifiles.yaml` under `packages/generated/sdk-typescript/src`. The generated
+workspace package is an independently buildable OpenAPI projection consumed by the public SDK as
+an exact package dependency. The public facade adds retries, typed errors and polling;
+`client.raw` exposes the complete generated API surface directly.

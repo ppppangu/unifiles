@@ -29,10 +29,11 @@ targets:
   sdk-python:
     generatorName: python
     config: codegen/configs/sdk-python.yaml
-    outputDir: packages/python/generated
-    legacy: true
+    outputDir: packages/generated/sdk-python
     postprocess: sdk_python
     requiredPaths:
+    - pyproject.toml
+    - README.md
     - unifiles_generated/api
     - unifiles_generated/models
     - unifiles_generated/api_client.py
@@ -40,8 +41,7 @@ targets:
   sdk-typescript:
     generatorName: typescript-fetch
     config: codegen/configs/sdk-typescript.yaml
-    outputDir: packages/typescript/generated
-    legacy: true
+    outputDir: packages/generated/sdk-typescript
     postprocess: sdk_typescript
     requiredPaths:
     - package.json
