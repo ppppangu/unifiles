@@ -1,3 +1,1 @@
 packages/generated/** linguist-generated=true
-packages/python/generated/** linguist-generated=true
-packages/typescript/generated/** linguist-generated=true

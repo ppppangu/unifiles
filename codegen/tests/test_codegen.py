@@ -3,6 +3,7 @@ from __future__ import annotations
 import copy
 import json
 import sys
+import tomllib
 from pathlib import Path
 
 import pytest
@@ -60,7 +61,7 @@ def test_manifest_requires_supported_schema_version() -> None:
         ("sdk-python", "generatorName", "python-fastapi", "generator"),
         ("server-protocol-python", "templateDir", None, "template"),
         ("sdk-typescript", "postprocess", "sdk_python", "postprocessor"),
-        ("sdk-python", "legacy", "false", "legacy"),
+        ("sdk-python", "legacy", True, "legacy"),
     ],
 )
 def test_manifest_rejects_unowned_target_settings(
@@ -82,9 +83,8 @@ def test_manifest_rejects_symlinked_output_escape(
     repository = tmp_path / "repository"
     outside = tmp_path / "outside"
     repository.joinpath("packages", "generated").mkdir(parents=True)
-    repository.joinpath("packages", "python").mkdir(parents=True)
     outside.mkdir()
-    repository.joinpath("packages", "python", "generated").symlink_to(
+    repository.joinpath("packages", "generated", "sdk-python").symlink_to(
         outside,
         target_is_directory=True,
     )
@@ -196,6 +196,23 @@ def test_tree_hash_ignores_python_cache(tmp_path: Path) -> None:
     assert codegen_module.sha256_tree(source) == initial
 
 
+def test_file_manifest_ignores_package_build_outputs(tmp_path: Path) -> None:
+    source = tmp_path / "source"
+    source.mkdir()
+    source.joinpath("package.json").write_text("{}\n", encoding="utf-8")
+    expected = codegen_module.file_manifest(source)
+
+    source.joinpath("dist").mkdir()
+    source.joinpath("dist", "index.js").write_text("generated build", encoding="utf-8")
+    source.joinpath("build").mkdir()
+    source.joinpath("build", "wheel.whl").write_bytes(b"wheel")
+    source.joinpath("node_modules").mkdir()
+    source.joinpath("node_modules", "dependency.js").write_text("dependency", encoding="utf-8")
+    source.joinpath("cache.tsbuildinfo").write_text("cache", encoding="utf-8")
+
+    assert codegen_module.file_manifest(source) == expected
+
+
 def test_contract_rejects_multiple_security_requirements() -> None:
     contract = load_openapi(
         codegen_module.REPO_ROOT / "contracts" / "openapi" / "unifiles.yaml"
@@ -207,3 +224,37 @@ def test_contract_rejects_multiple_security_requirements() -> None:
 
     with pytest.raises(ValueError, match="exactly one Security Requirement"):
         validate_openapi_invariants(contract)
+
+
+def test_sdk_artifacts_and_handwritten_consumers_have_separate_roots() -> None:
+    root = codegen_module.REPO_ROOT
+    generated_python = root / "packages" / "generated" / "sdk-python"
+    generated_typescript = root / "packages" / "generated" / "sdk-typescript"
+
+    assert generated_python.joinpath(".codegen-target.json").exists()
+    assert generated_typescript.joinpath(".codegen-target.json").exists()
+    assert not root.joinpath("packages", "python", "generated").exists()
+    assert not root.joinpath("packages", "typescript", "generated").exists()
+    assert root.joinpath("apps", "cli", "package.json").exists()
+    assert not root.joinpath("packages", "cli").exists()
+
+    generated_python_project = tomllib.loads(
+        generated_python.joinpath("pyproject.toml").read_text(encoding="utf-8")
+    )
+    public_python_project = tomllib.loads(
+        root.joinpath("packages", "python", "pyproject.toml").read_text(encoding="utf-8")
+    )
+    assert generated_python_project["project"]["name"] == "unifiles-generated"
+    assert "unifiles-generated==0.1.0" in public_python_project["project"]["dependencies"]
+    assert public_python_project["tool"]["hatch"]["build"]["targets"]["wheel"]["packages"] == [
+        "src/unifiles"
+    ]
+
+    generated_typescript_package = json.loads(
+        generated_typescript.joinpath("package.json").read_text(encoding="utf-8")
+    )
+    public_typescript_package = json.loads(
+        root.joinpath("packages", "typescript", "package.json").read_text(encoding="utf-8")
+    )
+    assert generated_typescript_package["name"] == "@wyy/unifiles-generated"
+    assert public_typescript_package["dependencies"]["@wyy/unifiles-generated"] == "0.1.0"

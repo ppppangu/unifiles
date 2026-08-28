@@ -6,8 +6,8 @@ and do not edit generated code.
 ```text
 contracts/openapi/unifiles.yaml
 ├── packages/generated/server-protocol-python/ FastAPI protocol artifact
-├── packages/python/generated/                 Transitional Python client core
-└── packages/typescript/generated/             Transitional TypeScript client core
+├── packages/generated/sdk-python/             Python client core artifact
+└── packages/generated/sdk-typescript/         TypeScript client core artifact
 ```
 
 Handwritten code is deliberately outside those directories:
@@ -25,9 +25,6 @@ uv run python codegen/scripts/codegen.py check all
 uv run pytest
 npm run check
 ```
-
-The client cores currently use manifest-owned legacy output paths and move under
-`packages/generated/` in the SDK artifact migration phase.
 
 Keep every `operationId` stable and globally unique. Regeneration may change generated method
 signatures, but it never writes into handwritten implementation directories. A contract-breaking

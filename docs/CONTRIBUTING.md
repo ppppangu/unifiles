@@ -18,7 +18,7 @@ npm run generate
 npm run generate:check
 ```
 
-Never edit `packages/generated/server-protocol-python`, `packages/python/generated`, or
-`packages/typescript/generated`. Handwritten feature modules and SDK extensions live outside those
-directories, so regeneration cannot overwrite them. Keep OCR, chunking, authorization, quotas and
-persistence in the handwritten Server modules.
+Never edit a target below `packages/generated/`. Each leaf is owned by one manifest target and can
+be deleted and rebuilt independently. Handwritten feature modules, SDK facades and the product CLI
+live outside that tree, so regeneration cannot overwrite them. Keep OCR, chunking, authorization,
+quotas and persistence in the handwritten Server modules.

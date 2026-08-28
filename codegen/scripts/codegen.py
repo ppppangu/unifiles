@@ -21,8 +21,8 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 MANIFEST_PATH = REPO_ROOT / "codegen" / "manifest.yaml"
 ALLOWED_OUTPUTS = {
     "server-protocol-python": "packages/generated/server-protocol-python",
-    "sdk-python": "packages/python/generated",
-    "sdk-typescript": "packages/typescript/generated",
+    "sdk-python": "packages/generated/sdk-python",
+    "sdk-typescript": "packages/generated/sdk-typescript",
 }
 ALLOWED_CONFIGS = {
     "server-protocol-python": "codegen/configs/server-protocol-python.yaml",
@@ -44,12 +44,20 @@ ALLOWED_POSTPROCESSORS = {
     "sdk-python": "sdk_python",
     "sdk-typescript": "sdk_typescript",
 }
-LEGACY_TARGETS = {"sdk-python", "sdk-typescript"}
 EXPECTED_GENERATED_ROOT = "packages/generated"
 EXPECTED_WORK_ROOT = ".codegen-work"
 EXPECTED_SPEC = "contracts/openapi/unifiles.yaml"
 EXPECTED_VERSION_FILE = "codegen/VERSION"
 EXPECTED_TOOL_COMMAND = ["./node_modules/.bin/openapi-generator-cli"]
+IGNORED_BUILD_COMPONENTS = {
+    "__pycache__",
+    ".mypy_cache",
+    ".pytest_cache",
+    ".ruff_cache",
+    "build",
+    "dist",
+    "node_modules",
+}
 
 
 class CodegenError(RuntimeError):
@@ -76,8 +84,10 @@ def stable_files(path: Path) -> Iterator[Path]:
         item
         for item in path.rglob("*")
         if item.is_file()
-        and "__pycache__" not in item.parts
+        and not IGNORED_BUILD_COMPONENTS.intersection(item.relative_to(path).parts)
+        and not any(part.endswith(".egg-info") for part in item.relative_to(path).parts)
         and item.suffix != ".pyc"
+        and item.suffix != ".tsbuildinfo"
         and item.name != ".DS_Store"
     )
 
@@ -265,6 +275,50 @@ def record_contract_digest(output: Path, spec: Path) -> None:
 def postprocess_sdk_python(output: Path, spec: Path) -> None:
     output.joinpath("unifiles_generated", "py.typed").write_text("", encoding="utf-8")
     record_contract_digest(output, spec)
+    output.joinpath("unifiles_generated_README.md").unlink(missing_ok=True)
+    output.joinpath("pyproject.toml").write_text(
+        """[build-system]
+requires = ["hatchling>=1.27.0"]
+build-backend = "hatchling.build"
+
+[project]
+name = "unifiles-generated"
+version = "0.1.0"
+description = "Generated Python client core for the Unifiles API"
+readme = "README.md"
+requires-python = ">=3.11"
+license = {text = "Apache-2.0"}
+dependencies = [
+    "httpx>=0.27.0",
+    "pydantic>=2.10.0",
+    "python-dateutil>=2.9.0",
+    "typing-extensions>=4.12.0",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["unifiles_generated"]
+""",
+        encoding="utf-8",
+    )
+    output.joinpath("README.md").write_text(
+        """# unifiles-generated
+
+Generated Python transport client and DTO package for the UniFiles API.
+
+This artifact is the mechanical OpenAPI projection consumed by the handwritten
+`unifiles-client` facade. It can be built and tested independently, and it must
+never contain handwritten SDK behavior.
+
+Do not edit files in this directory. Regenerate from the repository root:
+
+    uv run python codegen/scripts/codegen.py generate sdk-python
+
+Build the package with:
+
+    uv build --package unifiles-generated
+""",
+        encoding="utf-8",
+    )
 
 
 def postprocess_sdk_typescript(output: Path, spec: Path) -> None:
@@ -273,6 +327,44 @@ def postprocess_sdk_typescript(output: Path, spec: Path) -> None:
         if not contents.startswith("// @ts-nocheck"):
             path.write_text(f"// @ts-nocheck\n{contents}", encoding="utf-8")
     record_contract_digest(output, spec)
+    package_path = output / "package.json"
+    package = json.loads(package_path.read_text(encoding="utf-8"))
+    package.update(
+        {
+            "description": "Generated TypeScript client core for the Unifiles API",
+            "license": "Apache-2.0",
+            "repository": {
+                "type": "git",
+                "url": "https://github.com/ppppangu/unifiles.git",
+                "directory": "packages/generated/sdk-typescript",
+            },
+            "files": ["dist", "README.md"],
+            "engines": {"node": ">=22"},
+        }
+    )
+    package_path.write_text(
+        json.dumps(package, indent=2, ensure_ascii=False) + "\n",
+        encoding="utf-8",
+    )
+    output.joinpath("README.md").write_text(
+        """# @wyy/unifiles-generated
+
+Generated TypeScript transport client and DTO package for the UniFiles API.
+
+This artifact is the mechanical OpenAPI projection consumed at build time by
+the handwritten `@wyy/unifiles` facade. It can be built and packed independently,
+and it must never contain handwritten SDK behavior.
+
+Do not edit files in this directory. Regenerate from the repository root:
+
+    uv run python codegen/scripts/codegen.py generate sdk-typescript
+
+Build the package with:
+
+    npm run build --workspace @wyy/unifiles-generated
+""",
+        encoding="utf-8",
+    )
 
 
 POSTPROCESSORS = {
@@ -391,10 +483,7 @@ def validate_manifest_ownership(
             raise CodegenError(f"Target {name} has an unexpected template directory")
         if target.get("postprocess") != ALLOWED_POSTPROCESSORS[name]:
             raise CodegenError(f"Target {name} has an unexpected postprocessor")
-        expected_legacy = name in LEGACY_TARGETS
-        if expected_legacy and target.get("legacy") is not True:
-            raise CodegenError(f"Target {name} has an invalid legacy designation")
-        if not expected_legacy and "legacy" in target:
+        if "legacy" in target:
             raise CodegenError(f"Target {name} must not declare legacy mode")
         assert_no_symlink_components(destination, label=f"{name} output")
         assert_no_symlink_components(config, label=f"{name} config")
@@ -423,10 +512,9 @@ def generate_target(
     allowed_output = ALLOWED_OUTPUTS.get(target_name)
     if allowed_output is None or destination != resolve_repo_path(allowed_output):
         raise CodegenError(f"Target {target_name} does not own the declared output {destination}")
-    if not target.get("legacy"):
-        assert_within(destination, generated_root)
-        if destination == generated_root:
-            raise CodegenError("A target may not own the entire generated root")
+    assert_within(destination, generated_root)
+    if destination == generated_root:
+        raise CodegenError("A target may not own the entire generated root")
 
     spec = resolve_repo_path(manifest["spec"])
     config = resolve_repo_path(target["config"])

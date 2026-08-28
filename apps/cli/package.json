@@ -10,7 +10,7 @@
   "scripts": {
     "build": "tsup src/index.ts --format esm --platform node --clean",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run"
+    "test": "npm run build && vitest run"
   },
   "dependencies": {
     "@wyy/unifiles": "0.1.0",

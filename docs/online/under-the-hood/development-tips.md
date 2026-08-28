@@ -57,10 +57,10 @@ core 负责，手写 facade 只补充 `wait()`、重试和异常映射等协议�
 ## 本机 CLI profile
 
 ```bash
-printf '%s' sk_test_local | node packages/cli/dist/index.js config set local \
+printf '%s' sk_test_local | node apps/cli/dist/index.js config set local \
   --base-url http://localhost:8088 \
   --api-key-stdin
-node packages/cli/dist/index.js --profile local status
+node apps/cli/dist/index.js --profile local status
 ```
 
 ## 下一步

@@ -2,10 +2,12 @@ import { randomUUID } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import { basename } from "node:path";
 
-import type { APIKeyCreate } from "../generated/src/models/APIKeyCreate.js";
-import type { ExtractionCreate as GeneratedExtractionCreate } from "../generated/src/models/ExtractionCreate.js";
-import type { WebhookCreate } from "../generated/src/models/WebhookCreate.js";
-import type { WebhookUpdate } from "../generated/src/models/WebhookUpdate.js";
+import type {
+  APIKeyCreate,
+  ExtractionCreate as GeneratedExtractionCreate,
+  WebhookCreate,
+  WebhookUpdate,
+} from "@wyy/unifiles-generated";
 
 import { Transport } from "./transport.js";
 import {

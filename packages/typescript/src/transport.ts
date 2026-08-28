@@ -1,13 +1,16 @@
-import { APIKeysApi } from "../generated/src/apis/APIKeysApi.js";
-import { DocumentsApi } from "../generated/src/apis/DocumentsApi.js";
-import { ExtractionsApi } from "../generated/src/apis/ExtractionsApi.js";
-import { FilesApi } from "../generated/src/apis/FilesApi.js";
-import { KnowledgeBasesApi } from "../generated/src/apis/KnowledgeBasesApi.js";
-import { SearchApi } from "../generated/src/apis/SearchApi.js";
-import { SystemApi } from "../generated/src/apis/SystemApi.js";
-import { UsageApi } from "../generated/src/apis/UsageApi.js";
-import { WebhooksApi } from "../generated/src/apis/WebhooksApi.js";
-import { Configuration, type Middleware } from "../generated/src/runtime.js";
+import {
+  APIKeysApi,
+  Configuration,
+  DocumentsApi,
+  ExtractionsApi,
+  FilesApi,
+  KnowledgeBasesApi,
+  SearchApi,
+  SystemApi,
+  UsageApi,
+  WebhooksApi,
+  type Middleware,
+} from "@wyy/unifiles-generated";
 
 import {
   AuthenticationError,
