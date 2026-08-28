@@ -22,11 +22,11 @@ config + template 决定的特殊语义。因此，本项目采用：
 - 应用入口显式 include_router；
 - 不使用注册表、动态实现查找、resolve_api 或生成后按 tag 搬运。
 
-## 2. 当前基线
+## 2. 迁移起始基线
 
 基线提交：34df5a8。
 
-当前已具备：
+起始基线已具备：
 
 - OpenAPI Generator 7.24.0；
 - 22 paths、33 operations；
@@ -37,7 +37,7 @@ config + template 决定的特殊语义。因此，本项目采用：
 - Node 22、24 CI 矩阵；
 - FastAPI Depends(provider) 实现注入。
 
-当前仍未达到 C+：
+起始基线尚未达到 C+：
 
 - generated router 直接导入 unifiles_server.implementation.providers；
 - generated security_api 直接导入 unifiles_server.auth；
@@ -257,6 +257,9 @@ shared 不是杂物箱。模块专属权限和规则留在模块内部。
 - tag 属于允许列表；
 - tag 映射到一个 feature module；
 - 明确声明认证要求。
+- 每个受保护 operation 只允许一个 Security Requirement；当前不支持把 security 数组的
+  多个元素（OR 语义）展开为多个强制 FastAPI 依赖。不同 operation 可以使用不同 scheme，
+  同一 requirement 内的多 scheme 表示 AND。
 
 迁移期间由 migration/operation-ownership.csv 固化：
 

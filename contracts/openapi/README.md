@@ -12,7 +12,7 @@ contracts/openapi/unifiles.yaml
 
 Handwritten code is deliberately outside those directories:
 
-- `apps/server/src/unifiles_server/implementation/` implements generated server interfaces.
+- `apps/server/src/unifiles_server/modules/` implements and statically composes generated interfaces.
 - `packages/python/src/unifiles/` adds retries, public errors and polling around the generated core.
 - `packages/typescript/src/` adds retries, public errors and polling around the generated core.
 

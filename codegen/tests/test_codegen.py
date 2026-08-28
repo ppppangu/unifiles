@@ -10,6 +10,8 @@ import pytest
 CODEGEN_SCRIPTS = Path(__file__).parents[1] / "scripts"
 sys.path.insert(0, str(CODEGEN_SCRIPTS))
 
+from openapi_common import load_openapi, validate_openapi_invariants  # noqa: E402
+
 import codegen as codegen_module  # noqa: E402
 
 
@@ -192,3 +194,16 @@ def test_tree_hash_ignores_python_cache(tmp_path: Path) -> None:
     cache.joinpath("code.cpython-313.pyc").write_bytes(b"second")
 
     assert codegen_module.sha256_tree(source) == initial
+
+
+def test_contract_rejects_multiple_security_requirements() -> None:
+    contract = load_openapi(
+        codegen_module.REPO_ROOT / "contracts" / "openapi" / "unifiles.yaml"
+    )
+    contract["paths"]["/v1/files"]["get"]["security"] = [
+        {"BearerAuth": []},
+        {"AnotherScheme": []},
+    ]
+
+    with pytest.raises(ValueError, match="exactly one Security Requirement"):
+        validate_openapi_invariants(contract)

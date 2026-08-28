@@ -2,9 +2,7 @@
 
 from __future__ import annotations
 
-import importlib
 import json
-import pkgutil
 import uuid
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import asynccontextmanager
@@ -13,27 +11,22 @@ from importlib.resources import files
 import unifiles_server_protocol
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
-from unifiles_server_protocol import apis as protocol_apis
 
+from .modules.api_keys.api import router as api_keys_router
+from .modules.documents.api import router as documents_router
 from .modules.documents.service import run_indexing
+from .modules.extractions.api import router as extractions_router
 from .modules.extractions.service import run_extraction
+from .modules.files.api import router as files_router
+from .modules.knowledge_bases.api import router as knowledge_bases_router
+from .modules.search.api import router as search_router
+from .modules.system.api import router as system_router
+from .modules.usage.api import router as usage_router
+from .modules.webhooks.api import router as webhooks_router
 from .shared.database import Store
 from .shared.errors import install_error_handlers
 from .shared.settings import Settings
 from .shared.settings import settings as default_settings
-
-
-def include_protocol_routers(app: FastAPI) -> None:
-    """Discover every generated tag router without maintaining a handwritten route list."""
-
-    modules = sorted(
-        item.name
-        for item in pkgutil.iter_modules(protocol_apis.__path__)
-        if item.name.endswith("_api") and not item.name.endswith("_api_base")
-    )
-    for name in modules:
-        module = importlib.import_module(f"{protocol_apis.__name__}.{name}")
-        app.include_router(module.router)
 
 
 def install_canonical_schema(app: FastAPI) -> None:
@@ -102,7 +95,15 @@ def create_app(config: Settings | None = None) -> FastAPI:
         return response
 
     install_error_handlers(app)
-    include_protocol_routers(app)
+    app.include_router(api_keys_router)
+    app.include_router(documents_router)
+    app.include_router(extractions_router)
+    app.include_router(files_router)
+    app.include_router(knowledge_bases_router)
+    app.include_router(search_router)
+    app.include_router(system_router)
+    app.include_router(usage_router)
+    app.include_router(webhooks_router)
     install_canonical_schema(app)
     return app
 

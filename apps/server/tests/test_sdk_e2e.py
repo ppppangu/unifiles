@@ -7,7 +7,7 @@ import pytest
 from fastapi.testclient import TestClient
 from unifiles import AsyncUnifilesClient, UnifilesClient
 from unifiles_server.app import create_app
-from unifiles_server.settings import Settings
+from unifiles_server.shared.settings import Settings
 
 
 def app_for(tmp_path: Path):

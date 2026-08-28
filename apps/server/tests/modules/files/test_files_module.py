@@ -1,9 +1,6 @@
 from __future__ import annotations
 
 import pytest
-from unifiles_server.implementation.providers import (
-    get_files_api_implementation as compatibility_provider,
-)
 from unifiles_server.modules.files.dependencies import (
     get_files_api_implementation,
     get_files_service,
@@ -14,10 +11,6 @@ from unifiles_server.modules.files.implementation import (
     parse_tags,
     sanitize_filename,
 )
-
-
-def test_compatibility_provider_is_static_reexport() -> None:
-    assert compatibility_provider is get_files_api_implementation
 
 
 def test_file_adapter_helpers_preserve_validation_behavior() -> None:

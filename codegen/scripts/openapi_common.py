@@ -87,12 +87,14 @@ def validate_openapi_invariants(document: dict[str, Any]) -> list[str]:
         if tags[0] not in BUSINESS_TAGS:
             raise ValueError(f"{method.upper()} {path} uses unknown business tag: {tags[0]}")
 
-        expected_security: list[dict[str, list[str]]] = (
-            [] if path in PUBLIC_PATHS else [{"BearerAuth": []}]
-        )
-        if operation.get("security") != expected_security:
-            requirement = "public security: []" if not expected_security else "BearerAuth"
-            raise ValueError(f"{method.upper()} {path} must require {requirement}")
+        if path in PUBLIC_PATHS:
+            if operation.get("security") != []:
+                raise ValueError(f"{method.upper()} {path} must declare public security: []")
+        elif operation.get("security") != [{"BearerAuth": []}]:
+            raise ValueError(
+                f"{method.upper()} {path} must declare exactly one "
+                "Security Requirement using BearerAuth"
+            )
 
     duplicates = sorted({item for item in operation_ids if operation_ids.count(item) > 1})
     if duplicates:
