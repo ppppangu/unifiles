@@ -1,9 +1,9 @@
 # coding: utf-8
 
-from typing import Dict, List  # noqa: F401
+from typing import Annotated, Dict, List  # noqa: F401
 
 from unifiles_server_protocol.apis.documents_api_base import BaseDocumentsApi
-from unifiles_server.implementation import resolve_api
+from unifiles_server.implementation.providers import get_documents_api_implementation
 
 from fastapi import (  # noqa: F401
     APIRouter,
@@ -55,6 +55,10 @@ router = APIRouter()
     response_model_by_alias=True,
 )
 async def list_documents(
+    implementation: Annotated[
+        BaseDocumentsApi,
+        Depends(get_documents_api_implementation),
+    ],
     kb_id: StrictStr = Path(..., description=""),
     limit: Optional[Annotated[int, Field(le=100, strict=True, ge=1)]] = Query(50, description="", alias="limit", ge=1, le=100),
     offset: Optional[Annotated[int, Field(strict=True, ge=0)]] = Query(0, description="", alias="offset", ge=0),
@@ -62,7 +66,7 @@ async def list_documents(
         get_token_BearerAuth
     ),
 ) -> DocumentListResponse:
-    return await resolve_api(BaseDocumentsApi).list_documents(kb_id, limit, offset)
+    return await implementation.list_documents(kb_id, limit, offset)
 
 @router.post(
     "/v1/knowledge-bases/{kb_id}/documents",
@@ -84,6 +88,10 @@ async def list_documents(
     response_model_by_alias=True,
 )
 async def create_document(
+    implementation: Annotated[
+        BaseDocumentsApi,
+        Depends(get_documents_api_implementation),
+    ],
     kb_id: StrictStr = Path(..., description=""),
     document_create: DocumentCreate = Body(None, description=""),
     idempotency_key: Optional[StrictStr] = Header(None, description=""),
@@ -91,7 +99,7 @@ async def create_document(
         get_token_BearerAuth
     ),
 ) -> DocumentResponse:
-    return await resolve_api(BaseDocumentsApi).create_document(kb_id, document_create, idempotency_key)
+    return await implementation.create_document(kb_id, document_create, idempotency_key)
 
 @router.get(
     "/v1/knowledge-bases/{kb_id}/documents/{document_id}",
@@ -113,13 +121,17 @@ async def create_document(
     response_model_by_alias=True,
 )
 async def get_document(
+    implementation: Annotated[
+        BaseDocumentsApi,
+        Depends(get_documents_api_implementation),
+    ],
     kb_id: StrictStr = Path(..., description=""),
     document_id: StrictStr = Path(..., description=""),
     token_BearerAuth: TokenModel = Security(
         get_token_BearerAuth
     ),
 ) -> DocumentResponse:
-    return await resolve_api(BaseDocumentsApi).get_document(kb_id, document_id)
+    return await implementation.get_document(kb_id, document_id)
 
 @router.delete(
     "/v1/knowledge-bases/{kb_id}/documents/{document_id}",
@@ -141,10 +153,14 @@ async def get_document(
     response_model_by_alias=True,
 )
 async def delete_document(
+    implementation: Annotated[
+        BaseDocumentsApi,
+        Depends(get_documents_api_implementation),
+    ],
     kb_id: StrictStr = Path(..., description=""),
     document_id: StrictStr = Path(..., description=""),
     token_BearerAuth: TokenModel = Security(
         get_token_BearerAuth
     ),
 ) -> DeletionResponse:
-    return await resolve_api(BaseDocumentsApi).delete_document(kb_id, document_id)
+    return await implementation.delete_document(kb_id, document_id)

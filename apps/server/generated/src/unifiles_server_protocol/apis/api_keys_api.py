@@ -1,9 +1,9 @@
 # coding: utf-8
 
-from typing import Dict, List  # noqa: F401
+from typing import Annotated, Dict, List  # noqa: F401
 
 from unifiles_server_protocol.apis.api_keys_api_base import BaseAPIKeysApi
-from unifiles_server.implementation import resolve_api
+from unifiles_server.implementation.providers import get_api_keys_api_implementation
 
 from fastapi import (  # noqa: F401
     APIRouter,
@@ -55,13 +55,17 @@ router = APIRouter()
     response_model_by_alias=True,
 )
 async def list_api_keys(
+    implementation: Annotated[
+        BaseAPIKeysApi,
+        Depends(get_api_keys_api_implementation),
+    ],
     limit: Optional[Annotated[int, Field(le=100, strict=True, ge=1)]] = Query(50, description="", alias="limit", ge=1, le=100),
     offset: Optional[Annotated[int, Field(strict=True, ge=0)]] = Query(0, description="", alias="offset", ge=0),
     token_BearerAuth: TokenModel = Security(
         get_token_BearerAuth
     ),
 ) -> APIKeyListResponse:
-    return await resolve_api(BaseAPIKeysApi).list_api_keys(limit, offset)
+    return await implementation.list_api_keys(limit, offset)
 
 @router.post(
     "/v1/api-keys",
@@ -83,13 +87,17 @@ async def list_api_keys(
     response_model_by_alias=True,
 )
 async def create_api_key(
+    implementation: Annotated[
+        BaseAPIKeysApi,
+        Depends(get_api_keys_api_implementation),
+    ],
     api_key_create: APIKeyCreate = Body(None, description=""),
     idempotency_key: Optional[StrictStr] = Header(None, description=""),
     token_BearerAuth: TokenModel = Security(
         get_token_BearerAuth
     ),
 ) -> APIKeyResponse:
-    return await resolve_api(BaseAPIKeysApi).create_api_key(api_key_create, idempotency_key)
+    return await implementation.create_api_key(api_key_create, idempotency_key)
 
 @router.delete(
     "/v1/api-keys/{key_id}",
@@ -111,9 +119,13 @@ async def create_api_key(
     response_model_by_alias=True,
 )
 async def revoke_api_key(
+    implementation: Annotated[
+        BaseAPIKeysApi,
+        Depends(get_api_keys_api_implementation),
+    ],
     key_id: StrictStr = Path(..., description=""),
     token_BearerAuth: TokenModel = Security(
         get_token_BearerAuth
     ),
 ) -> DeletionResponse:
-    return await resolve_api(BaseAPIKeysApi).revoke_api_key(key_id)
+    return await implementation.revoke_api_key(key_id)

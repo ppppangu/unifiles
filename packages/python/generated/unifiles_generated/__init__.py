@@ -65,6 +65,8 @@ __all__ = [
     "FileListResponse",
     "FileResource",
     "FileResponse",
+    "HealthDetails",
+    "HealthDetailsResponse",
     "HealthResponse",
     "HealthStatus",
     "HybridSearchRequest",
@@ -146,6 +148,8 @@ from unifiles_generated.models.file_list import FileList as FileList
 from unifiles_generated.models.file_list_response import FileListResponse as FileListResponse
 from unifiles_generated.models.file_resource import FileResource as FileResource
 from unifiles_generated.models.file_response import FileResponse as FileResponse
+from unifiles_generated.models.health_details import HealthDetails as HealthDetails
+from unifiles_generated.models.health_details_response import HealthDetailsResponse as HealthDetailsResponse
 from unifiles_generated.models.health_response import HealthResponse as HealthResponse
 from unifiles_generated.models.health_status import HealthStatus as HealthStatus
 from unifiles_generated.models.hybrid_search_request import HybridSearchRequest as HybridSearchRequest

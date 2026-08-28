@@ -42,6 +42,8 @@ from unifiles_generated.models.file_list import FileList
 from unifiles_generated.models.file_list_response import FileListResponse
 from unifiles_generated.models.file_resource import FileResource
 from unifiles_generated.models.file_response import FileResponse
+from unifiles_generated.models.health_details import HealthDetails
+from unifiles_generated.models.health_details_response import HealthDetailsResponse
 from unifiles_generated.models.health_response import HealthResponse
 from unifiles_generated.models.health_status import HealthStatus
 from unifiles_generated.models.hybrid_search_request import HybridSearchRequest

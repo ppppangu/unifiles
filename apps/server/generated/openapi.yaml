@@ -81,6 +81,39 @@ paths:
       summary: Health
       tags:
       - System
+  /v1/health/details:
+    get:
+      operationId: getHealthDetails
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthDetailsResponse"
+          description: Detailed service health
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+          description: Authentication failed
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+          description: Permission denied
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+          description: Internal server error
+      security:
+      - BearerAuth: []
+      summary: Detailed Health
+      tags:
+      - System
   /health:
     get:
       operationId: getHealth
@@ -4260,6 +4293,36 @@ components:
           type: boolean
       title: ExtractionOptions
       type: object
+    HealthDetails:
+      additionalProperties: false
+      example:
+        status: status
+        version: version
+        python_version: python_version
+        database: ok
+      properties:
+        status:
+          title: status
+          type: string
+        version:
+          title: version
+          type: string
+        python_version:
+          title: python_version
+          type: string
+        database:
+          enum:
+          - ok
+          - error
+          title: database
+          type: string
+      required:
+      - database
+      - python_version
+      - status
+      - version
+      title: HealthDetails
+      type: object
     HealthStatus:
       additionalProperties: false
       example:
@@ -4430,6 +4493,26 @@ components:
       - files
       - storage
       title: UsageLimits
+      type: object
+    HealthDetailsResponse:
+      additionalProperties: false
+      example:
+        success: true
+        data:
+          status: status
+          version: version
+          python_version: python_version
+          database: ok
+      properties:
+        success:
+          default: true
+          title: success
+          type: boolean
+        data:
+          $ref: "#/components/schemas/HealthDetails"
+      required:
+      - data
+      title: HealthDetailResponse
       type: object
     HealthResponse:
       additionalProperties: false

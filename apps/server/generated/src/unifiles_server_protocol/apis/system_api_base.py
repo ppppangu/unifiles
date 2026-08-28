@@ -3,8 +3,9 @@
 from typing import ClassVar, Dict, List, Tuple  # noqa: F401
 
 from unifiles_server_protocol.models.error_envelope import ErrorEnvelope
+from unifiles_server_protocol.models.health_details_response import HealthDetailsResponse
 from unifiles_server_protocol.models.health_response import HealthResponse
-
+from unifiles_server_protocol.security_api import get_token_BearerAuth
 
 class BaseSystemApi:
     subclasses: ClassVar[Tuple] = ()
@@ -15,6 +16,12 @@ class BaseSystemApi:
     async def get_versioned_health(
         self,
     ) -> HealthResponse:
+        ...
+
+
+    async def get_health_details(
+        self,
+    ) -> HealthDetailsResponse:
         ...
 
 

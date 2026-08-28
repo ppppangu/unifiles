@@ -80,6 +80,7 @@ All URIs are relative to *https://api.unifiles.dev*
 *SearchApi* | [**hybridSearchKnowledgeBase**](docs/SearchApi.md#hybridsearchknowledgebase) | **POST** /v1/knowledge-bases/{kb_id}/hybrid-search | Hybrid Search
 *SearchApi* | [**searchKnowledgeBase**](docs/SearchApi.md#searchknowledgebase) | **POST** /v1/knowledge-bases/{kb_id}/search | Semantic Search
 *SystemApi* | [**getHealth**](docs/SystemApi.md#gethealth) | **GET** /health | Health
+*SystemApi* | [**getHealthDetails**](docs/SystemApi.md#gethealthdetails) | **GET** /v1/health/details | Detailed Health
 *SystemApi* | [**getVersionedHealth**](docs/SystemApi.md#getversionedhealth) | **GET** /v1/health | Health
 *UsageApi* | [**getUsageLimits**](docs/UsageApi.md#getusagelimits) | **GET** /v1/usage/limits | Usage Limits
 *UsageApi* | [**getUsageStats**](docs/UsageApi.md#getusagestats) | **GET** /v1/usage/stats | Usage Stats
@@ -121,6 +122,8 @@ All URIs are relative to *https://api.unifiles.dev*
 - [FileListResponse](docs/FileListResponse.md)
 - [FileResource](docs/FileResource.md)
 - [FileResponse](docs/FileResponse.md)
+- [HealthDetails](docs/HealthDetails.md)
+- [HealthDetailsResponse](docs/HealthDetailsResponse.md)
 - [HealthResponse](docs/HealthResponse.md)
 - [HealthStatus](docs/HealthStatus.md)
 - [HybridSearchRequest](docs/HybridSearchRequest.md)

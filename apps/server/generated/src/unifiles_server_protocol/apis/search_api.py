@@ -1,9 +1,9 @@
 # coding: utf-8
 
-from typing import Dict, List  # noqa: F401
+from typing import Annotated, Dict, List  # noqa: F401
 
 from unifiles_server_protocol.apis.search_api_base import BaseSearchApi
-from unifiles_server.implementation import resolve_api
+from unifiles_server.implementation.providers import get_search_api_implementation
 
 from fastapi import (  # noqa: F401
     APIRouter,
@@ -52,13 +52,17 @@ router = APIRouter()
     response_model_by_alias=True,
 )
 async def search_knowledge_base(
+    implementation: Annotated[
+        BaseSearchApi,
+        Depends(get_search_api_implementation),
+    ],
     kb_id: StrictStr = Path(..., description=""),
     search_request: SearchRequest = Body(None, description=""),
     token_BearerAuth: TokenModel = Security(
         get_token_BearerAuth
     ),
 ) -> SearchResponse:
-    return await resolve_api(BaseSearchApi).search_knowledge_base(kb_id, search_request)
+    return await implementation.search_knowledge_base(kb_id, search_request)
 
 @router.post(
     "/v1/knowledge-bases/{kb_id}/hybrid-search",
@@ -80,10 +84,14 @@ async def search_knowledge_base(
     response_model_by_alias=True,
 )
 async def hybrid_search_knowledge_base(
+    implementation: Annotated[
+        BaseSearchApi,
+        Depends(get_search_api_implementation),
+    ],
     kb_id: StrictStr = Path(..., description=""),
     hybrid_search_request: HybridSearchRequest = Body(None, description=""),
     token_BearerAuth: TokenModel = Security(
         get_token_BearerAuth
     ),
 ) -> SearchResponse:
-    return await resolve_api(BaseSearchApi).hybrid_search_knowledge_base(kb_id, hybrid_search_request)
+    return await implementation.hybrid_search_knowledge_base(kb_id, hybrid_search_request)

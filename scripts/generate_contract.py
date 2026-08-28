@@ -24,7 +24,14 @@ def generator_environment() -> dict[str, str]:
     return environment
 
 
-def generate(root: Path, config: str, output: Path, *, templates: Path | None = None) -> None:
+def generate(
+    root: Path,
+    config: str,
+    output: Path,
+    *,
+    templates: Path | None = None,
+    ignored_paths: tuple[str, ...] = (),
+) -> None:
     command = [
         str(root / "node_modules" / ".bin" / "openapi-generator-cli"),
         "generate",
@@ -37,6 +44,8 @@ def generate(root: Path, config: str, output: Path, *, templates: Path | None = 
     ]
     if templates is not None:
         command.extend(["--template-dir", str(templates)])
+    if ignored_paths:
+        command.extend(["--openapi-generator-ignore-list", ",".join(ignored_paths)])
     subprocess.run(command, check=True, cwd=root, env=generator_environment())
     actual_version = (output / ".openapi-generator" / "VERSION").read_text(encoding="utf-8").strip()
     if actual_version != GENERATOR_VERSION:
@@ -101,6 +110,7 @@ def main() -> None:
                 "server-python.yaml",
                 generated,
                 templates=root / "api" / "codegen" / "templates" / "python-fastapi",
+                ignored_paths=("src/unifiles_server_protocol/impl/**",),
             )
             protocol_package = generated / "src" / "unifiles_server_protocol"
             mark_typed_python(protocol_package)

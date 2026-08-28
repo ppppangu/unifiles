@@ -100,6 +100,7 @@ Class | Method | HTTP request | Description
 *SearchApi* | [**hybrid_search_knowledge_base**](unifiles_generated/docs/SearchApi.md#hybrid_search_knowledge_base) | **POST** /v1/knowledge-bases/{kb_id}/hybrid-search | Hybrid Search
 *SearchApi* | [**search_knowledge_base**](unifiles_generated/docs/SearchApi.md#search_knowledge_base) | **POST** /v1/knowledge-bases/{kb_id}/search | Semantic Search
 *SystemApi* | [**get_health**](unifiles_generated/docs/SystemApi.md#get_health) | **GET** /health | Health
+*SystemApi* | [**get_health_details**](unifiles_generated/docs/SystemApi.md#get_health_details) | **GET** /v1/health/details | Detailed Health
 *SystemApi* | [**get_versioned_health**](unifiles_generated/docs/SystemApi.md#get_versioned_health) | **GET** /v1/health | Health
 *UsageApi* | [**get_usage_limits**](unifiles_generated/docs/UsageApi.md#get_usage_limits) | **GET** /v1/usage/limits | Usage Limits
 *UsageApi* | [**get_usage_stats**](unifiles_generated/docs/UsageApi.md#get_usage_stats) | **GET** /v1/usage/stats | Usage Stats
@@ -141,6 +142,8 @@ Class | Method | HTTP request | Description
  - [FileListResponse](unifiles_generated/docs/FileListResponse.md)
  - [FileResource](unifiles_generated/docs/FileResource.md)
  - [FileResponse](unifiles_generated/docs/FileResponse.md)
+ - [HealthDetails](unifiles_generated/docs/HealthDetails.md)
+ - [HealthDetailsResponse](unifiles_generated/docs/HealthDetailsResponse.md)
  - [HealthResponse](unifiles_generated/docs/HealthResponse.md)
  - [HealthStatus](unifiles_generated/docs/HealthStatus.md)
  - [HybridSearchRequest](unifiles_generated/docs/HybridSearchRequest.md)

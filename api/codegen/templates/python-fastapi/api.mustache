@@ -1,9 +1,9 @@
 # coding: utf-8
 
-from typing import Dict, List  # noqa: F401
+from typing import Annotated, Dict, List  # noqa: F401
 
 from {{apiPackage}}.{{classFilename}}_{{baseSuffix}} import Base{{classname}}
-from unifiles_server.implementation import resolve_api
+from unifiles_server.implementation.providers import get_{{classFilename}}_implementation
 
 from fastapi import (  # noqa: F401
     APIRouter,
@@ -55,6 +55,10 @@ router = APIRouter()
     response_model_by_alias=True,
 )
 async def {{operationId}}(
+    implementation: Annotated[
+        Base{{classname}},
+        Depends(get_{{classFilename}}_implementation),
+    ],
     {{#allParams}}
     {{>endpoint_argument_definition}},
     {{/allParams}}
@@ -67,7 +71,7 @@ async def {{operationId}}(
     {{/hasAuthMethods}}
 ) -> {{returnType}}{{^returnType}}None{{/returnType}}:
     {{#notes}}"""{{.}}"""
-    {{/notes}}return await resolve_api(Base{{classname}}).{{operationId}}({{#allParams}}{{>impl_argument}}{{^-last}}, {{/-last}}{{/allParams}})
+    {{/notes}}return await implementation.{{operationId}}({{#allParams}}{{>impl_argument}}{{^-last}}, {{/-last}}{{/allParams}})
 {{^-last}}
 
 {{/-last}}

@@ -1,9 +1,9 @@
 # coding: utf-8
 
-from typing import Dict, List  # noqa: F401
+from typing import Annotated, Dict, List  # noqa: F401
 
 from unifiles_server_protocol.apis.knowledge_bases_api_base import BaseKnowledgeBasesApi
-from unifiles_server.implementation import resolve_api
+from unifiles_server.implementation.providers import get_knowledge_bases_api_implementation
 
 from fastapi import (  # noqa: F401
     APIRouter,
@@ -56,13 +56,17 @@ router = APIRouter()
     response_model_by_alias=True,
 )
 async def list_knowledge_bases(
+    implementation: Annotated[
+        BaseKnowledgeBasesApi,
+        Depends(get_knowledge_bases_api_implementation),
+    ],
     limit: Optional[Annotated[int, Field(le=100, strict=True, ge=1)]] = Query(50, description="", alias="limit", ge=1, le=100),
     offset: Optional[Annotated[int, Field(strict=True, ge=0)]] = Query(0, description="", alias="offset", ge=0),
     token_BearerAuth: TokenModel = Security(
         get_token_BearerAuth
     ),
 ) -> KnowledgeBaseListResponse:
-    return await resolve_api(BaseKnowledgeBasesApi).list_knowledge_bases(limit, offset)
+    return await implementation.list_knowledge_bases(limit, offset)
 
 @router.post(
     "/v1/knowledge-bases",
@@ -84,13 +88,17 @@ async def list_knowledge_bases(
     response_model_by_alias=True,
 )
 async def create_knowledge_base(
+    implementation: Annotated[
+        BaseKnowledgeBasesApi,
+        Depends(get_knowledge_bases_api_implementation),
+    ],
     knowledge_base_create: KnowledgeBaseCreate = Body(None, description=""),
     idempotency_key: Optional[StrictStr] = Header(None, description=""),
     token_BearerAuth: TokenModel = Security(
         get_token_BearerAuth
     ),
 ) -> KnowledgeBaseResponse:
-    return await resolve_api(BaseKnowledgeBasesApi).create_knowledge_base(knowledge_base_create, idempotency_key)
+    return await implementation.create_knowledge_base(knowledge_base_create, idempotency_key)
 
 @router.get(
     "/v1/knowledge-bases/{kb_id}",
@@ -112,12 +120,16 @@ async def create_knowledge_base(
     response_model_by_alias=True,
 )
 async def get_knowledge_base(
+    implementation: Annotated[
+        BaseKnowledgeBasesApi,
+        Depends(get_knowledge_bases_api_implementation),
+    ],
     kb_id: StrictStr = Path(..., description=""),
     token_BearerAuth: TokenModel = Security(
         get_token_BearerAuth
     ),
 ) -> KnowledgeBaseResponse:
-    return await resolve_api(BaseKnowledgeBasesApi).get_knowledge_base(kb_id)
+    return await implementation.get_knowledge_base(kb_id)
 
 @router.delete(
     "/v1/knowledge-bases/{kb_id}",
@@ -139,12 +151,16 @@ async def get_knowledge_base(
     response_model_by_alias=True,
 )
 async def delete_knowledge_base(
+    implementation: Annotated[
+        BaseKnowledgeBasesApi,
+        Depends(get_knowledge_bases_api_implementation),
+    ],
     kb_id: StrictStr = Path(..., description=""),
     token_BearerAuth: TokenModel = Security(
         get_token_BearerAuth
     ),
 ) -> DeletionResponse:
-    return await resolve_api(BaseKnowledgeBasesApi).delete_knowledge_base(kb_id)
+    return await implementation.delete_knowledge_base(kb_id)
 
 @router.patch(
     "/v1/knowledge-bases/{kb_id}",
@@ -166,10 +182,14 @@ async def delete_knowledge_base(
     response_model_by_alias=True,
 )
 async def update_knowledge_base(
+    implementation: Annotated[
+        BaseKnowledgeBasesApi,
+        Depends(get_knowledge_bases_api_implementation),
+    ],
     kb_id: StrictStr = Path(..., description=""),
     knowledge_base_update: KnowledgeBaseUpdate = Body(None, description=""),
     token_BearerAuth: TokenModel = Security(
         get_token_BearerAuth
     ),
 ) -> KnowledgeBaseResponse:
-    return await resolve_api(BaseKnowledgeBasesApi).update_knowledge_base(kb_id, knowledge_base_update)
+    return await implementation.update_knowledge_base(kb_id, knowledge_base_update)

@@ -1,9 +1,9 @@
 # coding: utf-8
 
-from typing import Dict, List  # noqa: F401
+from typing import Annotated, Dict, List  # noqa: F401
 
 from unifiles_server_protocol.apis.usage_api_base import BaseUsageApi
-from unifiles_server.implementation import resolve_api
+from unifiles_server.implementation.providers import get_usage_api_implementation
 
 from fastapi import (  # noqa: F401
     APIRouter,
@@ -50,11 +50,15 @@ router = APIRouter()
     response_model_by_alias=True,
 )
 async def get_usage_stats(
+    implementation: Annotated[
+        BaseUsageApi,
+        Depends(get_usage_api_implementation),
+    ],
     token_BearerAuth: TokenModel = Security(
         get_token_BearerAuth
     ),
 ) -> UsageStatsResponse:
-    return await resolve_api(BaseUsageApi).get_usage_stats()
+    return await implementation.get_usage_stats()
 
 @router.get(
     "/v1/usage/limits",
@@ -76,8 +80,12 @@ async def get_usage_stats(
     response_model_by_alias=True,
 )
 async def get_usage_limits(
+    implementation: Annotated[
+        BaseUsageApi,
+        Depends(get_usage_api_implementation),
+    ],
     token_BearerAuth: TokenModel = Security(
         get_token_BearerAuth
     ),
 ) -> UsageLimitsResponse:
-    return await resolve_api(BaseUsageApi).get_usage_limits()
+    return await implementation.get_usage_limits()

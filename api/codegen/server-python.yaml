@@ -3,7 +3,6 @@ additionalProperties:
   packageName: unifiles_server_protocol
   packageVersion: 0.1.0
   sourceFolder: src
-  fastapiImplementationPackage: impl
   disallowAdditionalPropertiesIfNotPresent: false
 globalProperties:
   apiDocs: false

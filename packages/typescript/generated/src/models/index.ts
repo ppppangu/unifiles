@@ -30,6 +30,8 @@ export * from './FileList.js';
 export * from './FileListResponse.js';
 export * from './FileResource.js';
 export * from './FileResponse.js';
+export * from './HealthDetails.js';
+export * from './HealthDetailsResponse.js';
 export * from './HealthResponse.js';
 export * from './HealthStatus.js';
 export * from './HybridSearchRequest.js';

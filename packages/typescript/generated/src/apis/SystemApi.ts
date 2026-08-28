@@ -20,6 +20,11 @@ import {
     ErrorEnvelopeToJSON,
 } from '../models/ErrorEnvelope.js';
 import {
+    type HealthDetailsResponse,
+    HealthDetailsResponseFromJSON,
+    HealthDetailsResponseToJSON,
+} from '../models/HealthDetailsResponse.js';
+import {
     type HealthResponse,
     HealthResponseFromJSON,
     HealthResponseToJSON,
@@ -52,6 +57,27 @@ export interface SystemApiInterface {
      * Health
      */
     getHealth(initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<HealthResponse>;
+
+    /**
+     * Creates request options for getHealthDetails without sending the request
+     * @throws {RequiredError}
+     * @memberof SystemApiInterface
+     */
+    getHealthDetailsRequestOpts(): Promise<runtime.RequestOpts>;
+
+    /**
+     * 
+     * @summary Detailed Health
+     * @param {*} [options] Override http request option.
+     * @throws {RequiredError}
+     * @memberof SystemApiInterface
+     */
+    getHealthDetailsRaw(initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<runtime.ApiResponse<HealthDetailsResponse>>;
+
+    /**
+     * Detailed Health
+     */
+    getHealthDetails(initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<HealthDetailsResponse>;
 
     /**
      * Creates request options for getVersionedHealth without sending the request
@@ -115,6 +141,51 @@ export class SystemApi extends runtime.BaseAPI implements SystemApiInterface {
      */
     async getHealth(initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<HealthResponse> {
         const response = await this.getHealthRaw(initOverrides);
+        return await response.value();
+    }
+
+    /**
+     * Creates request options for getHealthDetails without sending the request
+     */
+    async getHealthDetailsRequestOpts(): Promise<runtime.RequestOpts> {
+        const queryParameters: any = {};
+
+        const headerParameters: runtime.HTTPHeaders = {};
+
+        if (this.configuration && this.configuration.accessToken) {
+            const token = this.configuration.accessToken;
+            const tokenString = await token("BearerAuth", []);
+
+            if (tokenString) {
+                headerParameters["Authorization"] = `Bearer ${tokenString}`;
+            }
+        }
+
+        let urlPath = `/v1/health/details`;
+
+        return {
+            path: urlPath,
+            method: 'GET',
+            headers: headerParameters,
+            query: queryParameters,
+        };
+    }
+
+    /**
+     * Detailed Health
+     */
+    async getHealthDetailsRaw(initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<runtime.ApiResponse<HealthDetailsResponse>> {
+        const requestOptions = await this.getHealthDetailsRequestOpts();
+        const response = await this.request(requestOptions, initOverrides);
+
+        return new runtime.JSONApiResponse(response, (jsonValue) => HealthDetailsResponseFromJSON(jsonValue));
+    }
+
+    /**
+     * Detailed Health
+     */
+    async getHealthDetails(initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<HealthDetailsResponse> {
+        const response = await this.getHealthDetailsRaw(initOverrides);
         return await response.value();
     }
 

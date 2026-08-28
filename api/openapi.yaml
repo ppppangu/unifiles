@@ -67,6 +67,39 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorEnvelope'
+  /v1/health/details:
+    get:
+      tags:
+      - System
+      summary: Detailed Health
+      operationId: getHealthDetails
+      security:
+      - BearerAuth: []
+      responses:
+        '200':
+          description: Detailed service health
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthDetailsResponse'
+        '401':
+          description: Authentication failed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '403':
+          description: Permission denied
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
   /health:
     get:
       tags:
@@ -3466,6 +3499,27 @@ components:
         preserve_layout:
           type: boolean
       title: ExtractionOptions
+    HealthDetails:
+      type: object
+      additionalProperties: false
+      properties:
+        status:
+          type: string
+        version:
+          type: string
+        python_version:
+          type: string
+        database:
+          type: string
+          enum:
+          - ok
+          - error
+      required:
+        - status
+        - version
+        - python_version
+        - database
+      title: HealthDetails
     HealthStatus:
       type: object
       additionalProperties: false
@@ -3582,6 +3636,18 @@ components:
       - storage
       - files
       title: UsageLimits
+    HealthDetailsResponse:
+      type: object
+      additionalProperties: false
+      properties:
+        success:
+          type: boolean
+          default: true
+        data:
+          $ref: '#/components/schemas/HealthDetails'
+      required:
+        - data
+      title: HealthDetailResponse
     HealthResponse:
       type: object
       additionalProperties: false

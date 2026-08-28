@@ -1,9 +1,9 @@
 # coding: utf-8
 
-from typing import Dict, List  # noqa: F401
+from typing import Annotated, Dict, List  # noqa: F401
 
 from unifiles_server_protocol.apis.files_api_base import BaseFilesApi
-from unifiles_server.implementation import resolve_api
+from unifiles_server.implementation.providers import get_files_api_implementation
 
 from fastapi import (  # noqa: F401
     APIRouter,
@@ -56,11 +56,15 @@ router = APIRouter()
     response_model_by_alias=True,
 )
 async def list_supported_file_types(
+    implementation: Annotated[
+        BaseFilesApi,
+        Depends(get_files_api_implementation),
+    ],
     token_BearerAuth: TokenModel = Security(
         get_token_BearerAuth
     ),
 ) -> SupportedFileTypesResponse:
-    return await resolve_api(BaseFilesApi).list_supported_file_types()
+    return await implementation.list_supported_file_types()
 
 @router.get(
     "/v1/files",
@@ -82,6 +86,10 @@ async def list_supported_file_types(
     response_model_by_alias=True,
 )
 async def list_files(
+    implementation: Annotated[
+        BaseFilesApi,
+        Depends(get_files_api_implementation),
+    ],
     limit: Optional[Annotated[int, Field(le=100, strict=True, ge=1)]] = Query(50, description="", alias="limit", ge=1, le=100),
     offset: Optional[Annotated[int, Field(strict=True, ge=0)]] = Query(0, description="", alias="offset", ge=0),
     tags: Optional[StrictStr] = Query(None, description="", alias="tags"),
@@ -92,7 +100,7 @@ async def list_files(
         get_token_BearerAuth
     ),
 ) -> FileListResponse:
-    return await resolve_api(BaseFilesApi).list_files(limit, offset, tags, content_type, sort_by, order)
+    return await implementation.list_files(limit, offset, tags, content_type, sort_by, order)
 
 @router.post(
     "/v1/files",
@@ -115,6 +123,10 @@ async def list_files(
     response_model_by_alias=True,
 )
 async def upload_file(
+    implementation: Annotated[
+        BaseFilesApi,
+        Depends(get_files_api_implementation),
+    ],
     file: UploadFile = File(..., description=""),
     idempotency_key: Optional[StrictStr] = Header(None, description=""),
     metadata: Optional[StrictStr] = Form('{}', description=""),
@@ -123,7 +135,7 @@ async def upload_file(
         get_token_BearerAuth
     ),
 ) -> FileResponse:
-    return await resolve_api(BaseFilesApi).upload_file(file, idempotency_key, metadata, tags)
+    return await implementation.upload_file(file, idempotency_key, metadata, tags)
 
 @router.get(
     "/v1/files/{file_id}",
@@ -145,12 +157,16 @@ async def upload_file(
     response_model_by_alias=True,
 )
 async def get_file(
+    implementation: Annotated[
+        BaseFilesApi,
+        Depends(get_files_api_implementation),
+    ],
     file_id: StrictStr = Path(..., description=""),
     token_BearerAuth: TokenModel = Security(
         get_token_BearerAuth
     ),
 ) -> FileResponse:
-    return await resolve_api(BaseFilesApi).get_file(file_id)
+    return await implementation.get_file(file_id)
 
 @router.delete(
     "/v1/files/{file_id}",
@@ -172,12 +188,16 @@ async def get_file(
     response_model_by_alias=True,
 )
 async def delete_file(
+    implementation: Annotated[
+        BaseFilesApi,
+        Depends(get_files_api_implementation),
+    ],
     file_id: StrictStr = Path(..., description=""),
     token_BearerAuth: TokenModel = Security(
         get_token_BearerAuth
     ),
 ) -> DeletionResponse:
-    return await resolve_api(BaseFilesApi).delete_file(file_id)
+    return await implementation.delete_file(file_id)
 
 @router.get(
     "/v1/files/{file_id}/download",
@@ -199,9 +219,13 @@ async def delete_file(
     response_model_by_alias=True,
 )
 async def download_file(
+    implementation: Annotated[
+        BaseFilesApi,
+        Depends(get_files_api_implementation),
+    ],
     file_id: StrictStr = Path(..., description=""),
     token_BearerAuth: TokenModel = Security(
         get_token_BearerAuth
     ),
 ) -> bytes:
-    return await resolve_api(BaseFilesApi).download_file(file_id)
+    return await implementation.download_file(file_id)
