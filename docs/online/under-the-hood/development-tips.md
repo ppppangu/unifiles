@@ -29,24 +29,25 @@ Extraction 与 Document 任务。
 
 ```bash
 # Python Server 与 SDK
-uv run ruff check apps packages/python scripts
-uv run mypy packages/python/src apps/server/src --exclude generated
+uv run ruff check apps packages/python scripts codegen/scripts
+uv run mypy packages/python/src apps/server/src scripts codegen/scripts
 uv run pytest
 
 # TypeScript SDK 与 CLI
 npm run check
 
 # 协议与文档
-uv run python scripts/check_openapi.py
+uv run python codegen/scripts/codegen.py validate
+uv run python codegen/scripts/codegen.py check all
 uv run mkdocs build --strict
 ```
 
 ## 修改 API
 
-`api/openapi.yaml` 是唯一协议源。先修改契约，再重新生成 FastAPI 协议层和两个 SDK core：
+`contracts/openapi/unifiles.yaml` 是唯一协议源。先修改契约，再重新生成 FastAPI 协议层和两个 SDK core：
 
 ```bash
-uv run python scripts/generate_contract.py
+npm run generate
 ```
 
 CI 会重新生成三套代码并检查 diff。生成目录可以整体替换；手写 Handler、业务服务和 SDK

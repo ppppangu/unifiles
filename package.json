@@ -6,7 +6,9 @@
     "packages/cli"
   ],
   "scripts": {
-    "generate": "uv run python scripts/generate_contract.py",
+    "generate": "uv run python codegen/scripts/codegen.py generate all",
+    "generate:check": "uv run python codegen/scripts/codegen.py check all",
+    "contract:validate": "uv run python codegen/scripts/codegen.py validate",
     "build": "npm run build --workspaces --if-present",
     "typecheck": "npm run typecheck --workspaces --if-present",
     "test": "npm run test --workspaces --if-present",

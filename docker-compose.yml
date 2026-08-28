@@ -1,7 +1,8 @@
 services:
   unifiles:
     build:
-      context: ./apps/server
+      context: .
+      dockerfile: apps/server/Dockerfile
     ports:
       - "8088:8088"
     environment:

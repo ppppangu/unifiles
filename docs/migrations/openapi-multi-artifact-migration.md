@@ -347,7 +347,9 @@ packages/generated 保存参与编译和测试的源码投影。dist 只保存 w
 - 迁移 server protocol；
 - 接入 uv workspace；
 - 删除 apps/server/generated；
-- 保持服务行为不变。
+- 保持服务行为不变；
+- 本阶段协议包可独立生成、构建 wheel，但 generated router/security 仍反向导入应用；
+- 完整单向依赖与脱离应用的 router import 在提交 5 完成。
 
 ### 提交 3：system、files 试点
 

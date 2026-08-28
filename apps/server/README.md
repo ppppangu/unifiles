@@ -11,5 +11,6 @@ Metadata and files are persisted under `UNIFILES_DATA_DIR` (default `.unifiles-d
 Use `GET /health` for health checks and `/docs` for interactive OpenAPI documentation.
 
 FastAPI routers, request/response models and base API interfaces are generated from the canonical
-`api/openapi.yaml` contract under `generated/`. Business logic lives in
+`contracts/openapi/unifiles.yaml` contract under
+`packages/generated/server-protocol-python/`. Business logic lives in
 `src/unifiles_server/implementation/` and is never overwritten by regeneration.

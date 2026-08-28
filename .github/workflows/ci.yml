@@ -24,19 +24,9 @@ jobs:
           enable-cache: true
       - run: npm ci
       - run: uv sync --all-packages --group dev
-      - run: uv run python scripts/check_openapi.py
-      - run: uv run python scripts/export_operation_ownership.py --check
-      - run: uv run python scripts/generate_contract.py
-      - name: Check generated drift, including untracked files
-        run: |
-          generated_status="$(git status --porcelain -- \
-            apps/server/generated \
-            packages/python/generated \
-            packages/typescript/generated)"
-          if [[ -n "$generated_status" ]]; then
-            echo "$generated_status"
-            exit 1
-          fi
+      - run: uv run python codegen/scripts/codegen.py validate
+      - run: uv run python codegen/scripts/export_operation_ownership.py --check
+      - run: uv run python codegen/scripts/codegen.py check all
 
   python:
     runs-on: ubuntu-latest
@@ -51,12 +41,14 @@ jobs:
           python-version: ${{ matrix.python-version }}
           enable-cache: true
       - run: uv sync --all-packages --group dev
-      - run: uv run ruff check apps packages/python scripts
-      - run: uv run mypy apps/server/src packages/python/src scripts
+      - run: uv run ruff check apps packages/python scripts codegen
+      - run: uv run mypy apps/server/src packages/python/src scripts codegen/scripts
       - run: uv run pytest
-      - run: uv run python scripts/check_openapi.py
+      - run: uv run python codegen/scripts/validate_contract.py
+      - run: uv build --package unifiles-server-protocol
       - run: uv build --package unifiles-client
       - run: uv build --package unifiles-server
+      - run: uv run python codegen/scripts/check_python_artifacts.py
 
   node:
     runs-on: ubuntu-latest
@@ -74,3 +66,24 @@ jobs:
       - run: npm run check
       - run: npm pack --workspace @wyy/unifiles --dry-run
       - run: npm pack --workspace @wyy/unifiles-cli --dry-run
+
+  docker:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: docker build --file apps/server/Dockerfile --tag unifiles-server:test .
+      - name: Smoke test server image
+        run: |
+          docker run --detach --name unifiles-server-test \
+            --env UNIFILES_BOOTSTRAP_API_KEY=sk_ci_local \
+            --publish 8088:8088 \
+            unifiles-server:test
+          trap 'docker rm --force unifiles-server-test' EXIT
+          for attempt in {1..30}; do
+            if curl --fail --silent http://127.0.0.1:8088/health; then
+              exit 0
+            fi
+            sleep 1
+          done
+          docker logs unifiles-server-test
+          exit 1

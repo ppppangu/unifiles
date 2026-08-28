@@ -10,14 +10,15 @@ npm run check
 uv run mkdocs build --strict
 ```
 
-Protocol changes start in `api/openapi.yaml`, the only protocol source of truth. Regenerate the
+Protocol changes start in `contracts/openapi/unifiles.yaml`, the only protocol source of truth. Regenerate the
 FastAPI bindings and both full SDK cores with:
 
 ```bash
-uv run python scripts/generate_contract.py
+npm run generate
+npm run generate:check
 ```
 
-Never edit `apps/server/generated`, `packages/python/generated`, or
+Never edit `packages/generated/server-protocol-python`, `packages/python/generated`, or
 `packages/typescript/generated`. Handwritten server handlers and SDK extensions live outside those
 directories, so regeneration cannot overwrite them. Keep OCR, chunking, authorization, quotas and
 persistence in the handwritten Server implementation.
