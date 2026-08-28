@@ -1,9 +1,9 @@
 # coding: utf-8
 
-from typing import Dict, List  # noqa: F401
+from typing import Annotated, Dict, List  # noqa: F401
 
 from unifiles_server_protocol.apis.webhooks_api_base import BaseWebhooksApi
-from unifiles_server.implementation import resolve_api
+from unifiles_server.implementation.providers import get_webhooks_api_implementation
 
 from fastapi import (  # noqa: F401
     APIRouter,
@@ -56,13 +56,17 @@ router = APIRouter()
     response_model_by_alias=True,
 )
 async def list_webhooks(
+    implementation: Annotated[
+        BaseWebhooksApi,
+        Depends(get_webhooks_api_implementation),
+    ],
     limit: Optional[Annotated[int, Field(le=100, strict=True, ge=1)]] = Query(50, description="", alias="limit", ge=1, le=100),
     offset: Optional[Annotated[int, Field(strict=True, ge=0)]] = Query(0, description="", alias="offset", ge=0),
     token_BearerAuth: TokenModel = Security(
         get_token_BearerAuth
     ),
 ) -> WebhookListResponse:
-    return await resolve_api(BaseWebhooksApi).list_webhooks(limit, offset)
+    return await implementation.list_webhooks(limit, offset)
 
 @router.post(
     "/v1/webhooks",
@@ -84,13 +88,17 @@ async def list_webhooks(
     response_model_by_alias=True,
 )
 async def create_webhook(
+    implementation: Annotated[
+        BaseWebhooksApi,
+        Depends(get_webhooks_api_implementation),
+    ],
     webhook_create: WebhookCreate = Body(None, description=""),
     idempotency_key: Optional[StrictStr] = Header(None, description=""),
     token_BearerAuth: TokenModel = Security(
         get_token_BearerAuth
     ),
 ) -> WebhookResponse:
-    return await resolve_api(BaseWebhooksApi).create_webhook(webhook_create, idempotency_key)
+    return await implementation.create_webhook(webhook_create, idempotency_key)
 
 @router.get(
     "/v1/webhooks/{webhook_id}",
@@ -112,12 +120,16 @@ async def create_webhook(
     response_model_by_alias=True,
 )
 async def get_webhook(
+    implementation: Annotated[
+        BaseWebhooksApi,
+        Depends(get_webhooks_api_implementation),
+    ],
     webhook_id: StrictStr = Path(..., description=""),
     token_BearerAuth: TokenModel = Security(
         get_token_BearerAuth
     ),
 ) -> WebhookResponse:
-    return await resolve_api(BaseWebhooksApi).get_webhook(webhook_id)
+    return await implementation.get_webhook(webhook_id)
 
 @router.delete(
     "/v1/webhooks/{webhook_id}",
@@ -139,12 +151,16 @@ async def get_webhook(
     response_model_by_alias=True,
 )
 async def delete_webhook(
+    implementation: Annotated[
+        BaseWebhooksApi,
+        Depends(get_webhooks_api_implementation),
+    ],
     webhook_id: StrictStr = Path(..., description=""),
     token_BearerAuth: TokenModel = Security(
         get_token_BearerAuth
     ),
 ) -> DeletionResponse:
-    return await resolve_api(BaseWebhooksApi).delete_webhook(webhook_id)
+    return await implementation.delete_webhook(webhook_id)
 
 @router.patch(
     "/v1/webhooks/{webhook_id}",
@@ -166,10 +182,14 @@ async def delete_webhook(
     response_model_by_alias=True,
 )
 async def update_webhook(
+    implementation: Annotated[
+        BaseWebhooksApi,
+        Depends(get_webhooks_api_implementation),
+    ],
     webhook_id: StrictStr = Path(..., description=""),
     webhook_update: WebhookUpdate = Body(None, description=""),
     token_BearerAuth: TokenModel = Security(
         get_token_BearerAuth
     ),
 ) -> WebhookResponse:
-    return await resolve_api(BaseWebhooksApi).update_webhook(webhook_id, webhook_update)
+    return await implementation.update_webhook(webhook_id, webhook_update)

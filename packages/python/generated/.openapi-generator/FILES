@@ -44,6 +44,8 @@ unifiles_generated/models/file_list.py
 unifiles_generated/models/file_list_response.py
 unifiles_generated/models/file_resource.py
 unifiles_generated/models/file_response.py
+unifiles_generated/models/health_details.py
+unifiles_generated/models/health_details_response.py
 unifiles_generated/models/health_response.py
 unifiles_generated/models/health_status.py
 unifiles_generated/models/hybrid_search_request.py

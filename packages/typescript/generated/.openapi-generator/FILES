@@ -43,6 +43,8 @@ src/models/FileList.ts
 src/models/FileListResponse.ts
 src/models/FileResource.ts
 src/models/FileResponse.ts
+src/models/HealthDetails.ts
+src/models/HealthDetailsResponse.ts
 src/models/HealthResponse.ts
 src/models/HealthStatus.ts
 src/models/HybridSearchRequest.ts

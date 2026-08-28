@@ -1,9 +1,9 @@
 # coding: utf-8
 
-from typing import Dict, List  # noqa: F401
+from typing import Annotated, Dict, List  # noqa: F401
 
 from unifiles_server_protocol.apis.extractions_api_base import BaseExtractionsApi
-from unifiles_server.implementation import resolve_api
+from unifiles_server.implementation.providers import get_extractions_api_implementation
 
 from fastapi import (  # noqa: F401
     APIRouter,
@@ -54,6 +54,10 @@ router = APIRouter()
     response_model_by_alias=True,
 )
 async def list_file_extractions(
+    implementation: Annotated[
+        BaseExtractionsApi,
+        Depends(get_extractions_api_implementation),
+    ],
     file_id: StrictStr = Path(..., description=""),
     limit: Optional[Annotated[int, Field(le=100, strict=True, ge=1)]] = Query(50, description="", alias="limit", ge=1, le=100),
     offset: Optional[Annotated[int, Field(strict=True, ge=0)]] = Query(0, description="", alias="offset", ge=0),
@@ -61,7 +65,7 @@ async def list_file_extractions(
         get_token_BearerAuth
     ),
 ) -> ExtractionListResponse:
-    return await resolve_api(BaseExtractionsApi).list_file_extractions(file_id, limit, offset)
+    return await implementation.list_file_extractions(file_id, limit, offset)
 
 @router.post(
     "/v1/extractions",
@@ -83,13 +87,17 @@ async def list_file_extractions(
     response_model_by_alias=True,
 )
 async def create_extraction(
+    implementation: Annotated[
+        BaseExtractionsApi,
+        Depends(get_extractions_api_implementation),
+    ],
     extraction_create: ExtractionCreate = Body(None, description=""),
     idempotency_key: Optional[StrictStr] = Header(None, description=""),
     token_BearerAuth: TokenModel = Security(
         get_token_BearerAuth
     ),
 ) -> ExtractionResponse:
-    return await resolve_api(BaseExtractionsApi).create_extraction(extraction_create, idempotency_key)
+    return await implementation.create_extraction(extraction_create, idempotency_key)
 
 @router.get(
     "/v1/extractions/{extraction_id}",
@@ -111,9 +119,13 @@ async def create_extraction(
     response_model_by_alias=True,
 )
 async def get_extraction(
+    implementation: Annotated[
+        BaseExtractionsApi,
+        Depends(get_extractions_api_implementation),
+    ],
     extraction_id: StrictStr = Path(..., description=""),
     token_BearerAuth: TokenModel = Security(
         get_token_BearerAuth
     ),
 ) -> ExtractionResponse:
-    return await resolve_api(BaseExtractionsApi).get_extraction(extraction_id)
+    return await implementation.get_extraction(extraction_id)

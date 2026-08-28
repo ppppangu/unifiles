@@ -1,15 +1,16 @@
 """Business adapters for generated FastAPI routes.
 
 This module is handwritten. Regeneration only changes ``unifiles_server_protocol``;
-the generated route layer calls these implementations through ``resolve_api``.
+the generated route layer receives these implementations through FastAPI dependencies.
 """
 
 from __future__ import annotations
 
 import json
+import platform
 import re
 from pathlib import Path
-from typing import Any, TypeVar
+from typing import Any
 
 from fastapi import UploadFile
 from fastapi.responses import FileResponse
@@ -465,32 +466,18 @@ class UsageImplementation(BaseUsageApi):
 
 
 class SystemImplementation(BaseSystemApi):
+    async def get_health_details(self) -> Any:
+        return success(
+            {
+                "status": "ok",
+                "version": "1.0.0",
+                "python_version": platform.python_version(),
+                "database": "ok",
+            }
+        )
+
     async def get_health(self) -> Any:
         return success({"status": "ok", "version": "1.0.0"})
 
     async def get_versioned_health(self) -> Any:
         return await self.get_health()
-
-
-BaseApi = TypeVar("BaseApi")
-
-_IMPLEMENTATIONS: dict[type[Any], type[Any]] = {
-    BaseAPIKeysApi: APIKeysImplementation,
-    BaseDocumentsApi: DocumentsImplementation,
-    BaseExtractionsApi: ExtractionsImplementation,
-    BaseFilesApi: FilesImplementation,
-    BaseKnowledgeBasesApi: KnowledgeBasesImplementation,
-    BaseSearchApi: SearchImplementation,
-    BaseSystemApi: SystemImplementation,
-    BaseUsageApi: UsageImplementation,
-    BaseWebhooksApi: WebhooksImplementation,
-}
-
-
-def resolve_api(base: type[BaseApi]) -> BaseApi:
-    """Resolve a generated API base class to its handwritten implementation."""
-
-    implementation = _IMPLEMENTATIONS.get(base)
-    if implementation is None:
-        raise RuntimeError(f"No implementation registered for {base.__name__}")
-    return implementation()
