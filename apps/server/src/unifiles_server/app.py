@@ -15,11 +15,12 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from unifiles_server_protocol import apis as protocol_apis
 
-from .errors import install_error_handlers
-from .services import run_extraction, run_indexing
-from .settings import Settings
-from .settings import settings as default_settings
-from .store import Store
+from .modules.documents.service import run_indexing
+from .modules.extractions.service import run_extraction
+from .shared.database import Store
+from .shared.errors import install_error_handlers
+from .shared.settings import Settings
+from .shared.settings import settings as default_settings
 
 
 def include_protocol_routers(app: FastAPI) -> None:

@@ -166,7 +166,7 @@ def test_webhook_delivery_is_signed(client: TestClient, monkeypatch: pytest.Monk
         deliveries.append({"url": url, **kwargs})
         return httpx.Response(200)
 
-    monkeypatch.setattr("unifiles_server.services.httpx.post", deliver)
+    monkeypatch.setattr("unifiles_server.modules.webhooks.service.httpx.post", deliver)
     webhook = data(
         client.post(
             "/v1/webhooks",
@@ -338,7 +338,7 @@ def test_remote_ocr_provider_handles_advanced_and_image_files(
             },
         )
 
-    monkeypatch.setattr("unifiles_server.services.httpx.post", remote_ocr)
+    monkeypatch.setattr("unifiles_server.modules.extractions.service.httpx.post", remote_ocr)
     app = create_app(
         Settings(
             data_dir=tmp_path,

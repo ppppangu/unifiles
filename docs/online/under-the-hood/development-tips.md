@@ -50,7 +50,7 @@ uv run mkdocs build --strict
 npm run generate
 ```
 
-CI 会重新生成三套代码并检查 diff。生成目录可以整体替换；手写 Handler、业务服务和 SDK
+CI 会重新生成三套代码并检查 diff。生成目录可以整体替换；手写 feature modules、业务服务和 SDK
 扩展层位于生成目录之外，不会被覆盖。Python/TypeScript 的 URL、参数和 wire 序列化由生成
 core 负责，手写 facade 只补充 `wait()`、重试和异常映射等协议之外的体验。
 
