@@ -15,11 +15,11 @@ from unifiles_server_protocol.models.supported_file_types_response import (
     SupportedFileTypesResponse,
 )
 
-from ...auth import add_background_task, current_context
-from ...errors import APIError
-from ...implementation.handlers import success
-from ...services import dispatch_event
-from ...store import identifier
+from ...shared.auth import add_background_task, current_context
+from ...shared.database import identifier
+from ...shared.errors import APIError
+from ...shared.responses import success
+from ..webhooks.service import dispatch_event
 from .service import FilesService
 
 

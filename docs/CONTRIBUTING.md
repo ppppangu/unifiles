@@ -19,6 +19,6 @@ npm run generate:check
 ```
 
 Never edit `packages/generated/server-protocol-python`, `packages/python/generated`, or
-`packages/typescript/generated`. Handwritten server handlers and SDK extensions live outside those
+`packages/typescript/generated`. Handwritten feature modules and SDK extensions live outside those
 directories, so regeneration cannot overwrite them. Keep OCR, chunking, authorization, quotas and
-persistence in the handwritten Server implementation.
+persistence in the handwritten Server modules.
