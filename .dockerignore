@@ -1,0 +1,17 @@
+.git
+.github
+.venv
+.codegen-work
+node_modules
+dist
+site
+**/__pycache__
+**/.pytest_cache
+**/.mypy_cache
+**/.ruff_cache
+**/.DS_Store
+.unifiles-data
+packages/python
+packages/typescript
+packages/cli
+docs

@@ -27,4 +27,4 @@ Server 不会伪造 Markdown。
 
 ## 查看 API 契约
 
-访问 `http://localhost:8088/docs` 或检查仓库中的 `api/openapi.yaml`。
+访问 `http://localhost:8088/docs` 或检查仓库中的 `contracts/openapi/unifiles.yaml`。

@@ -17,7 +17,7 @@
   "files": ["dist", "README.md"],
   "engines": {"node": ">=22"},
   "scripts": {
-    "generate": "uv run python ../../scripts/generate_contract.py --typescript-only",
+    "generate": "uv run python ../../codegen/scripts/codegen.py generate sdk-typescript",
     "build": "tsup src/index.ts --format esm,cjs --dts --sourcemap --clean",
     "typecheck": "tsc --noEmit",
     "test": "vitest run"

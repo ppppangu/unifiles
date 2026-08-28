@@ -85,20 +85,24 @@ The CLI writes human-readable tables to a TTY and JSONL to a pipe. Use
 
 ```bash
 uv run pytest
-uv run ruff check apps packages/python scripts
+uv run ruff check apps packages/python scripts codegen/scripts
+uv run mypy apps/server/src packages/python/src scripts codegen/scripts
 npm run check
-uv run python scripts/check_openapi.py
+uv run python codegen/scripts/codegen.py validate
+uv run python codegen/scripts/codegen.py check all
 ```
 
-[`api/openapi.yaml`](api/openapi.yaml) is the hand-maintained source of truth. It generates
+[`contracts/openapi/unifiles.yaml`](contracts/openapi/unifiles.yaml) is the hand-maintained source of truth. It generates
 the FastAPI protocol layer and both official SDK cores. After a contract change run:
 
 ```bash
-uv run python scripts/generate_contract.py
+npm run contract:validate
+npm run generate
+npm run generate:check
 ```
 
 Generated directories are replaceable artifacts; server implementations and SDK extensions live
-outside them and are never overwritten. See [`api/README.md`](api/README.md) for the maintenance
+outside them and are never overwritten. See [`contracts/openapi/README.md`](contracts/openapi/README.md) for the maintenance
 workflow and directory boundaries.
 
 See [unifiles.dev](https://unifiles.dev) for full documentation.

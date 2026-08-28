@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from collections.abc import Iterator
 from pathlib import Path
 from typing import Any
@@ -21,6 +22,7 @@ BUSINESS_TAGS: dict[str, tuple[str, str]] = {
     "Usage": ("usage", "Usage"),
     "Webhooks": ("webhooks", "Webhooks"),
 }
+PUBLIC_PATHS = {"/health", "/v1/health"}
 
 
 class UniqueKeyLoader(yaml.SafeLoader):
@@ -67,3 +69,32 @@ def iter_operations(
             if not isinstance(operation, dict):
                 raise ValueError(f"{method.upper()} {path} must be an operation mapping")
             yield str(path), method, operation
+
+
+def validate_openapi_invariants(document: dict[str, Any]) -> list[str]:
+    operation_ids: list[str] = []
+    for path, method, operation in iter_operations(document):
+        operation_id = operation.get("operationId")
+        if not isinstance(operation_id, str) or not operation_id:
+            raise ValueError(f"{method.upper()} {path} is missing operationId")
+        if not re.fullmatch(r"[a-z][A-Za-z0-9]*", operation_id):
+            raise ValueError(f"operationId must be lower camelCase: {operation_id}")
+        operation_ids.append(operation_id)
+
+        tags = operation.get("tags")
+        if not isinstance(tags, list) or len(tags) != 1:
+            raise ValueError(f"{method.upper()} {path} must have exactly one business tag")
+        if tags[0] not in BUSINESS_TAGS:
+            raise ValueError(f"{method.upper()} {path} uses unknown business tag: {tags[0]}")
+
+        expected_security: list[dict[str, list[str]]] = (
+            [] if path in PUBLIC_PATHS else [{"BearerAuth": []}]
+        )
+        if operation.get("security") != expected_security:
+            requirement = "public security: []" if not expected_security else "BearerAuth"
+            raise ValueError(f"{method.upper()} {path} must require {requirement}")
+
+    duplicates = sorted({item for item in operation_ids if operation_ids.count(item) > 1})
+    if duplicates:
+        raise ValueError(f"duplicate operationId values: {', '.join(duplicates)}")
+    return operation_ids

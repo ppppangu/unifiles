@@ -16,6 +16,7 @@ dependencies = [
     "pydantic-settings>=2.7.0",
     "pypdf>=5.1.0",
     "python-multipart>=0.0.20",
+    "unifiles-server-protocol==0.1.0",
     "uvicorn[standard]>=0.34.0",
 ]
 
@@ -25,5 +26,4 @@ unifiles-server = "unifiles_server.cli:main"
 [tool.hatch.build.targets.wheel]
 packages = [
     "src/unifiles_server",
-    "generated/src/unifiles_server_protocol",
 ]

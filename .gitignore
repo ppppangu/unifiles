@@ -143,6 +143,7 @@ htmlcov/
 tests/.pytest_cache/
 
 # Development artifacts
+.codegen-work/
 .mypy_cache/
 .ruff_cache/
 .bandit

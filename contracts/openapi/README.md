@@ -1,13 +1,13 @@
 # OpenAPI contract workflow
 
-`openapi.yaml` is the only source of truth for the HTTP protocol. Do not derive it from FastAPI and
-do not edit generated code.
+`unifiles.yaml` is the only source of truth for the HTTP protocol. Do not derive it from FastAPI
+and do not edit generated code.
 
 ```text
-api/openapi.yaml
-├── apps/server/generated/       FastAPI routers, models and Base*Api interfaces
-├── packages/python/generated/   Complete httpx Python client core
-└── packages/typescript/generated/ Complete Fetch TypeScript client core
+contracts/openapi/unifiles.yaml
+├── packages/generated/server-protocol-python/ FastAPI protocol artifact
+├── packages/python/generated/                 Transitional Python client core
+└── packages/typescript/generated/             Transitional TypeScript client core
 ```
 
 Handwritten code is deliberately outside those directories:
@@ -19,11 +19,15 @@ Handwritten code is deliberately outside those directories:
 After editing the contract:
 
 ```bash
-uv run python scripts/generate_contract.py
-uv run python scripts/check_openapi.py
+uv run python codegen/scripts/validate_contract.py
+uv run python codegen/scripts/codegen.py generate all
+uv run python codegen/scripts/codegen.py check all
 uv run pytest
 npm run check
 ```
+
+The client cores currently use manifest-owned legacy output paths and move under
+`packages/generated/` in the SDK artifact migration phase.
 
 Keep every `operationId` stable and globally unique. Regeneration may change generated method
 signatures, but it never writes into handwritten implementation directories. A contract-breaking

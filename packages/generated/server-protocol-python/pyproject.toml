@@ -1,0 +1,20 @@
+[build-system]
+requires = ["hatchling>=1.27.0"]
+build-backend = "hatchling.build"
+
+[project]
+name = "unifiles-server-protocol"
+version = "0.1.0"
+description = "Generated FastAPI protocol package for the Unifiles API"
+readme = "README.md"
+requires-python = ">=3.11"
+license = {text = "Apache-2.0"}
+dependencies = [
+    "fastapi>=0.115.0",
+    "pydantic>=2.10.0",
+    "python-multipart>=0.0.20",
+    "typing-extensions>=4.12.0",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/unifiles_server_protocol"]

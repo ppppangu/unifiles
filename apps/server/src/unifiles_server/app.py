@@ -78,7 +78,8 @@ def create_app(config: Settings | None = None) -> FastAPI:
         version="1.0.0",
         description=(
             "Canonical contract for the self-hosted Unifiles document processing API. "
-            "Server bindings and official SDK cores are generated from api/openapi.yaml."
+            "Server bindings and official SDK cores are generated from "
+            "contracts/openapi/unifiles.yaml."
         ),
         lifespan=lifespan,
     )

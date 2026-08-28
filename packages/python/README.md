@@ -16,6 +16,7 @@ extraction = client.extractions.create(file.id).wait()
 
 Use `AsyncUnifilesClient` for asyncio applications.
 
-Endpoint calls, request models and wire serialization are generated from `api/openapi.yaml` into
+Endpoint calls, request models and wire serialization are generated from
+`contracts/openapi/unifiles.yaml` into
 `generated/unifiles_generated`. The public resource facade adds retries, typed errors and polling;
 `client.raw` exposes the complete generated API surface directly.

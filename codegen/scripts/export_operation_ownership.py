@@ -51,14 +51,14 @@ def main() -> None:
     parser.add_argument("--check", action="store_true")
     options = parser.parse_args()
 
-    root = Path(__file__).parents[1]
+    root = Path(__file__).parents[2]
     output = root / "migration" / "operation-ownership.csv"
-    rendered = render_inventory(root / "api" / "openapi.yaml")
+    rendered = render_inventory(root / "contracts" / "openapi" / "unifiles.yaml")
     if options.check:
         if not output.exists() or output.read_text(encoding="utf-8") != rendered:
             raise SystemExit(
                 "operation ownership inventory is stale; "
-                "run scripts/export_operation_ownership.py"
+                "run codegen/scripts/export_operation_ownership.py"
             )
         print("Operation ownership inventory is current")
         return

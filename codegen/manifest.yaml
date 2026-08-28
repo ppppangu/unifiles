@@ -1,0 +1,50 @@
+version: 1
+spec: contracts/openapi/unifiles.yaml
+generatedRoot: packages/generated
+workRoot: .codegen-work
+
+tool:
+  command:
+  - ./node_modules/.bin/openapi-generator-cli
+  versionFile: codegen/VERSION
+
+targets:
+  server-protocol-python:
+    generatorName: python-fastapi
+    config: codegen/configs/server-protocol-python.yaml
+    templateDir: codegen/templates/python-fastapi
+    outputDir: packages/generated/server-protocol-python
+    postprocess: server_protocol_python
+    ignorePaths:
+    - src/unifiles_server_protocol/impl/**
+    requiredPaths:
+    - pyproject.toml
+    - README.md
+    - src/unifiles_server_protocol/apis
+    - src/unifiles_server_protocol/__init__.py
+    - src/unifiles_server_protocol/models
+    - src/unifiles_server_protocol/security_api.py
+    - src/unifiles_server_protocol/openapi.json
+    - src/unifiles_server_protocol/py.typed
+  sdk-python:
+    generatorName: python
+    config: codegen/configs/sdk-python.yaml
+    outputDir: packages/python/generated
+    legacy: true
+    postprocess: sdk_python
+    requiredPaths:
+    - unifiles_generated/api
+    - unifiles_generated/models
+    - unifiles_generated/api_client.py
+    - unifiles_generated/py.typed
+  sdk-typescript:
+    generatorName: typescript-fetch
+    config: codegen/configs/sdk-typescript.yaml
+    outputDir: packages/typescript/generated
+    legacy: true
+    postprocess: sdk_typescript
+    requiredPaths:
+    - package.json
+    - src/apis
+    - src/models
+    - src/runtime.ts

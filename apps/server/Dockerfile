@@ -1,9 +1,13 @@
-FROM python:3.11-slim
+FROM python:3.13-slim
 
-WORKDIR /app
-COPY pyproject.toml README.md ./
-COPY src ./src
-RUN pip install --no-cache-dir .
+ENV PYTHONDONTWRITEBYTECODE=1
+ENV PYTHONUNBUFFERED=1
+
+WORKDIR /workspace
+COPY packages/generated/server-protocol-python ./packages/generated/server-protocol-python
+COPY apps/server ./apps/server
+RUN pip install --no-cache-dir ./packages/generated/server-protocol-python
+RUN pip install --no-cache-dir ./apps/server
 
 ENV UNIFILES_DATA_DIR=/data
 VOLUME ["/data"]

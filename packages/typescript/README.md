@@ -15,6 +15,7 @@ const extraction = await client.extractions.create(file.id);
 await extraction.wait();
 ```
 
-Endpoint calls, models and JSON conversion are generated from `api/openapi.yaml` under
+Endpoint calls, models and JSON conversion are generated from
+`contracts/openapi/unifiles.yaml` under
 `generated/src`. The public facade adds retries, typed errors and polling; `client.raw` exposes the
 complete generated API surface directly.

@@ -10,6 +10,7 @@ resolution-markers = [
 members = [
     "unifiles-client",
     "unifiles-server",
+    "unifiles-server-protocol",
 ]
 
 [manifest.dependency-groups]
@@ -1361,6 +1362,7 @@ dependencies = [
     { name = "pydantic-settings" },
     { name = "pypdf" },
     { name = "python-multipart" },
+    { name = "unifiles-server-protocol" },
     { name = "uvicorn", extra = ["standard"] },
 ]
 
@@ -1372,7 +1374,27 @@ requires-dist = [
     { name = "pydantic-settings", specifier = ">=2.7.0" },
     { name = "pypdf", specifier = ">=5.1.0" },
     { name = "python-multipart", specifier = ">=0.0.20" },
+    { name = "unifiles-server-protocol", editable = "packages/generated/server-protocol-python" },
     { name = "uvicorn", extras = ["standard"], specifier = ">=0.34.0" },
+]
+
+[[package]]
+name = "unifiles-server-protocol"
+version = "0.1.0"
+source = { editable = "packages/generated/server-protocol-python" }
+dependencies = [
+    { name = "fastapi" },
+    { name = "pydantic" },
+    { name = "python-multipart" },
+    { name = "typing-extensions" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "fastapi", specifier = ">=0.115.0" },
+    { name = "pydantic", specifier = ">=2.10.0" },
+    { name = "python-multipart", specifier = ">=0.0.20" },
+    { name = "typing-extensions", specifier = ">=4.12.0" },
 ]
 
 [[package]]

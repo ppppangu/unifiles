@@ -1,8 +1,12 @@
 [tool.uv.workspace]
 members = [
     "apps/server",
+    "packages/generated/server-protocol-python",
     "packages/python",
 ]
+
+[tool.uv.sources]
+unifiles-server-protocol = { workspace = true }
 
 [dependency-groups]
 dev = [
@@ -26,6 +30,7 @@ docs = [
 addopts = "-ra -q --strict-markers --strict-config"
 testpaths = [
     "apps/server/tests",
+    "codegen/tests",
     "packages/python/tests",
 ]
 python_files = ["test_*.py", "*_test.py"]
