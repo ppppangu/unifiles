@@ -272,7 +272,173 @@ def record_contract_digest(output: Path, spec: Path) -> None:
     )
 
 
+def replace_generated_text(
+    path: Path,
+    old: str,
+    new: str,
+    *,
+    expected_count: int = 1,
+) -> None:
+    """Apply one version-pinned customization to generated source."""
+
+    contents = path.read_text(encoding="utf-8")
+    actual_count = contents.count(old)
+    if actual_count != expected_count:
+        raise CodegenError(
+            f"Generated customization drifted for {path}: "
+            f"expected {expected_count} matches, found {actual_count}"
+        )
+    path.write_text(contents.replace(old, new), encoding="utf-8")
+
+
+def patch_sdk_python_transport(output: Path) -> None:
+    """Harden response parsing and preserve explicit multipart MIME types."""
+
+    package = output / "unifiles_generated"
+    api_client = package / "api_client.py"
+    files_api = package / "api" / "files_api.py"
+
+    replace_generated_text(
+        api_client,
+        """        try:
+            if response_type in (\"bytearray\", \"bytes\"):
+                return_data = response_data.data
+            elif response_type == \"file\":
+                return_data = self.__deserialize_file(response_data)
+            elif response_type is not None:
+                match = None
+                content_type = response_data.headers.get('content-type')
+                if content_type is not None:
+                    match = re.search(r\"charset=([a-zA-Z\\-\\d]+)[\\s;]?\", content_type)
+                encoding = match.group(1) if match else \"utf-8\"
+                response_text = response_data.data.decode(encoding)
+                return_data = self.deserialize(response_text, response_type, content_type)
+        finally:
+""",
+        """        try:
+            if response_type in (\"bytearray\", \"bytes\"):
+                return_data = response_data.data
+            elif response_type == \"file\":
+                return_data = self.__deserialize_file(response_data)
+            elif response_type is not None:
+                match = None
+                content_type = response_data.headers.get('content-type')
+                if content_type is not None:
+                    match = re.search(r\"charset=([a-zA-Z\\-\\d]+)[\\s;]?\", content_type)
+                encoding = match.group(1) if match else \"utf-8\"
+                response_text = response_data.data.decode(encoding)
+                if (
+                    200 <= response_data.status <= 299
+                    and isinstance(response_type, str)
+                    and response_type.endswith(\"Response\")
+                ):
+                    response_envelope = json.loads(response_text)
+                    if (
+                        not isinstance(response_envelope, dict)
+                        or response_envelope.get(\"success\") is not True
+                        or \"data\" not in response_envelope
+                    ):
+                        raise ValueError(\"Invalid success envelope\")
+                return_data = self.deserialize(response_text, response_type, content_type)
+        except (AttributeError, TypeError, ValueError):
+            if 200 <= response_data.status <= 299:
+                raise ApiException(
+                    status=0,
+                    reason=\"The API returned an invalid response payload\",
+                    http_resp=response_data,
+                    body=\"\",
+                ) from None
+            raise
+        finally:
+""",
+    )
+    replace_generated_text(
+        api_client,
+        """    def files_parameters(
+        self,
+        files: Dict[str, Union[str, bytes, List[str], List[bytes], Tuple[str, bytes]]],
+    ):
+""",
+        """    def files_parameters(
+        self,
+        files: Dict[
+            str,
+            Union[
+                str,
+                bytes,
+                List[str],
+                List[bytes],
+                Tuple[str, bytes],
+                Tuple[str, bytes, str],
+            ],
+        ],
+    ):
+""",
+    )
+    replace_generated_text(
+        api_client,
+        """        params = []
+        for k, v in files.items():
+            if isinstance(v, str):
+                with open(v, 'rb') as f:
+                    filename = os.path.basename(f.name)
+                    filedata = f.read()
+            elif isinstance(v, bytes):
+                filename = k
+                filedata = v
+            elif isinstance(v, tuple):
+                filename, filedata = v
+            elif isinstance(v, list):
+                for file_param in v:
+                    params.extend(self.files_parameters({k: file_param}))
+                continue
+            else:
+                raise ValueError(\"Unsupported file value\")
+            mimetype = (
+                mimetypes.guess_type(filename)[0]
+                or 'application/octet-stream'
+            )
+""",
+        """        params = []
+        for k, v in files.items():
+            mimetype = None
+            if isinstance(v, str):
+                with open(v, 'rb') as f:
+                    filename = os.path.basename(f.name)
+                    filedata = f.read()
+            elif isinstance(v, bytes):
+                filename = k
+                filedata = v
+            elif isinstance(v, tuple) and len(v) == 2:
+                filename, filedata = v
+            elif isinstance(v, tuple) and len(v) == 3:
+                filename, filedata, mimetype = v
+            elif isinstance(v, list):
+                for file_param in v:
+                    params.extend(self.files_parameters({k: file_param}))
+                continue
+            else:
+                raise ValueError(\"Unsupported file value\")
+            mimetype = (
+                mimetype
+                or mimetypes.guess_type(filename)[0]
+                or 'application/octet-stream'
+            )
+""",
+    )
+    replace_generated_text(
+        files_api,
+        "Union[StrictBytes, StrictStr, Tuple[StrictStr, StrictBytes]]",
+        (
+            "Union[StrictBytes, StrictStr, Tuple[StrictStr, StrictBytes], "
+            "Tuple[StrictStr, StrictBytes, StrictStr]]"
+        ),
+        expected_count=6,
+    )
+
+
 def postprocess_sdk_python(output: Path, spec: Path) -> None:
+    patch_sdk_python_transport(output)
     output.joinpath("unifiles_generated", "py.typed").write_text("", encoding="utf-8")
     record_contract_digest(output, spec)
     output.joinpath("unifiles_generated_README.md").unlink(missing_ok=True)

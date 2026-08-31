@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 
-import { NotFoundError, ServerError, UnifilesClient } from "../src/index.js";
+import { NotFoundError, ServerError, TransportError, UnifilesClient } from "../src/index.js";
 
 const now = new Date().toISOString();
 const envelope = (data: unknown, status = 200): Response =>
@@ -42,6 +42,26 @@ describe("UnifilesClient", () => {
     );
     const client = new UnifilesClient({ apiKey: "sk_test", fetch: fetchMock, maxRetries: 0 });
     await expect(client.files.get("missing")).rejects.toBeInstanceOf(NotFoundError);
+  });
+
+  it.each([
+    ["missing envelope", () => Response.json({ unexpected: true })],
+    [
+      "invalid JSON",
+      () => new Response("not-json", { status: 200, headers: { "content-type": "text/plain" } }),
+    ],
+  ])("sanitizes %s responses", async (_name, responseFactory) => {
+    const client = new UnifilesClient({
+      apiKey: "sk_test",
+      maxRetries: 0,
+      fetch: vi.fn().mockImplementation(async () => responseFactory()),
+    });
+
+    await expect(client.files.get("file_1")).rejects.toMatchObject({
+      constructor: TransportError,
+      code: "INVALID_RESPONSE",
+      cause: undefined,
+    });
   });
 
   it("converts nested public configuration to and from snake_case", async () => {

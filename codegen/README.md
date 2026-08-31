@@ -31,3 +31,8 @@ Every target owns exactly one direct child of `packages/generated/`:
 Package-local `dist/`, `build/`, `node_modules/` and cache directories are build
 outputs rather than generated source, so drift comparison ignores them. The
 target's source, package metadata, marker and generator metadata remain strict.
+
+The Python SDK postprocessor also applies version-pinned transport customizations:
+explicit multipart MIME tuples and fail-closed success-response parsing. Each
+customization requires an exact generated-source match, so a generator upgrade
+fails regeneration instead of silently dropping either boundary.

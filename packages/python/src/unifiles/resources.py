@@ -7,9 +7,11 @@ import json
 import mimetypes
 import time
 import uuid
+from collections.abc import Callable
 from pathlib import Path
-from typing import Any
+from typing import Any, TypeVar
 
+from pydantic import ValidationError as PydanticValidationError
 from unifiles_generated.models.api_key_create import APIKeyCreate
 from unifiles_generated.models.chunking_strategy import ChunkingStrategy
 from unifiles_generated.models.document_create import DocumentCreate
@@ -23,6 +25,7 @@ from unifiles_generated.models.webhook_create import WebhookCreate
 from unifiles_generated.models.webhook_update import WebhookUpdate
 
 from ._transport import AsyncTransport, SyncTransport
+from .exceptions import ValidationError as SDKValidationError
 from .models import (
     APIKey,
     AsyncDocument,
@@ -42,6 +45,18 @@ from .models import (
     raise_wait_timeout,
 )
 
+RequestValue = TypeVar("RequestValue")
+
+
+def _validated_request(factory: Callable[[], RequestValue]) -> RequestValue:
+    try:
+        return factory()
+    except PydanticValidationError:
+        raise SDKValidationError(
+            "Request validation failed",
+            code="INVALID_REQUEST",
+        ) from None
+
 
 def _idempotency_key() -> str:
     return str(uuid.uuid4())
@@ -52,7 +67,8 @@ def _upload(
     *,
     content: bytes | None,
     filename: str | None,
-) -> tuple[str, bytes]:
+    content_type: str | None,
+) -> tuple[str, bytes, str]:
     if (path is None) == (content is None):
         raise ValueError("Provide exactly one of path or content")
     if path is not None:
@@ -61,7 +77,8 @@ def _upload(
         filename = filename or file_path.name
     if not filename or content is None:
         raise ValueError("filename is required when uploading bytes")
-    return filename, content
+    mime = content_type or mimetypes.guess_type(filename)[0] or "application/octet-stream"
+    return filename, content, mime
 
 
 class FilesResource:
@@ -78,9 +95,12 @@ class FilesResource:
         metadata: dict[str, Any] | None = None,
         tags: list[str] | None = None,
     ) -> File:
-        upload = _upload(path, content=content, filename=filename)
-        if content_type and (suffix := Path(upload[0]).suffix):
-            mimetypes.add_type(content_type, suffix)
+        upload = _upload(
+            path,
+            content=content,
+            filename=filename,
+            content_type=content_type,
+        )
         response = self._transport.call_sync(
             self._transport.apis.files.upload_file_sync,
             retry_allowed=True,
@@ -158,10 +178,12 @@ class ExtractionsResource:
         mode: str = "normal",
         options: dict[str, Any] | None = None,
     ) -> Extraction:
-        payload = ExtractionCreate(
-            file_id=file_id,
-            mode=mode,
-            options=ExtractionOptions.from_dict(options or {}),
+        payload = _validated_request(
+            lambda: ExtractionCreate(
+                file_id=file_id,
+                mode=mode,
+                options=ExtractionOptions.from_dict(options or {}),
+            )
         )
         response = self._transport.call_sync(
             self._transport.apis.extractions.create_extraction_sync,
@@ -222,10 +244,12 @@ class DocumentsResource:
             self._transport.apis.documents.create_document_sync,
             retry_allowed=True,
             kb_id=kb_id,
-            document_create=DocumentCreate(
-                file_id=file_id,
-                title=title,
-                metadata=metadata,
+            document_create=_validated_request(
+                lambda: DocumentCreate(
+                    file_id=file_id,
+                    title=title,
+                    metadata=metadata,
+                )
             ),
             idempotency_key=_idempotency_key(),
         )
@@ -289,15 +313,17 @@ class KnowledgeBasesResource:
         response = self._transport.call_sync(
             self._transport.apis.knowledge_bases.create_knowledge_base_sync,
             retry_allowed=True,
-            knowledge_base_create=KnowledgeBaseCreate(
-                name=name,
-                description=description,
-                chunking_strategy=(
-                    ChunkingStrategy.from_dict(chunking_strategy)
-                    if chunking_strategy is not None
-                    else None
+            knowledge_base_create=_validated_request(
+                lambda: KnowledgeBaseCreate(
+                    name=name,
+                    description=description,
+                    chunking_strategy=(
+                        ChunkingStrategy.from_dict(chunking_strategy)
+                        if chunking_strategy is not None
+                        else None
+                    ),
+                    metadata=metadata,
                 ),
-                metadata=metadata,
             ),
             idempotency_key=_idempotency_key(),
         )
@@ -324,7 +350,9 @@ class KnowledgeBasesResource:
         response = self._transport.call_sync(
             self._transport.apis.knowledge_bases.update_knowledge_base_sync,
             kb_id=kb_id,
-            knowledge_base_update=KnowledgeBaseUpdate.from_dict(changes),
+            knowledge_base_update=_validated_request(
+                lambda: KnowledgeBaseUpdate.from_dict(changes)
+            ),
         )
         return response.data
 
@@ -348,11 +376,13 @@ class KnowledgeBasesResource:
         response = self._transport.call_sync(
             self._transport.apis.search.search_knowledge_base_sync,
             kb_id=kb_id,
-            search_request=SearchRequest(
-                query=query,
-                top_k=top_k,
-                threshold=threshold,
-                filter=filter,
+            search_request=_validated_request(
+                lambda: SearchRequest(
+                    query=query,
+                    top_k=top_k,
+                    threshold=threshold,
+                    filter=filter,
+                )
             ),
         )
         return response.data
@@ -369,11 +399,13 @@ class KnowledgeBasesResource:
         response = self._transport.call_sync(
             self._transport.apis.search.hybrid_search_knowledge_base_sync,
             kb_id=kb_id,
-            hybrid_search_request=HybridSearchRequest(
-                query=query,
-                vector_weight=vector_weight,
-                keyword_weight=keyword_weight,
-                top_k=top_k,
+            hybrid_search_request=_validated_request(
+                lambda: HybridSearchRequest(
+                    query=query,
+                    vector_weight=vector_weight,
+                    keyword_weight=keyword_weight,
+                    top_k=top_k,
+                )
             ),
         )
         return response.data
@@ -387,7 +419,9 @@ class WebhooksResource:
         response = self._transport.call_sync(
             self._transport.apis.webhooks.create_webhook_sync,
             retry_allowed=True,
-            webhook_create=WebhookCreate(url=url, events=events, description=description),
+            webhook_create=_validated_request(
+                lambda: WebhookCreate(url=url, events=events, description=description)
+            ),
             idempotency_key=_idempotency_key(),
         )
         return response.data
@@ -413,7 +447,7 @@ class WebhooksResource:
         response = self._transport.call_sync(
             self._transport.apis.webhooks.update_webhook_sync,
             webhook_id=webhook_id,
-            webhook_update=WebhookUpdate.from_dict(changes),
+            webhook_update=_validated_request(lambda: WebhookUpdate.from_dict(changes)),
         )
         return response.data
 
@@ -440,8 +474,10 @@ class APIKeysResource:
         response = self._transport.call_sync(
             self._transport.apis.api_keys.create_api_key_sync,
             retry_allowed=True,
-            api_key_create=APIKeyCreate.from_dict(
-                {"name": name, "scopes": scopes, "expires_at": expires_at}
+            api_key_create=_validated_request(
+                lambda: APIKeyCreate.from_dict(
+                    {"name": name, "scopes": scopes, "expires_at": expires_at}
+                )
             ),
             idempotency_key=_idempotency_key(),
         )
@@ -498,9 +534,12 @@ class AsyncFilesResource:
         metadata: dict[str, Any] | None = None,
         tags: list[str] | None = None,
     ) -> File:
-        upload = _upload(path, content=content, filename=filename)
-        if content_type and (suffix := Path(upload[0]).suffix):
-            mimetypes.add_type(content_type, suffix)
+        upload = _upload(
+            path,
+            content=content,
+            filename=filename,
+            content_type=content_type,
+        )
         response = await self._transport.call_async(
             self._transport.apis.files.upload_file,
             retry_allowed=True,
@@ -580,10 +619,12 @@ class AsyncExtractionsResource:
         response = await self._transport.call_async(
             self._transport.apis.extractions.create_extraction,
             retry_allowed=True,
-            extraction_create=ExtractionCreate(
-                file_id=file_id,
-                mode=mode,
-                options=ExtractionOptions.from_dict(options or {}),
+            extraction_create=_validated_request(
+                lambda: ExtractionCreate(
+                    file_id=file_id,
+                    mode=mode,
+                    options=ExtractionOptions.from_dict(options or {}),
+                )
             ),
             idempotency_key=_idempotency_key(),
         )
@@ -644,10 +685,12 @@ class AsyncDocumentsResource:
             self._transport.apis.documents.create_document,
             retry_allowed=True,
             kb_id=kb_id,
-            document_create=DocumentCreate(
-                file_id=file_id,
-                title=title,
-                metadata=metadata,
+            document_create=_validated_request(
+                lambda: DocumentCreate(
+                    file_id=file_id,
+                    title=title,
+                    metadata=metadata,
+                )
             ),
             idempotency_key=_idempotency_key(),
         )
@@ -710,10 +753,14 @@ class AsyncKnowledgeBasesResource:
         response = await self._transport.call_async(
             self._transport.apis.knowledge_bases.create_knowledge_base,
             retry_allowed=True,
-            knowledge_base_create=KnowledgeBaseCreate(
-                name=name,
-                chunking_strategy=(ChunkingStrategy.from_dict(strategy) if strategy else None),
-                **options,
+            knowledge_base_create=_validated_request(
+                lambda: KnowledgeBaseCreate(
+                    name=name,
+                    chunking_strategy=(
+                        ChunkingStrategy.from_dict(strategy) if strategy else None
+                    ),
+                    **options,
+                )
             ),
             idempotency_key=_idempotency_key(),
         )
@@ -742,7 +789,9 @@ class AsyncKnowledgeBasesResource:
             await self._transport.call_async(
                 self._transport.apis.knowledge_bases.update_knowledge_base,
                 kb_id=kb_id,
-                knowledge_base_update=KnowledgeBaseUpdate.from_dict(changes),
+                knowledge_base_update=_validated_request(
+                    lambda: KnowledgeBaseUpdate.from_dict(changes)
+                ),
             )
         ).data
 
@@ -760,7 +809,9 @@ class AsyncKnowledgeBasesResource:
             await self._transport.call_async(
                 self._transport.apis.search.search_knowledge_base,
                 kb_id=kb_id,
-                search_request=SearchRequest(query=query, **options),
+                search_request=_validated_request(
+                    lambda: SearchRequest(query=query, **options)
+                ),
             )
         ).data
 
@@ -769,7 +820,9 @@ class AsyncKnowledgeBasesResource:
             await self._transport.call_async(
                 self._transport.apis.search.hybrid_search_knowledge_base,
                 kb_id=kb_id,
-                hybrid_search_request=HybridSearchRequest(query=query, **options),
+                hybrid_search_request=_validated_request(
+                    lambda: HybridSearchRequest(query=query, **options)
+                ),
             )
         ).data
 
@@ -785,7 +838,9 @@ class AsyncWebhooksResource:
             await self._transport.call_async(
                 self._transport.apis.webhooks.create_webhook,
                 retry_allowed=True,
-                webhook_create=WebhookCreate(url=url, events=events, description=description),
+                webhook_create=_validated_request(
+                    lambda: WebhookCreate(url=url, events=events, description=description)
+                ),
                 idempotency_key=_idempotency_key(),
             )
         ).data
@@ -813,7 +868,9 @@ class AsyncWebhooksResource:
             await self._transport.call_async(
                 self._transport.apis.webhooks.update_webhook,
                 webhook_id=webhook_id,
-                webhook_update=WebhookUpdate.from_dict(changes),
+                webhook_update=_validated_request(
+                    lambda: WebhookUpdate.from_dict(changes)
+                ),
             )
         ).data
 
@@ -836,7 +893,9 @@ class AsyncAPIKeysResource:
             await self._transport.call_async(
                 self._transport.apis.api_keys.create_api_key,
                 retry_allowed=True,
-                api_key_create=APIKeyCreate.from_dict({"name": name, **options}),
+                api_key_create=_validated_request(
+                    lambda: APIKeyCreate.from_dict({"name": name, **options})
+                ),
                 idempotency_key=_idempotency_key(),
             )
         ).data

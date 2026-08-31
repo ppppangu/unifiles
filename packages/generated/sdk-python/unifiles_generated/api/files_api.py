@@ -2062,7 +2062,7 @@ class FilesApi:
     @validate_call
     async def upload_file(
         self,
-        file: Union[StrictBytes, StrictStr, Tuple[StrictStr, StrictBytes]],
+        file: Union[StrictBytes, StrictStr, Tuple[StrictStr, StrictBytes], Tuple[StrictStr, StrictBytes, StrictStr]],
         idempotency_key: Optional[StrictStr] = None,
         metadata: Optional[StrictStr] = None,
         tags: Optional[StrictStr] = None,
@@ -2149,7 +2149,7 @@ class FilesApi:
     @validate_call
     async def upload_file_with_http_info(
         self,
-        file: Union[StrictBytes, StrictStr, Tuple[StrictStr, StrictBytes]],
+        file: Union[StrictBytes, StrictStr, Tuple[StrictStr, StrictBytes], Tuple[StrictStr, StrictBytes, StrictStr]],
         idempotency_key: Optional[StrictStr] = None,
         metadata: Optional[StrictStr] = None,
         tags: Optional[StrictStr] = None,
@@ -2236,7 +2236,7 @@ class FilesApi:
     @validate_call
     async def upload_file_without_preload_content(
         self,
-        file: Union[StrictBytes, StrictStr, Tuple[StrictStr, StrictBytes]],
+        file: Union[StrictBytes, StrictStr, Tuple[StrictStr, StrictBytes], Tuple[StrictStr, StrictBytes, StrictStr]],
         idempotency_key: Optional[StrictStr] = None,
         metadata: Optional[StrictStr] = None,
         tags: Optional[StrictStr] = None,
@@ -2319,7 +2319,7 @@ class FilesApi:
     @validate_call
     def upload_file_sync(
         self,
-        file: Union[StrictBytes, StrictStr, Tuple[StrictStr, StrictBytes]],
+        file: Union[StrictBytes, StrictStr, Tuple[StrictStr, StrictBytes], Tuple[StrictStr, StrictBytes, StrictStr]],
         idempotency_key: Optional[StrictStr] = None,
         metadata: Optional[StrictStr] = None,
         tags: Optional[StrictStr] = None,
@@ -2359,7 +2359,7 @@ class FilesApi:
     @validate_call
     def upload_file_sync_with_http_info(
         self,
-        file: Union[StrictBytes, StrictStr, Tuple[StrictStr, StrictBytes]],
+        file: Union[StrictBytes, StrictStr, Tuple[StrictStr, StrictBytes], Tuple[StrictStr, StrictBytes, StrictStr]],
         idempotency_key: Optional[StrictStr] = None,
         metadata: Optional[StrictStr] = None,
         tags: Optional[StrictStr] = None,
@@ -2399,7 +2399,7 @@ class FilesApi:
     @validate_call
     def upload_file_sync_without_preload_content(
         self,
-        file: Union[StrictBytes, StrictStr, Tuple[StrictStr, StrictBytes]],
+        file: Union[StrictBytes, StrictStr, Tuple[StrictStr, StrictBytes], Tuple[StrictStr, StrictBytes, StrictStr]],
         idempotency_key: Optional[StrictStr] = None,
         metadata: Optional[StrictStr] = None,
         tags: Optional[StrictStr] = None,

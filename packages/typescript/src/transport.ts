@@ -66,6 +66,15 @@ const retryAfter = (response: Response): number | undefined => {
 const backoff = (attempt: number, response?: Response): number =>
   (response ? retryAfter(response) : undefined) ?? Math.random() * Math.min(8_000, 500 * 2 ** attempt);
 
+const invalidResponse = (response: Response): TransportError =>
+  new TransportError("The API returned an invalid response", {
+    code: "INVALID_RESPONSE",
+    statusCode: response.status,
+    ...(response.headers.get("x-request-id")
+      ? { requestId: response.headers.get("x-request-id") ?? undefined }
+      : {}),
+  });
+
 const throwResponseError = async (response: Response): Promise<never> => {
   let body:
     | {
@@ -152,16 +161,33 @@ export class Transport {
       throw new TransportError("Request failed without a response", { code: "TRANSPORT_ERROR" });
     };
 
-    const errorMiddleware: Middleware = {
-      post: async ({ response }) => {
+    const responseMiddleware: Middleware = {
+      post: async ({ response, url }) => {
         if (!response.ok) await throwResponseError(response);
+        if (new URL(url).pathname.endsWith("/download")) return;
+
+        let envelope: unknown;
+        try {
+          envelope = await response.clone().json();
+        } catch {
+          throw invalidResponse(response);
+        }
+        if (
+          !envelope ||
+          typeof envelope !== "object" ||
+          !("data" in envelope) ||
+          !("success" in envelope) ||
+          envelope.success !== true
+        ) {
+          throw invalidResponse(response);
+        }
       },
     };
     const configuration = new Configuration({
       basePath: this.baseUrl.replace(/\/v1$/, ""),
       accessToken: apiKey,
       fetchApi: fetchWithPolicy,
-      middleware: [errorMiddleware],
+      middleware: [responseMiddleware],
     });
     this.apis = {
       files: new FilesApi(configuration),

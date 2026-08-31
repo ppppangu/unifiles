@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import mimetypes
 from datetime import UTC, datetime
 
 import httpx
@@ -9,7 +10,11 @@ from unifiles import (
     NotFoundError,
     ProcessingError,
     ServerError,
+    TransportError,
     UnifilesClient,
+)
+from unifiles import (
+    ValidationError as SDKValidationError,
 )
 
 NOW = datetime.now(UTC).isoformat()
@@ -90,6 +95,135 @@ def test_error_envelope_maps_to_typed_exception() -> None:
         client.files.get("missing")
     assert caught.value.code == "FILE_NOT_FOUND"
     assert caught.value.request_id == "req_1"
+
+
+def test_sync_client_preserves_caller_owned_http_policy() -> None:
+    requests: list[httpx.Request] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        requests.append(request)
+        return envelope(
+            {
+                "id": "file_1",
+                "filename": "hello.txt",
+                "content_type": "text/plain",
+                "size": 5,
+                "metadata": {},
+                "tags": [],
+                "created_at": NOW,
+            }
+        )
+
+    http = httpx.Client(
+        transport=httpx.MockTransport(handler),
+        headers={"X-Client-Policy": "preserved"},
+        cookies={"session": "caller-owned"},
+    )
+    client = UnifilesClient(
+        "sk_test", base_url="http://example.test", max_retries=0, _http_client=http
+    )
+
+    assert client.files.get("file_1").id == "file_1"
+    client.close()
+
+    assert requests[0].headers["x-client-policy"] == "preserved"
+    assert requests[0].headers["cookie"] == "session=caller-owned"
+    assert http.is_closed is False
+    http.close()
+
+
+@pytest.mark.parametrize(
+    "response_factory",
+    [
+        lambda: httpx.Response(200, text="not-json", headers={"content-type": "text/plain"}),
+        lambda: httpx.Response(200, json={"unexpected": True}),
+        lambda: httpx.Response(
+            200,
+            json={
+                "data": {
+                    "id": "file_1",
+                    "filename": "hello.txt",
+                    "content_type": "text/plain",
+                    "size": 5,
+                    "metadata": {},
+                    "tags": [],
+                    "created_at": NOW,
+                }
+            },
+        ),
+    ],
+)
+def test_invalid_success_responses_are_sanitized(response_factory) -> None:
+    client = UnifilesClient(
+        "sk_test",
+        base_url="http://example.test",
+        max_retries=0,
+        _http_client=httpx.Client(transport=httpx.MockTransport(lambda _: response_factory())),
+    )
+
+    with pytest.raises(TransportError) as caught:
+        client.files.get("file_1")
+
+    assert caught.value.code == "INVALID_RESPONSE"
+    assert caught.value.__cause__ is None
+    client.close()
+
+
+def test_request_model_validation_is_sanitized() -> None:
+    requests: list[httpx.Request] = []
+    http = httpx.Client(
+        transport=httpx.MockTransport(
+            lambda request: requests.append(request) or httpx.Response(500)
+        )
+    )
+    client = UnifilesClient(
+        "sk_test", base_url="http://example.test", max_retries=0, _http_client=http
+    )
+
+    with pytest.raises(SDKValidationError) as caught:
+        client.extractions.create("file_1", options={"extract_tables": "not-a-boolean"})
+
+    assert caught.value.code == "INVALID_REQUEST"
+    assert caught.value.__cause__ is None
+    assert requests == []
+    client.close()
+    http.close()
+
+
+@pytest.mark.parametrize("filename", ["payload", "payload.unifiles_sdk_mime_test"])
+def test_upload_sends_explicit_mime_without_global_registration(filename: str) -> None:
+    requests: list[httpx.Request] = []
+    previous_mime = mimetypes.guess_type(filename)[0]
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        requests.append(request)
+        return envelope(
+            {
+                "id": "file_1",
+                "filename": filename,
+                "content_type": "application/vnd.unifiles.test",
+                "size": 1,
+                "metadata": {},
+                "tags": [],
+                "created_at": NOW,
+            },
+            201,
+        )
+
+    http = httpx.Client(transport=httpx.MockTransport(handler))
+    client = UnifilesClient(
+        "sk_test", base_url="http://example.test", max_retries=0, _http_client=http
+    )
+    client.files.upload(
+        content=b"x",
+        filename=filename,
+        content_type="application/vnd.unifiles.test",
+    )
+    client.close()
+
+    assert b"application/vnd.unifiles.test" in requests[0].content
+    assert mimetypes.guess_type(filename)[0] == previous_mime
+    http.close()
 
 
 def test_extraction_wait_updates_bound_object(monkeypatch: pytest.MonkeyPatch) -> None:

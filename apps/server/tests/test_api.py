@@ -266,10 +266,15 @@ def test_scopes_and_unknown_routes_use_error_envelope(client: TestClient) -> Non
 
     invalid_scope = client.post(
         "/v1/api-keys",
-        json={"name": "invalid", "scopes": ["root:everything"], "expires_at": None},
+        json={"name": "invalid", "scopes": ["private-invalid-scope"], "expires_at": None},
     )
     assert invalid_scope.status_code == 422
-    assert invalid_scope.json()["error"]["code"] == "VALIDATION_ERROR"
+    invalid_error = invalid_scope.json()["error"]
+    assert invalid_error["code"] == "VALIDATION_ERROR"
+    assert invalid_error["details"] == {
+        "errors": [{"field": "body.scopes", "code": "invalid"}]
+    }
+    assert "private-invalid-scope" not in invalid_scope.text
 
     invalid_strategy = client.post(
         "/v1/knowledge-bases",
