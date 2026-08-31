@@ -326,7 +326,28 @@ class ApiClient:
                     match = re.search(r"charset=([a-zA-Z\-\d]+)[\s;]?", content_type)
                 encoding = match.group(1) if match else "utf-8"
                 response_text = response_data.data.decode(encoding)
+                if (
+                    200 <= response_data.status <= 299
+                    and isinstance(response_type, str)
+                    and response_type.endswith("Response")
+                ):
+                    response_envelope = json.loads(response_text)
+                    if (
+                        not isinstance(response_envelope, dict)
+                        or response_envelope.get("success") is not True
+                        or "data" not in response_envelope
+                    ):
+                        raise ValueError("Invalid success envelope")
                 return_data = self.deserialize(response_text, response_type, content_type)
+        except (AttributeError, TypeError, ValueError):
+            if 200 <= response_data.status <= 299:
+                raise ApiException(
+                    status=0,
+                    reason="The API returned an invalid response payload",
+                    http_resp=response_data,
+                    body="",
+                ) from None
+            raise
         finally:
             if not 200 <= response_data.status <= 299:
                 raise ApiException.from_response(
@@ -551,7 +572,17 @@ class ApiClient:
 
     def files_parameters(
         self,
-        files: Dict[str, Union[str, bytes, List[str], List[bytes], Tuple[str, bytes]]],
+        files: Dict[
+            str,
+            Union[
+                str,
+                bytes,
+                List[str],
+                List[bytes],
+                Tuple[str, bytes],
+                Tuple[str, bytes, str],
+            ],
+        ],
     ):
         """Builds form parameters.
 
@@ -560,6 +591,7 @@ class ApiClient:
         """
         params = []
         for k, v in files.items():
+            mimetype = None
             if isinstance(v, str):
                 with open(v, 'rb') as f:
                     filename = os.path.basename(f.name)
@@ -567,8 +599,10 @@ class ApiClient:
             elif isinstance(v, bytes):
                 filename = k
                 filedata = v
-            elif isinstance(v, tuple):
+            elif isinstance(v, tuple) and len(v) == 2:
                 filename, filedata = v
+            elif isinstance(v, tuple) and len(v) == 3:
+                filename, filedata, mimetype = v
             elif isinstance(v, list):
                 for file_param in v:
                     params.extend(self.files_parameters({k: file_param}))
@@ -576,7 +610,8 @@ class ApiClient:
             else:
                 raise ValueError("Unsupported file value")
             mimetype = (
-                mimetypes.guess_type(filename)[0]
+                mimetype
+                or mimetypes.guess_type(filename)[0]
                 or 'application/octet-stream'
             )
             params.append(

@@ -4,7 +4,6 @@ import uuid
 from typing import Any
 
 from fastapi import FastAPI, Request
-from fastapi.encoders import jsonable_encoder
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
@@ -47,6 +46,21 @@ def error_response(request: Request, error: APIError) -> JSONResponse:
     )
 
 
+def public_validation_details(error: RequestValidationError) -> dict[str, Any]:
+    """Keep public field locations without echoing inputs or framework internals."""
+
+    errors: list[dict[str, str]] = []
+    for issue in error.errors():
+        location = ".".join(str(part) for part in issue.get("loc", ()))
+        errors.append(
+            {
+                "field": location,
+                "code": "required" if issue.get("type") == "missing" else "invalid",
+            }
+        )
+    return {"errors": errors}
+
+
 def install_error_handlers(app: FastAPI) -> None:
     @app.exception_handler(APIError)
     async def handle_api_error(request: Request, error: APIError) -> JSONResponse:
@@ -60,7 +74,7 @@ def install_error_handlers(app: FastAPI) -> None:
                 422,
                 "VALIDATION_ERROR",
                 "Request validation failed",
-                details={"errors": jsonable_encoder(error.errors())},
+                details=public_validation_details(error),
             ),
         )
 

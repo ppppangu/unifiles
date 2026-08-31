@@ -13,6 +13,7 @@ from email.utils import parsedate_to_datetime
 from typing import Any
 
 import httpx
+from pydantic import ValidationError as PydanticValidationError
 from unifiles_generated.api.api_keys_api import APIKeysApi
 from unifiles_generated.api.documents_api import DocumentsApi
 from unifiles_generated.api.extractions_api import ExtractionsApi
@@ -119,6 +120,12 @@ def _error_fields(error: ApiException) -> tuple[str, str, dict[str, Any], str | 
 def _public_error(error: ApiException) -> UnifilesError:
     status = int(error.status or 0)
     code, message, details, request_id = _error_fields(error)
+    if status <= 0:
+        return TransportError(
+            "The API returned an invalid response",
+            code="INVALID_RESPONSE",
+            request_id=request_id,
+        )
     kwargs: dict[str, Any] = {
         "code": code,
         "status_code": status or None,
@@ -144,6 +151,61 @@ def _public_error(error: ApiException) -> UnifilesError:
     return UnifilesError(message, **kwargs)
 
 
+def _validate_success_envelope(value: Any) -> Any:
+    if isinstance(value, (bytes, bytearray)):
+        return value
+    fields_set: set[str] = getattr(value, "model_fields_set", set())
+    if (
+        "success" not in fields_set
+        or getattr(value, "success", None) is not True
+        or not hasattr(value, "data")
+    ):
+        raise TransportError(
+            "The API returned an invalid success envelope",
+            code="INVALID_RESPONSE",
+        )
+    return value
+
+
+class _SyncClientTransport(httpx.AsyncBaseTransport):
+    """Run a caller-owned synchronous client without discarding its policy."""
+
+    def __init__(self, client: httpx.Client) -> None:
+        self._client = client
+
+    async def handle_async_request(self, request: httpx.Request) -> httpx.Response:
+        content = await request.aread()
+
+        def send() -> tuple[int, list[tuple[str, str]], bytes, dict[str, Any]]:
+            sync_request = self._client.build_request(
+                request.method,
+                request.url,
+                content=content,
+                headers=request.headers,
+                extensions=request.extensions,
+            )
+            response = self._client.send(sync_request)
+            try:
+                body = response.read()
+                extensions = {
+                    key: value
+                    for key, value in response.extensions.items()
+                    if key in {"http_version", "reason_phrase"}
+                }
+                return response.status_code, response.headers.multi_items(), body, extensions
+            finally:
+                response.close()
+
+        status, headers, body, extensions = await asyncio.to_thread(send)
+        return httpx.Response(
+            status,
+            headers=headers,
+            content=body,
+            extensions=extensions,
+            request=request,
+        )
+
+
 def _as_async_client(
     client: httpx.Client | httpx.AsyncClient | None,
     *,
@@ -153,14 +215,7 @@ def _as_async_client(
         return client, False
     if client is None:
         return httpx.AsyncClient(timeout=timeout), True
-
-    app = getattr(client, "app", None)
-    if app is not None:
-        return httpx.AsyncClient(transport=httpx.ASGITransport(app=app), timeout=timeout), True
-    transport = getattr(client, "_transport", None)
-    if transport is not None and hasattr(transport, "handle_async_request"):
-        return httpx.AsyncClient(transport=transport, timeout=timeout), True
-    raise TypeError("_http_client must use an async-capable transport")
+    return httpx.AsyncClient(transport=_SyncClientTransport(client), timeout=timeout), True
 
 
 @dataclass(frozen=True)
@@ -222,13 +277,21 @@ class ProtocolTransport:
         kwargs.setdefault("_request_timeout", self.timeout)
         for attempt in range(self.max_retries + 1):
             try:
-                return method(**kwargs)
+                return _validate_success_envelope(method(**kwargs))
             except ApiException as error:
                 status = int(error.status or 0)
                 if retry_allowed and status in RETRYABLE_STATUS and attempt < self.max_retries:
                     time.sleep(_backoff(attempt, error.headers))
                     continue
-                raise _public_error(error) from error
+                public_error = _public_error(error)
+                if status <= 0:
+                    raise public_error from None
+                raise public_error from error
+            except PydanticValidationError:
+                raise ValidationError(
+                    "Request validation failed",
+                    code="INVALID_REQUEST",
+                ) from None
             except httpx.TimeoutException as error:
                 if retry_allowed and attempt < self.max_retries:
                     time.sleep(_backoff(attempt))
@@ -251,13 +314,21 @@ class ProtocolTransport:
         kwargs.setdefault("_request_timeout", self.timeout)
         for attempt in range(self.max_retries + 1):
             try:
-                return await method(**kwargs)
+                return _validate_success_envelope(await method(**kwargs))
             except ApiException as error:
                 status = int(error.status or 0)
                 if retry_allowed and status in RETRYABLE_STATUS and attempt < self.max_retries:
                     await asyncio.sleep(_backoff(attempt, error.headers))
                     continue
-                raise _public_error(error) from error
+                public_error = _public_error(error)
+                if status <= 0:
+                    raise public_error from None
+                raise public_error from error
+            except PydanticValidationError:
+                raise ValidationError(
+                    "Request validation failed",
+                    code="INVALID_REQUEST",
+                ) from None
             except httpx.TimeoutException as error:
                 if retry_allowed and attempt < self.max_retries:
                     await asyncio.sleep(_backoff(attempt))

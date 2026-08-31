@@ -258,3 +258,15 @@ def test_sdk_artifacts_and_handwritten_consumers_have_separate_roots() -> None:
     )
     assert generated_typescript_package["name"] == "@wyy/unifiles-generated"
     assert public_typescript_package["dependencies"]["@wyy/unifiles-generated"] == "0.1.0"
+
+
+def test_generated_python_transport_customizations_are_present() -> None:
+    root = codegen_module.REPO_ROOT / "packages" / "generated" / "sdk-python"
+    api_client = root.joinpath("unifiles_generated", "api_client.py").read_text(encoding="utf-8")
+    files_api = root.joinpath("unifiles_generated", "api", "files_api.py").read_text(
+        encoding="utf-8"
+    )
+
+    assert "The API returned an invalid response payload" in api_client
+    assert "filename, filedata, mimetype = v" in api_client
+    assert "Tuple[StrictStr, StrictBytes, StrictStr]" in files_api
