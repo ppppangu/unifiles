@@ -34,11 +34,11 @@ from unifiles_server_protocol.models.knowledge_base_response import KnowledgeBas
 from unifiles_server_protocol.models.knowledge_base_update import KnowledgeBaseUpdate
 from unifiles_server_protocol.security_api import SecurityProvider
 
-ImplementationProvider: TypeAlias = Callable[..., BaseKnowledgeBasesApi]
+AdapterProvider: TypeAlias = Callable[..., BaseKnowledgeBasesApi]
 
 
 def create_router(
-    get_implementation: ImplementationProvider,
+    get_adapter: AdapterProvider,
     get_token_BearerAuth: SecurityProvider,
 ) -> APIRouter:
     router = APIRouter()
@@ -69,14 +69,14 @@ def create_router(
                 get_token_BearerAuth
             ),
         ],
-        implementation: Annotated[
+        adapter: Annotated[
             BaseKnowledgeBasesApi,
-            Depends(get_implementation),
+            Depends(get_adapter),
         ],
         limit: Optional[Annotated[int, Field(le=100, strict=True, ge=1)]] = Query(50, description="", alias="limit", ge=1, le=100),
         offset: Optional[Annotated[int, Field(strict=True, ge=0)]] = Query(0, description="", alias="offset", ge=0),
     ) -> KnowledgeBaseListResponse:
-        return await implementation.list_knowledge_bases(limit, offset)
+        return await adapter.list_knowledge_bases(limit, offset)
 
     @router.post(
         "/v1/knowledge-bases",
@@ -104,14 +104,14 @@ def create_router(
                 get_token_BearerAuth
             ),
         ],
-        implementation: Annotated[
+        adapter: Annotated[
             BaseKnowledgeBasesApi,
-            Depends(get_implementation),
+            Depends(get_adapter),
         ],
         knowledge_base_create: KnowledgeBaseCreate = Body(None, description=""),
         idempotency_key: Optional[StrictStr] = Header(None, description=""),
     ) -> KnowledgeBaseResponse:
-        return await implementation.create_knowledge_base(knowledge_base_create, idempotency_key)
+        return await adapter.create_knowledge_base(knowledge_base_create, idempotency_key)
 
     @router.get(
         "/v1/knowledge-bases/{kb_id}",
@@ -139,13 +139,13 @@ def create_router(
                 get_token_BearerAuth
             ),
         ],
-        implementation: Annotated[
+        adapter: Annotated[
             BaseKnowledgeBasesApi,
-            Depends(get_implementation),
+            Depends(get_adapter),
         ],
         kb_id: StrictStr = Path(..., description=""),
     ) -> KnowledgeBaseResponse:
-        return await implementation.get_knowledge_base(kb_id)
+        return await adapter.get_knowledge_base(kb_id)
 
     @router.delete(
         "/v1/knowledge-bases/{kb_id}",
@@ -173,13 +173,13 @@ def create_router(
                 get_token_BearerAuth
             ),
         ],
-        implementation: Annotated[
+        adapter: Annotated[
             BaseKnowledgeBasesApi,
-            Depends(get_implementation),
+            Depends(get_adapter),
         ],
         kb_id: StrictStr = Path(..., description=""),
     ) -> DeletionResponse:
-        return await implementation.delete_knowledge_base(kb_id)
+        return await adapter.delete_knowledge_base(kb_id)
 
     @router.patch(
         "/v1/knowledge-bases/{kb_id}",
@@ -207,12 +207,12 @@ def create_router(
                 get_token_BearerAuth
             ),
         ],
-        implementation: Annotated[
+        adapter: Annotated[
             BaseKnowledgeBasesApi,
-            Depends(get_implementation),
+            Depends(get_adapter),
         ],
         kb_id: StrictStr = Path(..., description=""),
         knowledge_base_update: KnowledgeBaseUpdate = Body(None, description=""),
     ) -> KnowledgeBaseResponse:
-        return await implementation.update_knowledge_base(kb_id, knowledge_base_update)
+        return await adapter.update_knowledge_base(kb_id, knowledge_base_update)
     return router

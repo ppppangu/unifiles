@@ -61,7 +61,7 @@ def sanitize_filename(value: str) -> str:
     return name
 
 
-class FilesImplementation(BaseFilesApi):
+class FilesAdapter(BaseFilesApi):
     def __init__(self, service: FilesService) -> None:
         self._service = service
 

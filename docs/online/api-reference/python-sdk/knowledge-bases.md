@@ -108,7 +108,7 @@ doc = client.knowledge_bases.documents.create(
     file_id: str,
     title: str = None,
     metadata: dict = None
-) -> Document
+) -> IndexedDocument
 ```
 
 ### 示例
@@ -155,7 +155,7 @@ class KnowledgeBase:
     created_at: datetime
 
 @dataclass
-class Document:
+class IndexedDocument:
     id: str
     kb_id: str
     file_id: str
@@ -164,7 +164,7 @@ class Document:
     chunk_count: int
     metadata: dict
     
-    def wait(self, timeout: int = 300) -> "Document": ...
+    def wait(self, timeout: int = 300) -> "IndexedDocument": ...
 
 @dataclass
 class Chunk:

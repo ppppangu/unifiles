@@ -34,11 +34,11 @@ from unifiles_server_protocol.models.supported_file_types_response import Suppor
 from fastapi import File, UploadFile
 from unifiles_server_protocol.security_api import SecurityProvider
 
-ImplementationProvider: TypeAlias = Callable[..., BaseFilesApi]
+AdapterProvider: TypeAlias = Callable[..., BaseFilesApi]
 
 
 def create_router(
-    get_implementation: ImplementationProvider,
+    get_adapter: AdapterProvider,
     get_token_BearerAuth: SecurityProvider,
 ) -> APIRouter:
     router = APIRouter()
@@ -69,12 +69,12 @@ def create_router(
                 get_token_BearerAuth
             ),
         ],
-        implementation: Annotated[
+        adapter: Annotated[
             BaseFilesApi,
-            Depends(get_implementation),
+            Depends(get_adapter),
         ],
     ) -> SupportedFileTypesResponse:
-        return await implementation.list_supported_file_types()
+        return await adapter.list_supported_file_types()
 
     @router.get(
         "/v1/files",
@@ -102,9 +102,9 @@ def create_router(
                 get_token_BearerAuth
             ),
         ],
-        implementation: Annotated[
+        adapter: Annotated[
             BaseFilesApi,
-            Depends(get_implementation),
+            Depends(get_adapter),
         ],
         limit: Optional[Annotated[int, Field(le=100, strict=True, ge=1)]] = Query(50, description="", alias="limit", ge=1, le=100),
         offset: Optional[Annotated[int, Field(strict=True, ge=0)]] = Query(0, description="", alias="offset", ge=0),
@@ -113,7 +113,7 @@ def create_router(
         sort_by: Optional[StrictStr] = Query('created_at', description="", alias="sort_by"),
         order: Optional[StrictStr] = Query('desc', description="", alias="order"),
     ) -> FileListResponse:
-        return await implementation.list_files(limit, offset, tags, content_type, sort_by, order)
+        return await adapter.list_files(limit, offset, tags, content_type, sort_by, order)
 
     @router.post(
         "/v1/files",
@@ -142,16 +142,16 @@ def create_router(
                 get_token_BearerAuth
             ),
         ],
-        implementation: Annotated[
+        adapter: Annotated[
             BaseFilesApi,
-            Depends(get_implementation),
+            Depends(get_adapter),
         ],
         file: UploadFile = File(..., description=""),
         idempotency_key: Optional[StrictStr] = Header(None, description=""),
         metadata: Optional[StrictStr] = Form('{}', description=""),
         tags: Optional[StrictStr] = Form('[]', description=""),
     ) -> FileResponse:
-        return await implementation.upload_file(file, idempotency_key, metadata, tags)
+        return await adapter.upload_file(file, idempotency_key, metadata, tags)
 
     @router.get(
         "/v1/files/{file_id}",
@@ -179,13 +179,13 @@ def create_router(
                 get_token_BearerAuth
             ),
         ],
-        implementation: Annotated[
+        adapter: Annotated[
             BaseFilesApi,
-            Depends(get_implementation),
+            Depends(get_adapter),
         ],
         file_id: StrictStr = Path(..., description=""),
     ) -> FileResponse:
-        return await implementation.get_file(file_id)
+        return await adapter.get_file(file_id)
 
     @router.delete(
         "/v1/files/{file_id}",
@@ -213,13 +213,13 @@ def create_router(
                 get_token_BearerAuth
             ),
         ],
-        implementation: Annotated[
+        adapter: Annotated[
             BaseFilesApi,
-            Depends(get_implementation),
+            Depends(get_adapter),
         ],
         file_id: StrictStr = Path(..., description=""),
     ) -> DeletionResponse:
-        return await implementation.delete_file(file_id)
+        return await adapter.delete_file(file_id)
 
     @router.get(
         "/v1/files/{file_id}/download",
@@ -247,11 +247,11 @@ def create_router(
                 get_token_BearerAuth
             ),
         ],
-        implementation: Annotated[
+        adapter: Annotated[
             BaseFilesApi,
-            Depends(get_implementation),
+            Depends(get_adapter),
         ],
         file_id: StrictStr = Path(..., description=""),
     ) -> bytes:
-        return await implementation.download_file(file_id)
+        return await adapter.download_file(file_id)
     return router

@@ -12,17 +12,17 @@ import unifiles_server_protocol
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 
-from .modules.api_keys.api import router as api_keys_router
-from .modules.documents.api import router as documents_router
+from .modules.api_keys.router import router as api_keys_router
+from .modules.documents.router import router as documents_router
 from .modules.documents.service import run_indexing
-from .modules.extractions.api import router as extractions_router
+from .modules.extractions.router import router as extractions_router
 from .modules.extractions.service import run_extraction
-from .modules.files.api import router as files_router
-from .modules.knowledge_bases.api import router as knowledge_bases_router
-from .modules.search.api import router as search_router
-from .modules.system.api import router as system_router
-from .modules.usage.api import router as usage_router
-from .modules.webhooks.api import router as webhooks_router
+from .modules.files.router import router as files_router
+from .modules.knowledge_bases.router import router as knowledge_bases_router
+from .modules.search.router import router as search_router
+from .modules.system.router import router as system_router
+from .modules.usage.router import router as usage_router
+from .modules.webhooks.router import router as webhooks_router
 from .shared.database import Store
 from .shared.errors import install_error_handlers
 from .shared.settings import Settings

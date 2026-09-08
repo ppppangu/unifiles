@@ -12,6 +12,8 @@ from unifiles_generated.models.deletion_result import DeletionResult
 from unifiles_generated.models.document_resource import DocumentResource
 from unifiles_generated.models.extraction_resource import ExtractionResource
 from unifiles_generated.models.file_resource import FileResource
+from unifiles_generated.models.health_details import HealthDetails
+from unifiles_generated.models.health_status import HealthStatus
 from unifiles_generated.models.knowledge_base_resource import KnowledgeBaseResource
 from unifiles_generated.models.search_results import SearchResults
 from unifiles_generated.models.supported_file_types import SupportedFileTypes
@@ -73,69 +75,69 @@ class ListResponse(Generic[T]):
         return self._generated.model_dump(**kwargs)
 
 
-class Extraction(ExtractionResource):
-    _waiter: Callable[[str, float, float], Extraction] | None = PrivateAttr(default=None)
+class ExtractionJob(ExtractionResource):
+    _waiter: Callable[[str, float, float], ExtractionJob] | None = PrivateAttr(default=None)
 
-    def _bind_waiter(self, waiter: Callable[[str, float, float], Extraction]) -> Extraction:
+    def _bind_waiter(self, waiter: Callable[[str, float, float], ExtractionJob]) -> ExtractionJob:
         self._waiter = waiter
         return self
 
-    def wait(self, timeout: float = 300, poll_interval: float = 2) -> Extraction:
+    def wait(self, timeout: float = 300, poll_interval: float = 2) -> ExtractionJob:
         if self._waiter is None:
-            raise RuntimeError("Extraction is not bound to a client")
+            raise RuntimeError("ExtractionJob is not bound to a client")
         updated = self._waiter(self.id, timeout, poll_interval)
         _replace_model(self, updated)
         return self
 
 
-class AsyncExtraction(ExtractionResource):
-    _waiter: Callable[[str, float, float], Awaitable[AsyncExtraction]] | None = PrivateAttr(
+class AsyncExtractionJob(ExtractionResource):
+    _waiter: Callable[[str, float, float], Awaitable[AsyncExtractionJob]] | None = PrivateAttr(
         default=None
     )
 
     def _bind_waiter(
-        self, waiter: Callable[[str, float, float], Awaitable[AsyncExtraction]]
-    ) -> AsyncExtraction:
+        self, waiter: Callable[[str, float, float], Awaitable[AsyncExtractionJob]]
+    ) -> AsyncExtractionJob:
         self._waiter = waiter
         return self
 
-    async def wait(self, timeout: float = 300, poll_interval: float = 2) -> AsyncExtraction:
+    async def wait(self, timeout: float = 300, poll_interval: float = 2) -> AsyncExtractionJob:
         if self._waiter is None:
-            raise RuntimeError("Extraction is not bound to a client")
+            raise RuntimeError("ExtractionJob is not bound to a client")
         updated = await self._waiter(self.id, timeout, poll_interval)
         _replace_model(self, updated)
         return self
 
 
-class Document(DocumentResource):
-    _waiter: Callable[[str, str, float, float], Document] | None = PrivateAttr(default=None)
+class IndexedDocument(DocumentResource):
+    _waiter: Callable[[str, str, float, float], IndexedDocument] | None = PrivateAttr(default=None)
 
-    def _bind_waiter(self, waiter: Callable[[str, str, float, float], Document]) -> Document:
+    def _bind_waiter(self, waiter: Callable[[str, str, float, float], IndexedDocument]) -> IndexedDocument:
         self._waiter = waiter
         return self
 
-    def wait(self, timeout: float = 300, poll_interval: float = 2) -> Document:
+    def wait(self, timeout: float = 300, poll_interval: float = 2) -> IndexedDocument:
         if self._waiter is None:
-            raise RuntimeError("Document is not bound to a client")
+            raise RuntimeError("IndexedDocument is not bound to a client")
         updated = self._waiter(self.kb_id, self.id, timeout, poll_interval)
         _replace_model(self, updated)
         return self
 
 
-class AsyncDocument(DocumentResource):
-    _waiter: Callable[[str, str, float, float], Awaitable[AsyncDocument]] | None = PrivateAttr(
+class AsyncIndexedDocument(DocumentResource):
+    _waiter: Callable[[str, str, float, float], Awaitable[AsyncIndexedDocument]] | None = PrivateAttr(
         default=None
     )
 
     def _bind_waiter(
-        self, waiter: Callable[[str, str, float, float], Awaitable[AsyncDocument]]
-    ) -> AsyncDocument:
+        self, waiter: Callable[[str, str, float, float], Awaitable[AsyncIndexedDocument]]
+    ) -> AsyncIndexedDocument:
         self._waiter = waiter
         return self
 
-    async def wait(self, timeout: float = 300, poll_interval: float = 2) -> AsyncDocument:
+    async def wait(self, timeout: float = 300, poll_interval: float = 2) -> AsyncIndexedDocument:
         if self._waiter is None:
-            raise RuntimeError("Document is not bound to a client")
+            raise RuntimeError("IndexedDocument is not bound to a client")
         updated = await self._waiter(self.kb_id, self.id, timeout, poll_interval)
         _replace_model(self, updated)
         return self
@@ -165,13 +167,15 @@ def raise_wait_timeout(resource_type: str, resource_id: str, timeout: float) -> 
 
 __all__ = [
     "APIKey",
-    "AsyncDocument",
-    "AsyncExtraction",
+    "AsyncIndexedDocument",
+    "AsyncExtractionJob",
     "Chunk",
     "DeletionResult",
-    "Document",
-    "Extraction",
+    "IndexedDocument",
+    "ExtractionJob",
     "File",
+    "HealthDetails",
+    "HealthStatus",
     "KnowledgeBase",
     "ListResponse",
     "SearchResults",

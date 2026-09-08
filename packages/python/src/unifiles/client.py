@@ -11,11 +11,13 @@ from .resources import (
     AsyncExtractionsResource,
     AsyncFilesResource,
     AsyncKnowledgeBasesResource,
+    AsyncSystemResource,
     AsyncUsageResource,
     AsyncWebhooksResource,
     ExtractionsResource,
     FilesResource,
     KnowledgeBasesResource,
+    SystemResource,
     UsageResource,
     WebhooksResource,
 )
@@ -47,6 +49,7 @@ class UnifilesClient:
         self.webhooks = WebhooksResource(self._transport)
         self.api_keys = APIKeysResource(self._transport)
         self.usage = UsageResource(self._transport)
+        self.system = SystemResource(self._transport)
 
     @property
     def base_url(self) -> str:
@@ -88,6 +91,7 @@ class AsyncUnifilesClient:
         self.webhooks = AsyncWebhooksResource(self._transport)
         self.api_keys = AsyncAPIKeysResource(self._transport)
         self.usage = AsyncUsageResource(self._transport)
+        self.system = AsyncSystemResource(self._transport)
 
     @property
     def base_url(self) -> str:

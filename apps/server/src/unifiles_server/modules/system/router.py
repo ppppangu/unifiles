@@ -3,10 +3,10 @@
 from unifiles_server_protocol.apis.system_api import create_router
 
 from ...shared.auth import get_bearer_auth
-from .dependencies import get_system_api_implementation
+from .providers import provide_system_adapter
 
 router = create_router(
-    get_implementation=get_system_api_implementation,
+    get_adapter=provide_system_adapter,
     get_token_BearerAuth=get_bearer_auth,
 )
 

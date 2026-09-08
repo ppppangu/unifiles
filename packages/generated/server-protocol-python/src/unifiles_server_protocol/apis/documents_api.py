@@ -33,11 +33,11 @@ from unifiles_server_protocol.models.document_response import DocumentResponse
 from unifiles_server_protocol.models.error_envelope import ErrorEnvelope
 from unifiles_server_protocol.security_api import SecurityProvider
 
-ImplementationProvider: TypeAlias = Callable[..., BaseDocumentsApi]
+AdapterProvider: TypeAlias = Callable[..., BaseDocumentsApi]
 
 
 def create_router(
-    get_implementation: ImplementationProvider,
+    get_adapter: AdapterProvider,
     get_token_BearerAuth: SecurityProvider,
 ) -> APIRouter:
     router = APIRouter()
@@ -68,15 +68,15 @@ def create_router(
                 get_token_BearerAuth
             ),
         ],
-        implementation: Annotated[
+        adapter: Annotated[
             BaseDocumentsApi,
-            Depends(get_implementation),
+            Depends(get_adapter),
         ],
         kb_id: StrictStr = Path(..., description=""),
         limit: Optional[Annotated[int, Field(le=100, strict=True, ge=1)]] = Query(50, description="", alias="limit", ge=1, le=100),
         offset: Optional[Annotated[int, Field(strict=True, ge=0)]] = Query(0, description="", alias="offset", ge=0),
     ) -> DocumentListResponse:
-        return await implementation.list_documents(kb_id, limit, offset)
+        return await adapter.list_documents(kb_id, limit, offset)
 
     @router.post(
         "/v1/knowledge-bases/{kb_id}/documents",
@@ -104,15 +104,15 @@ def create_router(
                 get_token_BearerAuth
             ),
         ],
-        implementation: Annotated[
+        adapter: Annotated[
             BaseDocumentsApi,
-            Depends(get_implementation),
+            Depends(get_adapter),
         ],
         kb_id: StrictStr = Path(..., description=""),
         document_create: DocumentCreate = Body(None, description=""),
         idempotency_key: Optional[StrictStr] = Header(None, description=""),
     ) -> DocumentResponse:
-        return await implementation.create_document(kb_id, document_create, idempotency_key)
+        return await adapter.create_document(kb_id, document_create, idempotency_key)
 
     @router.get(
         "/v1/knowledge-bases/{kb_id}/documents/{document_id}",
@@ -140,14 +140,14 @@ def create_router(
                 get_token_BearerAuth
             ),
         ],
-        implementation: Annotated[
+        adapter: Annotated[
             BaseDocumentsApi,
-            Depends(get_implementation),
+            Depends(get_adapter),
         ],
         kb_id: StrictStr = Path(..., description=""),
         document_id: StrictStr = Path(..., description=""),
     ) -> DocumentResponse:
-        return await implementation.get_document(kb_id, document_id)
+        return await adapter.get_document(kb_id, document_id)
 
     @router.delete(
         "/v1/knowledge-bases/{kb_id}/documents/{document_id}",
@@ -175,12 +175,12 @@ def create_router(
                 get_token_BearerAuth
             ),
         ],
-        implementation: Annotated[
+        adapter: Annotated[
             BaseDocumentsApi,
-            Depends(get_implementation),
+            Depends(get_adapter),
         ],
         kb_id: StrictStr = Path(..., description=""),
         document_id: StrictStr = Path(..., description=""),
     ) -> DeletionResponse:
-        return await implementation.delete_document(kb_id, document_id)
+        return await adapter.delete_document(kb_id, document_id)
     return router

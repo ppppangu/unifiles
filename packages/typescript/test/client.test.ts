@@ -7,6 +7,21 @@ const envelope = (data: unknown, status = 200): Response =>
   Response.json({ success: true, data }, { status });
 
 describe("UnifilesClient", () => {
+  it("exposes domain names without legacy aliases", () => {
+    const client = new UnifilesClient({ apiKey: "sk_test", maxRetries: 0 });
+    expect(client.system.health).toBeTypeOf("function");
+    expect(client.system.liveness).toBeTypeOf("function");
+    expect(client.system.details).toBeTypeOf("function");
+    expect(client.files.supportedTypes).toBeTypeOf("function");
+    expect(client.usage.stats).toBeTypeOf("function");
+    expect(client.usage.limits).toBeTypeOf("function");
+    expect(client.apiKeys.revoke).toBeTypeOf("function");
+    expect("listSupportedTypes" in client.files).toBe(false);
+    expect("getStats" in client.usage).toBe(false);
+    expect("getLimits" in client.usage).toBe(false);
+    expect("delete" in client.apiKeys).toBe(false);
+  });
+
   it("maps wire fields to idiomatic TypeScript fields", async () => {
     const fetchMock = vi.fn<typeof fetch>().mockResolvedValue(
       envelope({

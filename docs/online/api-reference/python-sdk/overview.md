@@ -75,7 +75,8 @@ client
 │   └── documents   # 文档管理
 ├── webhooks        # Webhook
 ├── api_keys        # API Key 管理
-└── usage           # 使用统计
+├── usage           # 使用统计
+└── system          # 健康检查
 ```
 
 ## 错误处理
@@ -104,12 +105,13 @@ SDK 提供完整的类型注解，支持 IDE 自动补全：
 
 ```python
 from unifiles import UnifilesClient
-from unifiles.types import File, Extraction, KnowledgeBase
+from unifiles import File, ExtractionJob, KnowledgeBase
 
 client = UnifilesClient(api_key="sk_...")
 
 file: File = client.files.upload("doc.pdf")
-extraction: Extraction = client.extractions.create(file_id=file.id)
+extraction: ExtractionJob = client.extractions.create(file_id=file.id)
+health = client.system.health()
 ```
 
 ## 下一步

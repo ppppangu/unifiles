@@ -12,7 +12,7 @@ UnifilesError (基类)
 ├── ValidationError       # 400/422 验证错误
 ├── ProcessingError       # 422 处理错误
 ├── RateLimitError        # 429 速率限制
-├── ServerError           # 500/503 服务器错误
+├── ServerError           # 500+ 服务器错误
 └── TimeoutError          # 请求超时
 ```
 

@@ -33,11 +33,11 @@ from unifiles_server_protocol.models.deletion_response import DeletionResponse
 from unifiles_server_protocol.models.error_envelope import ErrorEnvelope
 from unifiles_server_protocol.security_api import SecurityProvider
 
-ImplementationProvider: TypeAlias = Callable[..., BaseAPIKeysApi]
+AdapterProvider: TypeAlias = Callable[..., BaseAPIKeysApi]
 
 
 def create_router(
-    get_implementation: ImplementationProvider,
+    get_adapter: AdapterProvider,
     get_token_BearerAuth: SecurityProvider,
 ) -> APIRouter:
     router = APIRouter()
@@ -68,14 +68,14 @@ def create_router(
                 get_token_BearerAuth
             ),
         ],
-        implementation: Annotated[
+        adapter: Annotated[
             BaseAPIKeysApi,
-            Depends(get_implementation),
+            Depends(get_adapter),
         ],
         limit: Optional[Annotated[int, Field(le=100, strict=True, ge=1)]] = Query(50, description="", alias="limit", ge=1, le=100),
         offset: Optional[Annotated[int, Field(strict=True, ge=0)]] = Query(0, description="", alias="offset", ge=0),
     ) -> APIKeyListResponse:
-        return await implementation.list_api_keys(limit, offset)
+        return await adapter.list_api_keys(limit, offset)
 
     @router.post(
         "/v1/api-keys",
@@ -103,14 +103,14 @@ def create_router(
                 get_token_BearerAuth
             ),
         ],
-        implementation: Annotated[
+        adapter: Annotated[
             BaseAPIKeysApi,
-            Depends(get_implementation),
+            Depends(get_adapter),
         ],
         api_key_create: APIKeyCreate = Body(None, description=""),
         idempotency_key: Optional[StrictStr] = Header(None, description=""),
     ) -> APIKeyResponse:
-        return await implementation.create_api_key(api_key_create, idempotency_key)
+        return await adapter.create_api_key(api_key_create, idempotency_key)
 
     @router.delete(
         "/v1/api-keys/{key_id}",
@@ -138,11 +138,11 @@ def create_router(
                 get_token_BearerAuth
             ),
         ],
-        implementation: Annotated[
+        adapter: Annotated[
             BaseAPIKeysApi,
-            Depends(get_implementation),
+            Depends(get_adapter),
         ],
         key_id: StrictStr = Path(..., description=""),
     ) -> DeletionResponse:
-        return await implementation.revoke_api_key(key_id)
+        return await adapter.revoke_api_key(key_id)
     return router

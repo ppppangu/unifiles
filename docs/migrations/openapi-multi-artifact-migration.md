@@ -18,7 +18,7 @@ config + template 决定的特殊语义。因此，本项目采用：
 - 手写服务端代码 feature-first；
 - 生成代码按独立 artifact 集中；
 - 生成 router 暴露 factory；
-- 各业务模块在本地静态绑定 router、实现 provider 和安全 provider；
+- 各业务模块在本地静态绑定 router、adapter provider 和安全 provider；
 - 应用入口显式 include_router；
 - 不使用注册表、动态实现查找、resolve_api 或生成后按 tag 搬运。
 
@@ -43,7 +43,7 @@ config + template 决定的特殊语义。因此，本项目采用：
 - generated security_api 直接导入 unifiles_server.auth；
 - Base API 仍维护 subclasses，并非 ABC；
 - app.py 仍通过 pkgutil/importlib 动态发现 router；
-- 手写实现集中在 implementation/handlers.py；
+- 手写 adapter集中在 implementation/handlers.py；
 - 生成目标分散在 apps/server 和两个手写 SDK package 内；
 - contract 和 codegen 规则仍混放于 api/。
 
@@ -72,9 +72,9 @@ artifact root：
 
 每个模块可包含：
 
-- api.py：本地静态组装生成 router；
-- implementation.py：协议入站适配；
-- dependencies.py：对象构造和生命周期；
+- router.py：本地静态组装生成 router；
+- adapter.py：协议入站适配；
+- providers.py：对象构造和生命周期；
 - authorization.py：模块授权；
 - service.py 或 use_cases.py：业务规则；
 - repository.py：模块数据访问；
@@ -158,42 +158,42 @@ packages/python 和 packages/typescript 保留公开 SDK 的手写体验层；�
 
 生成 router 不导入应用 provider。每个生成 API 模块暴露 create_router：
 
-    ImplementationProvider = Callable[..., BaseSystemApi]
+    AdapterProvider = Callable[..., BaseSystemApi]
     BearerAuthProvider = Callable[..., TokenModel]
 
     def create_router(
-        get_implementation: ImplementationProvider,
+        get_adapter: AdapterProvider,
         get_bearer_auth: BearerAuthProvider,
     ) -> APIRouter:
         router = APIRouter()
 
         @router.get("/v1/health/details")
         async def get_health_details(
-            implementation: Annotated[
+            adapter: Annotated[
                 BaseSystemApi,
-                Depends(get_implementation),
+                Depends(get_adapter),
             ],
             token: Annotated[
                 TokenModel,
                 Security(get_bearer_auth),
             ],
         ) -> HealthDetailsResponse:
-            return await implementation.get_health_details()
+            return await adapter.get_health_details()
 
         return router
 
 公开 operation 不声明安全依赖。受保护 operation 使用由应用传入的安全 provider。
-因此，router factory 必须同时消除实现 provider 和 security_api 的反向应用依赖。
+因此，router factory 必须同时消除adapter provider 和 security_api 的反向应用依赖。
 
 模块本地组装：
 
     from unifiles_server_protocol.apis.system_api import create_router
 
     from ...shared.auth import get_bearer_principal
-    from .dependencies import get_system_api_implementation
+    from .providers import provide_system_adapter
 
     router = create_router(
-        get_system_api_implementation,
+        provide_system_adapter,
         get_bearer_principal,
     )
 
@@ -217,16 +217,16 @@ Base API 使用 ABC 和 abstractmethod，不维护 subclass registry：
 
 ## 7. 模块职责
 
-### api.py
+### router.py
 
-只组装生成 router、实现 provider 和安全 provider，不重复声明 path、参数或响应。
+只组装生成 router、adapter provider 和安全 provider，不重复声明 path、参数或响应。
 
-### implementation.py
+### adapter.py
 
 负责 generated DTO、HTTP 参数和内部对象的转换，以及调用 service/use case。它是协议
 适配器，不是整个业务层。
 
-### dependencies.py
+### providers.py
 
 负责对象构造和生命周期。无状态轻量实现可按请求创建；数据库 session 按请求管理；
 HTTP client、连接池、模型和对象存储 client 由应用 lifespan 管理。
@@ -234,7 +234,7 @@ HTTP client、连接池、模型和对象存储 client 由应用 lifespan 管理
 ### service.py / use_cases.py
 
 负责业务规则，不依赖 FastAPI request/response。简单模块可暂时保持轻量，但不得把
-不断增长的业务永久塞入 implementation.py。
+不断增长的业务永久塞入 adapter.py。
 
 ### shared/
 
@@ -263,7 +263,7 @@ shared 不是杂物箱。模块专属权限和规则留在模块内部。
 
 迁移期间由 migration/operation-ownership.csv 固化：
 
-    operation_id,path,method,tag,module,base_api,implementation,provider
+    operation_id,path,method,tag,module,base_api,adapter,provider
 
 生成 models 不按 tag 搬运。
 
@@ -374,7 +374,7 @@ packages/generated 保存参与编译和测试的源码投影。dist 只保存 w
 - 定制 api.mustache；
 - 定制 Base API template；
 - 注入实现和安全 provider；
-- 每个模块增加 api.py；
+- 每个模块增加 router.py；
 - app 显式 include_router；
 - 删除动态扫描、中央 providers/handlers 及顶层 auth 等所有兼容层；
 - 增加 generated import 边界测试。
@@ -451,7 +451,7 @@ CI 至少包含：
 8. 提交 contract、generated、handwritten。
 
 新增模块不需要注册表、生成文件搬运或动态 import；只需建立模块目录、生成协议、创建
-本地 api.py 并在 app.py 显式挂载。
+本地 router.py 并在 app.py 显式挂载。
 
 ## 16. 最终验收
 

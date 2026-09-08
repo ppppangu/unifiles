@@ -1,20 +1,20 @@
 from __future__ import annotations
 
 import pytest
-from unifiles_server.modules.system.dependencies import (
-    get_system_api_implementation,
+from unifiles_server.modules.system.adapter import SystemAdapter
+from unifiles_server.modules.system.providers import (
     get_system_service,
+    provide_system_adapter,
 )
-from unifiles_server.modules.system.implementation import SystemImplementation
 
 
 @pytest.mark.asyncio
 async def test_system_adapter_maps_service_results_to_protocol_dtos() -> None:
-    implementation = get_system_api_implementation(get_system_service())
-    assert isinstance(implementation, SystemImplementation)
+    adapter = provide_system_adapter(get_system_service())
+    assert isinstance(adapter, SystemAdapter)
 
-    health = await implementation.get_health()
-    details = await implementation.get_health_details()
+    health = await adapter.get_health()
+    details = await adapter.get_health_details()
 
     assert health.data.status == "ok"
     assert health.data.version == "1.0.0"

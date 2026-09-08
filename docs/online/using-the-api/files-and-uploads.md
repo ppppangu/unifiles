@@ -18,7 +18,7 @@ Unifiles 支持以下文件格式：
 ### 获取支持的格式列表
 
 ```python
-types = client.files.types()
+types = client.files.supported_types()
 print(types.document_types)  # ['.pdf', '.doc', '.docx', ...]
 print(types.image_types)     # ['.jpg', '.jpeg', '.png', ...]
 print(types.all_types)       # 所有支持的格式

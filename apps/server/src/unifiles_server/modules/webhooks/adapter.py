@@ -14,7 +14,7 @@ from ...shared.errors import APIError
 from ...shared.responses import model_payload, success
 
 
-class WebhooksImplementation(BaseWebhooksApi):
+class WebhooksAdapter(BaseWebhooksApi):
     async def create_webhook(
         self, webhook_create: WebhookCreate, idempotency_key: str | None
     ) -> Any:

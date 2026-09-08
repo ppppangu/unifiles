@@ -28,12 +28,14 @@ from ._transport import AsyncTransport, SyncTransport
 from .exceptions import ValidationError as SDKValidationError
 from .models import (
     APIKey,
-    AsyncDocument,
-    AsyncExtraction,
+    AsyncExtractionJob,
+    AsyncIndexedDocument,
     DeletionResult,
-    Document,
-    Extraction,
+    ExtractionJob,
     File,
+    HealthDetails,
+    HealthStatus,
+    IndexedDocument,
     KnowledgeBase,
     ListResponse,
     SearchResults,
@@ -156,7 +158,7 @@ class FilesResource:
         )
         return response.data
 
-    def list_supported_types(self) -> SupportedFileTypes:
+    def supported_types(self) -> SupportedFileTypes:
         response = self._transport.call_sync(
             self._transport.apis.files.list_supported_file_types_sync,
             retry_allowed=True,
@@ -168,8 +170,8 @@ class ExtractionsResource:
     def __init__(self, transport: SyncTransport) -> None:
         self._transport = transport
 
-    def _bind(self, value: Any) -> Extraction:
-        return Extraction.model_validate(value.model_dump())._bind_waiter(self._wait)
+    def _bind(self, value: Any) -> ExtractionJob:
+        return ExtractionJob.model_validate(value.model_dump())._bind_waiter(self._wait)
 
     def create(
         self,
@@ -177,7 +179,7 @@ class ExtractionsResource:
         *,
         mode: str = "normal",
         options: dict[str, Any] | None = None,
-    ) -> Extraction:
+    ) -> ExtractionJob:
         payload = _validated_request(
             lambda: ExtractionCreate(
                 file_id=file_id,
@@ -193,7 +195,7 @@ class ExtractionsResource:
         )
         return self._bind(response.data)
 
-    def get(self, extraction_id: str) -> Extraction:
+    def get(self, extraction_id: str) -> ExtractionJob:
         response = self._transport.call_sync(
             self._transport.apis.extractions.get_extraction_sync,
             retry_allowed=True,
@@ -201,7 +203,7 @@ class ExtractionsResource:
         )
         return self._bind(response.data)
 
-    def list(self, file_id: str, *, limit: int = 50, offset: int = 0) -> ListResponse[Extraction]:
+    def list(self, file_id: str, *, limit: int = 50, offset: int = 0) -> ListResponse[ExtractionJob]:
         response = self._transport.call_sync(
             self._transport.apis.extractions.list_file_extractions_sync,
             retry_allowed=True,
@@ -209,11 +211,11 @@ class ExtractionsResource:
             limit=limit,
             offset=offset,
         )
-        result: ListResponse[Extraction] = ListResponse(response.data)
+        result: ListResponse[ExtractionJob] = ListResponse(response.data)
         result.items = [self._bind(item) for item in result.items]
         return result
 
-    def _wait(self, extraction_id: str, timeout: float, poll_interval: float) -> Extraction:
+    def _wait(self, extraction_id: str, timeout: float, poll_interval: float) -> ExtractionJob:
         deadline = time.monotonic() + timeout
         while True:
             extraction = self.get(extraction_id)
@@ -229,8 +231,8 @@ class DocumentsResource:
     def __init__(self, transport: SyncTransport) -> None:
         self._transport = transport
 
-    def _bind(self, value: Any) -> Document:
-        return Document.model_validate(value.model_dump())._bind_waiter(self._wait)
+    def _bind(self, value: Any) -> IndexedDocument:
+        return IndexedDocument.model_validate(value.model_dump())._bind_waiter(self._wait)
 
     def create(
         self,
@@ -239,7 +241,7 @@ class DocumentsResource:
         *,
         title: str | None = None,
         metadata: dict[str, Any] | None = None,
-    ) -> Document:
+    ) -> IndexedDocument:
         response = self._transport.call_sync(
             self._transport.apis.documents.create_document_sync,
             retry_allowed=True,
@@ -255,7 +257,7 @@ class DocumentsResource:
         )
         return self._bind(response.data)
 
-    def list(self, kb_id: str, *, limit: int = 50, offset: int = 0) -> ListResponse[Document]:
+    def list(self, kb_id: str, *, limit: int = 50, offset: int = 0) -> ListResponse[IndexedDocument]:
         response = self._transport.call_sync(
             self._transport.apis.documents.list_documents_sync,
             retry_allowed=True,
@@ -263,11 +265,11 @@ class DocumentsResource:
             limit=limit,
             offset=offset,
         )
-        result: ListResponse[Document] = ListResponse(response.data)
+        result: ListResponse[IndexedDocument] = ListResponse(response.data)
         result.items = [self._bind(item) for item in result.items]
         return result
 
-    def get(self, kb_id: str, document_id: str) -> Document:
+    def get(self, kb_id: str, document_id: str) -> IndexedDocument:
         response = self._transport.call_sync(
             self._transport.apis.documents.get_document_sync,
             retry_allowed=True,
@@ -285,7 +287,7 @@ class DocumentsResource:
         )
         return response.data
 
-    def _wait(self, kb_id: str, document_id: str, timeout: float, poll_interval: float) -> Document:
+    def _wait(self, kb_id: str, document_id: str, timeout: float, poll_interval: float) -> IndexedDocument:
         deadline = time.monotonic() + timeout
         while True:
             document = self.get(kb_id, document_id)
@@ -492,7 +494,7 @@ class APIKeysResource:
         )
         return ListResponse(response.data)
 
-    def delete(self, key_id: str) -> DeletionResult:
+    def revoke(self, key_id: str) -> DeletionResult:
         response = self._transport.call_sync(
             self._transport.apis.api_keys.revoke_api_key_sync,
             retry_allowed=True,
@@ -500,22 +502,43 @@ class APIKeysResource:
         )
         return response.data
 
-    revoke = delete
-
 
 class UsageResource:
     def __init__(self, transport: SyncTransport) -> None:
         self._transport = transport
 
-    def get_stats(self) -> UsageStats:
+    def stats(self) -> UsageStats:
         return self._transport.call_sync(
             self._transport.apis.usage.get_usage_stats_sync,
             retry_allowed=True,
         ).data
 
-    def get_limits(self) -> UsageLimits:
+    def limits(self) -> UsageLimits:
         return self._transport.call_sync(
             self._transport.apis.usage.get_usage_limits_sync,
+            retry_allowed=True,
+        ).data
+
+
+class SystemResource:
+    def __init__(self, transport: SyncTransport) -> None:
+        self._transport = transport
+
+    def health(self) -> HealthStatus:
+        return self._transport.call_sync(
+            self._transport.apis.system.get_versioned_health_sync,
+            retry_allowed=True,
+        ).data
+
+    def liveness(self) -> HealthStatus:
+        return self._transport.call_sync(
+            self._transport.apis.system.get_health_sync,
+            retry_allowed=True,
+        ).data
+
+    def details(self) -> HealthDetails:
+        return self._transport.call_sync(
+            self._transport.apis.system.get_health_details_sync,
             retry_allowed=True,
         ).data
 
@@ -597,7 +620,7 @@ class AsyncFilesResource:
             )
         ).data
 
-    async def list_supported_types(self) -> SupportedFileTypes:
+    async def supported_types(self) -> SupportedFileTypes:
         return (
             await self._transport.call_async(
                 self._transport.apis.files.list_supported_file_types,
@@ -610,12 +633,12 @@ class AsyncExtractionsResource:
     def __init__(self, transport: AsyncTransport) -> None:
         self._transport = transport
 
-    def _bind(self, value: Any) -> AsyncExtraction:
-        return AsyncExtraction.model_validate(value.model_dump())._bind_waiter(self._wait)
+    def _bind(self, value: Any) -> AsyncExtractionJob:
+        return AsyncExtractionJob.model_validate(value.model_dump())._bind_waiter(self._wait)
 
     async def create(
         self, file_id: str, *, mode: str = "normal", options: dict[str, Any] | None = None
-    ) -> AsyncExtraction:
+    ) -> AsyncExtractionJob:
         response = await self._transport.call_async(
             self._transport.apis.extractions.create_extraction,
             retry_allowed=True,
@@ -630,7 +653,7 @@ class AsyncExtractionsResource:
         )
         return self._bind(response.data)
 
-    async def get(self, extraction_id: str) -> AsyncExtraction:
+    async def get(self, extraction_id: str) -> AsyncExtractionJob:
         response = await self._transport.call_async(
             self._transport.apis.extractions.get_extraction,
             retry_allowed=True,
@@ -640,7 +663,7 @@ class AsyncExtractionsResource:
 
     async def list(
         self, file_id: str, *, limit: int = 50, offset: int = 0
-    ) -> ListResponse[AsyncExtraction]:
+    ) -> ListResponse[AsyncExtractionJob]:
         response = await self._transport.call_async(
             self._transport.apis.extractions.list_file_extractions,
             retry_allowed=True,
@@ -648,13 +671,13 @@ class AsyncExtractionsResource:
             limit=limit,
             offset=offset,
         )
-        result: ListResponse[AsyncExtraction] = ListResponse(response.data)
+        result: ListResponse[AsyncExtractionJob] = ListResponse(response.data)
         result.items = [self._bind(item) for item in result.items]
         return result
 
     async def _wait(
         self, extraction_id: str, timeout: float, poll_interval: float
-    ) -> AsyncExtraction:
+    ) -> AsyncExtractionJob:
         deadline = time.monotonic() + timeout
         while True:
             extraction = await self.get(extraction_id)
@@ -670,8 +693,8 @@ class AsyncDocumentsResource:
     def __init__(self, transport: AsyncTransport) -> None:
         self._transport = transport
 
-    def _bind(self, value: Any) -> AsyncDocument:
-        return AsyncDocument.model_validate(value.model_dump())._bind_waiter(self._wait)
+    def _bind(self, value: Any) -> AsyncIndexedDocument:
+        return AsyncIndexedDocument.model_validate(value.model_dump())._bind_waiter(self._wait)
 
     async def create(
         self,
@@ -680,7 +703,7 @@ class AsyncDocumentsResource:
         *,
         title: str | None = None,
         metadata: dict[str, Any] | None = None,
-    ) -> AsyncDocument:
+    ) -> AsyncIndexedDocument:
         response = await self._transport.call_async(
             self._transport.apis.documents.create_document,
             retry_allowed=True,
@@ -698,7 +721,7 @@ class AsyncDocumentsResource:
 
     async def list(
         self, kb_id: str, *, limit: int = 50, offset: int = 0
-    ) -> ListResponse[AsyncDocument]:
+    ) -> ListResponse[AsyncIndexedDocument]:
         response = await self._transport.call_async(
             self._transport.apis.documents.list_documents,
             retry_allowed=True,
@@ -706,11 +729,11 @@ class AsyncDocumentsResource:
             limit=limit,
             offset=offset,
         )
-        result: ListResponse[AsyncDocument] = ListResponse(response.data)
+        result: ListResponse[AsyncIndexedDocument] = ListResponse(response.data)
         result.items = [self._bind(item) for item in result.items]
         return result
 
-    async def get(self, kb_id: str, document_id: str) -> AsyncDocument:
+    async def get(self, kb_id: str, document_id: str) -> AsyncIndexedDocument:
         response = await self._transport.call_async(
             self._transport.apis.documents.get_document,
             retry_allowed=True,
@@ -731,7 +754,7 @@ class AsyncDocumentsResource:
 
     async def _wait(
         self, kb_id: str, document_id: str, timeout: float, poll_interval: float
-    ) -> AsyncDocument:
+    ) -> AsyncIndexedDocument:
         deadline = time.monotonic() + timeout
         while True:
             document = await self.get(kb_id, document_id)
@@ -909,7 +932,7 @@ class AsyncAPIKeysResource:
         )
         return ListResponse(response.data)
 
-    async def delete(self, key_id: str) -> DeletionResult:
+    async def revoke(self, key_id: str) -> DeletionResult:
         return (
             await self._transport.call_async(
                 self._transport.apis.api_keys.revoke_api_key,
@@ -918,14 +941,12 @@ class AsyncAPIKeysResource:
             )
         ).data
 
-    revoke = delete
-
 
 class AsyncUsageResource:
     def __init__(self, transport: AsyncTransport) -> None:
         self._transport = transport
 
-    async def get_stats(self) -> UsageStats:
+    async def stats(self) -> UsageStats:
         return (
             await self._transport.call_async(
                 self._transport.apis.usage.get_usage_stats,
@@ -933,10 +954,39 @@ class AsyncUsageResource:
             )
         ).data
 
-    async def get_limits(self) -> UsageLimits:
+    async def limits(self) -> UsageLimits:
         return (
             await self._transport.call_async(
                 self._transport.apis.usage.get_usage_limits,
+                retry_allowed=True,
+            )
+        ).data
+
+
+class AsyncSystemResource:
+    def __init__(self, transport: AsyncTransport) -> None:
+        self._transport = transport
+
+    async def health(self) -> HealthStatus:
+        return (
+            await self._transport.call_async(
+                self._transport.apis.system.get_versioned_health,
+                retry_allowed=True,
+            )
+        ).data
+
+    async def liveness(self) -> HealthStatus:
+        return (
+            await self._transport.call_async(
+                self._transport.apis.system.get_health,
+                retry_allowed=True,
+            )
+        ).data
+
+    async def details(self) -> HealthDetails:
+        return (
+            await self._transport.call_async(
+                self._transport.apis.system.get_health_details,
                 retry_allowed=True,
             )
         ).data
@@ -948,11 +998,13 @@ __all__ = [
     "AsyncExtractionsResource",
     "AsyncFilesResource",
     "AsyncKnowledgeBasesResource",
+    "AsyncSystemResource",
     "AsyncUsageResource",
     "AsyncWebhooksResource",
     "ExtractionsResource",
     "FilesResource",
     "KnowledgeBasesResource",
+    "SystemResource",
     "UsageResource",
     "WebhooksResource",
 ]

@@ -30,11 +30,11 @@ from unifiles_server_protocol.models.search_request import SearchRequest
 from unifiles_server_protocol.models.search_response import SearchResponse
 from unifiles_server_protocol.security_api import SecurityProvider
 
-ImplementationProvider: TypeAlias = Callable[..., BaseSearchApi]
+AdapterProvider: TypeAlias = Callable[..., BaseSearchApi]
 
 
 def create_router(
-    get_implementation: ImplementationProvider,
+    get_adapter: AdapterProvider,
     get_token_BearerAuth: SecurityProvider,
 ) -> APIRouter:
     router = APIRouter()
@@ -65,14 +65,14 @@ def create_router(
                 get_token_BearerAuth
             ),
         ],
-        implementation: Annotated[
+        adapter: Annotated[
             BaseSearchApi,
-            Depends(get_implementation),
+            Depends(get_adapter),
         ],
         kb_id: StrictStr = Path(..., description=""),
         search_request: SearchRequest = Body(None, description=""),
     ) -> SearchResponse:
-        return await implementation.search_knowledge_base(kb_id, search_request)
+        return await adapter.search_knowledge_base(kb_id, search_request)
 
     @router.post(
         "/v1/knowledge-bases/{kb_id}/hybrid-search",
@@ -100,12 +100,12 @@ def create_router(
                 get_token_BearerAuth
             ),
         ],
-        implementation: Annotated[
+        adapter: Annotated[
             BaseSearchApi,
-            Depends(get_implementation),
+            Depends(get_adapter),
         ],
         kb_id: StrictStr = Path(..., description=""),
         hybrid_search_request: HybridSearchRequest = Body(None, description=""),
     ) -> SearchResponse:
-        return await implementation.hybrid_search_knowledge_base(kb_id, hybrid_search_request)
+        return await adapter.hybrid_search_knowledge_base(kb_id, hybrid_search_request)
     return router

@@ -1,8 +1,8 @@
 {
-  "codegenSha256": "54beac464692d4a7690c208e14ade3c287ce021f2b0cbeac34ed18fe644b2f37",
+  "codegenSha256": "6cb4d372b446057e0504f307bbaf401034c85d44991e544124cc0f269001df7a",
   "configSha256": "511fd12bfda872d30916ec6aed255abb302ede1cb450dbf9106834a50cab7600",
   "generatorVersion": "7.24.0",
   "specSha256": "9c467ae2cc201b1e57d09267c59ac4f8ffe6a45661e6aaca7d8bcdf331031b91",
   "target": "server-protocol-python",
-  "templateSha256": "a1a45378a2c9a879d7382ea9d35e777be479fc35b4d58f5b9299570a78aedb03"
+  "templateSha256": "ea0c0260bbaf970a930e1e3ebbb6c0d569318088909350a64c0d191e5ebcf116"
 }

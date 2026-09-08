@@ -12,7 +12,7 @@ from ...shared.responses import success
 from .service import run_indexing
 
 
-class DocumentsImplementation(BaseDocumentsApi):
+class DocumentsAdapter(BaseDocumentsApi):
     async def create_document(
         self, kb_id: str, document_create: DocumentCreate, idempotency_key: str | None
     ) -> Any:

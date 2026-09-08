@@ -26,6 +26,7 @@ jobs:
       - run: uv sync --all-packages --group dev
       - run: uv run python codegen/scripts/codegen.py validate
       - run: uv run python codegen/scripts/export_operation_ownership.py --check
+      - run: uv run python codegen/scripts/check_public_surface.py
       - run: uv run python codegen/scripts/codegen.py check all
 
   python:

@@ -32,11 +32,11 @@ from unifiles_server_protocol.models.extraction_list_response import ExtractionL
 from unifiles_server_protocol.models.extraction_response import ExtractionResponse
 from unifiles_server_protocol.security_api import SecurityProvider
 
-ImplementationProvider: TypeAlias = Callable[..., BaseExtractionsApi]
+AdapterProvider: TypeAlias = Callable[..., BaseExtractionsApi]
 
 
 def create_router(
-    get_implementation: ImplementationProvider,
+    get_adapter: AdapterProvider,
     get_token_BearerAuth: SecurityProvider,
 ) -> APIRouter:
     router = APIRouter()
@@ -67,15 +67,15 @@ def create_router(
                 get_token_BearerAuth
             ),
         ],
-        implementation: Annotated[
+        adapter: Annotated[
             BaseExtractionsApi,
-            Depends(get_implementation),
+            Depends(get_adapter),
         ],
         file_id: StrictStr = Path(..., description=""),
         limit: Optional[Annotated[int, Field(le=100, strict=True, ge=1)]] = Query(50, description="", alias="limit", ge=1, le=100),
         offset: Optional[Annotated[int, Field(strict=True, ge=0)]] = Query(0, description="", alias="offset", ge=0),
     ) -> ExtractionListResponse:
-        return await implementation.list_file_extractions(file_id, limit, offset)
+        return await adapter.list_file_extractions(file_id, limit, offset)
 
     @router.post(
         "/v1/extractions",
@@ -103,14 +103,14 @@ def create_router(
                 get_token_BearerAuth
             ),
         ],
-        implementation: Annotated[
+        adapter: Annotated[
             BaseExtractionsApi,
-            Depends(get_implementation),
+            Depends(get_adapter),
         ],
         extraction_create: ExtractionCreate = Body(None, description=""),
         idempotency_key: Optional[StrictStr] = Header(None, description=""),
     ) -> ExtractionResponse:
-        return await implementation.create_extraction(extraction_create, idempotency_key)
+        return await adapter.create_extraction(extraction_create, idempotency_key)
 
     @router.get(
         "/v1/extractions/{extraction_id}",
@@ -138,11 +138,11 @@ def create_router(
                 get_token_BearerAuth
             ),
         ],
-        implementation: Annotated[
+        adapter: Annotated[
             BaseExtractionsApi,
-            Depends(get_implementation),
+            Depends(get_adapter),
         ],
         extraction_id: StrictStr = Path(..., description=""),
     ) -> ExtractionResponse:
-        return await implementation.get_extraction(extraction_id)
+        return await adapter.get_extraction(extraction_id)
     return router

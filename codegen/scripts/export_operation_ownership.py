@@ -20,7 +20,7 @@ def render_inventory(contract: Path) -> str:
         "tag",
         "module",
         "base_api",
-        "implementation",
+        "adapter",
         "provider",
     ]
     writer = csv.DictWriter(stream, fieldnames=fieldnames, lineterminator="\n")
@@ -39,8 +39,8 @@ def render_inventory(contract: Path) -> str:
                 "tag": tag,
                 "module": module,
                 "base_api": f"Base{class_stem}Api",
-                "implementation": f"{class_stem}Implementation",
-                "provider": f"get_{module}_api_implementation",
+                "adapter": f"{class_stem}Adapter",
+                "provider": f"provide_{module}_adapter",
             }
         )
     return stream.getvalue()

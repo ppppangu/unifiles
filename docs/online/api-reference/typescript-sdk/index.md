@@ -17,6 +17,8 @@ const client = new UnifilesClient({
 });
 ```
 
+`baseUrl` 填服务地址即可，SDK 会自动补上 `/v1`。
+
 ## 命名空间
 
 ```typescript
@@ -27,6 +29,7 @@ client.knowledgeBases.documents
 client.webhooks
 client.apiKeys
 client.usage
+client.system
 ```
 
 TypeScript 公开字段使用 camelCase；REST JSON 的 snake_case 由 SDK 转换。
@@ -46,14 +49,18 @@ const kb = await client.knowledgeBases.create("contracts", {
   chunkingStrategy: { type: "semantic", chunkSize: 512, overlap: 50 },
 });
 
-const document = await client.knowledgeBases.documents.create(kb.id, file.id);
-await document.wait();
+const indexedDocument = await client.knowledgeBases.documents.create(kb.id, file.id);
+await indexedDocument.wait();
 
 const results = await client.knowledgeBases.hybridSearch(kb.id, "违约责任", {
   vectorWeight: 0.7,
   keywordWeight: 0.3,
   topK: 5,
 });
+
+const health = await client.system.health();
+const liveness = await client.system.liveness();
+const details = await client.system.details();
 ```
 
 ## 错误
@@ -70,3 +77,6 @@ try {
 ```
 
 该 SDK 只面向可信的 Node.js 服务端环境。不要把 Secret API Key 放进浏览器代码。
+
+`client.raw` 提供完整的 generated OpenAPI surface，适合低层协议调用；常规应用
+优先使用 public facade。

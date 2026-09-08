@@ -31,6 +31,7 @@ After editing the contract:
 ```bash
 uv run python codegen/scripts/validate_contract.py
 uv run python codegen/scripts/codegen.py generate all
+uv run python codegen/scripts/check_public_surface.py
 uv run python codegen/scripts/codegen.py check all
 uv run pytest
 npm run check

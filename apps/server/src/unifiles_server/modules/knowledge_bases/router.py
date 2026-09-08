@@ -3,10 +3,10 @@
 from unifiles_server_protocol.apis.knowledge_bases_api import create_router
 
 from ...shared.auth import get_bearer_auth
-from .dependencies import get_knowledge_bases_api_implementation
+from .providers import provide_knowledge_bases_adapter
 
 router = create_router(
-    get_implementation=get_knowledge_bases_api_implementation,
+    get_adapter=provide_knowledge_bases_adapter,
     get_token_BearerAuth=get_bearer_auth,
 )
 

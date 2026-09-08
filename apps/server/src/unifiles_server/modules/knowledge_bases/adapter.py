@@ -14,7 +14,7 @@ from ...shared.responses import model_payload, success
 from .service import normalize_chunking
 
 
-class KnowledgeBasesImplementation(BaseKnowledgeBasesApi):
+class KnowledgeBasesAdapter(BaseKnowledgeBasesApi):
     async def create_knowledge_base(
         self, knowledge_base_create: KnowledgeBaseCreate, idempotency_key: str | None
     ) -> Any:

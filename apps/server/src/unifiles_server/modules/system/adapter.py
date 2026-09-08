@@ -11,7 +11,7 @@ from unifiles_server_protocol.models.health_status import HealthStatus
 from .service import SystemService
 
 
-class SystemImplementation(BaseSystemApi):
+class SystemAdapter(BaseSystemApi):
     def __init__(self, service: SystemService) -> None:
         self._service = service
 
