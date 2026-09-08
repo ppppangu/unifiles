@@ -34,11 +34,11 @@ from unifiles_server_protocol.models.webhook_response import WebhookResponse
 from unifiles_server_protocol.models.webhook_update import WebhookUpdate
 from unifiles_server_protocol.security_api import SecurityProvider
 
-ImplementationProvider: TypeAlias = Callable[..., BaseWebhooksApi]
+AdapterProvider: TypeAlias = Callable[..., BaseWebhooksApi]
 
 
 def create_router(
-    get_implementation: ImplementationProvider,
+    get_adapter: AdapterProvider,
     get_token_BearerAuth: SecurityProvider,
 ) -> APIRouter:
     router = APIRouter()
@@ -69,14 +69,14 @@ def create_router(
                 get_token_BearerAuth
             ),
         ],
-        implementation: Annotated[
+        adapter: Annotated[
             BaseWebhooksApi,
-            Depends(get_implementation),
+            Depends(get_adapter),
         ],
         limit: Optional[Annotated[int, Field(le=100, strict=True, ge=1)]] = Query(50, description="", alias="limit", ge=1, le=100),
         offset: Optional[Annotated[int, Field(strict=True, ge=0)]] = Query(0, description="", alias="offset", ge=0),
     ) -> WebhookListResponse:
-        return await implementation.list_webhooks(limit, offset)
+        return await adapter.list_webhooks(limit, offset)
 
     @router.post(
         "/v1/webhooks",
@@ -104,14 +104,14 @@ def create_router(
                 get_token_BearerAuth
             ),
         ],
-        implementation: Annotated[
+        adapter: Annotated[
             BaseWebhooksApi,
-            Depends(get_implementation),
+            Depends(get_adapter),
         ],
         webhook_create: WebhookCreate = Body(None, description=""),
         idempotency_key: Optional[StrictStr] = Header(None, description=""),
     ) -> WebhookResponse:
-        return await implementation.create_webhook(webhook_create, idempotency_key)
+        return await adapter.create_webhook(webhook_create, idempotency_key)
 
     @router.get(
         "/v1/webhooks/{webhook_id}",
@@ -139,13 +139,13 @@ def create_router(
                 get_token_BearerAuth
             ),
         ],
-        implementation: Annotated[
+        adapter: Annotated[
             BaseWebhooksApi,
-            Depends(get_implementation),
+            Depends(get_adapter),
         ],
         webhook_id: StrictStr = Path(..., description=""),
     ) -> WebhookResponse:
-        return await implementation.get_webhook(webhook_id)
+        return await adapter.get_webhook(webhook_id)
 
     @router.delete(
         "/v1/webhooks/{webhook_id}",
@@ -173,13 +173,13 @@ def create_router(
                 get_token_BearerAuth
             ),
         ],
-        implementation: Annotated[
+        adapter: Annotated[
             BaseWebhooksApi,
-            Depends(get_implementation),
+            Depends(get_adapter),
         ],
         webhook_id: StrictStr = Path(..., description=""),
     ) -> DeletionResponse:
-        return await implementation.delete_webhook(webhook_id)
+        return await adapter.delete_webhook(webhook_id)
 
     @router.patch(
         "/v1/webhooks/{webhook_id}",
@@ -207,12 +207,12 @@ def create_router(
                 get_token_BearerAuth
             ),
         ],
-        implementation: Annotated[
+        adapter: Annotated[
             BaseWebhooksApi,
-            Depends(get_implementation),
+            Depends(get_adapter),
         ],
         webhook_id: StrictStr = Path(..., description=""),
         webhook_update: WebhookUpdate = Body(None, description=""),
     ) -> WebhookResponse:
-        return await implementation.update_webhook(webhook_id, webhook_update)
+        return await adapter.update_webhook(webhook_id, webhook_update)
     return router

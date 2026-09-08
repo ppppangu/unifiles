@@ -17,7 +17,7 @@ POST /v1/api-keys
 {
     "name": "production-key",
     "scopes": ["files:read", "files:write", "kb:*"],
-    "expires_in_days": 365
+    "expires_at": "2025-01-15T10:30:00Z"
 }
 ```
 
@@ -25,7 +25,7 @@ POST /v1/api-keys
 |-----|------|------|------|
 | `name` | string | 是 | 密钥名称 |
 | `scopes` | array | 否 | 权限范围（默认全部） |
-| `expires_in_days` | integer | 否 | 有效期天数 |
+| `expires_at` | date-time | 否 | 过期时间 |
 
 ### 权限范围
 

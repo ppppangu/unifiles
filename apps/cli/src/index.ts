@@ -132,7 +132,7 @@ export function createProgram(): Command {
 
   program.command("status").action(async (_options: unknown, command: Command) => {
     const client = await clientFor(command);
-    await client.files.listSupportedTypes();
+    await client.system.liveness();
     emit(command, { ok: true, baseUrl: client.baseUrl });
   });
 
@@ -195,7 +195,7 @@ export function createProgram(): Command {
     .command("delete")
     .argument("<file-id>")
     .action(async (id: string, _options: unknown, command: Command) => emit(command, await (await clientFor(command)).files.delete(id)));
-  files.command("types").action(async (_options: unknown, command: Command) => emit(command, await (await clientFor(command)).files.listSupportedTypes()));
+  files.command("types").action(async (_options: unknown, command: Command) => emit(command, await (await clientFor(command)).files.supportedTypes()));
 
   const extractions = program.command("extractions").description("manage extraction tasks");
   extractions
@@ -355,8 +355,8 @@ export function createProgram(): Command {
   apiKeys.command("revoke").argument("<id>").action(async (id: string, _options: unknown, command: Command) => emit(command, await (await clientFor(command)).apiKeys.revoke(id)));
 
   const usage = program.command("usage").description("inspect usage and limits");
-  usage.command("stats").action(async (_options: unknown, command: Command) => emit(command, await (await clientFor(command)).usage.getStats()));
-  usage.command("limits").action(async (_options: unknown, command: Command) => emit(command, await (await clientFor(command)).usage.getLimits()));
+  usage.command("stats").action(async (_options: unknown, command: Command) => emit(command, await (await clientFor(command)).usage.stats()));
+  usage.command("limits").action(async (_options: unknown, command: Command) => emit(command, await (await clientFor(command)).usage.limits()));
 
   return program;
 }

@@ -11,7 +11,7 @@ extraction = client.extractions.create(
     file_id: str,
     mode: str = "normal",
     options: dict = None
-) -> Extraction
+) -> ExtractionJob
 ```
 
 ### 参数
@@ -47,7 +47,7 @@ print(extraction.markdown)
 获取提取结果。
 
 ```python
-extraction = client.extractions.get(extraction_id: str) -> Extraction
+extraction = client.extractions.get(extraction_id: str) -> ExtractionJob
 ```
 
 ### 示例
@@ -74,11 +74,11 @@ extractions = client.extractions.list(
 
 ---
 
-## Extraction 对象
+## ExtractionJob 对象
 
 ```python
 @dataclass
-class Extraction:
+class ExtractionJob:
     id: str                    # 提取 ID
     file_id: str               # 文件 ID
     status: str                # pending | processing | completed | failed
@@ -91,7 +91,7 @@ class Extraction:
     created_at: datetime
     completed_at: datetime
 
-    def wait(self, timeout: int = 300) -> "Extraction":
+    def wait(self, timeout: int = 300) -> "ExtractionJob":
         """等待提取完成"""
         pass
 ```

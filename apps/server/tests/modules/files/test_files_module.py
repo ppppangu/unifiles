@@ -1,15 +1,15 @@
 from __future__ import annotations
 
 import pytest
-from unifiles_server.modules.files.dependencies import (
-    get_files_api_implementation,
-    get_files_service,
-)
-from unifiles_server.modules.files.implementation import (
-    FilesImplementation,
+from unifiles_server.modules.files.adapter import (
+    FilesAdapter,
     parse_object,
     parse_tags,
     sanitize_filename,
+)
+from unifiles_server.modules.files.providers import (
+    get_files_service,
+    provide_files_adapter,
 )
 
 
@@ -21,14 +21,14 @@ def test_file_adapter_helpers_preserve_validation_behavior() -> None:
 
 
 def test_files_provider_injects_transport_independent_service() -> None:
-    implementation = get_files_api_implementation(get_files_service())
-    assert isinstance(implementation, FilesImplementation)
+    adapter = provide_files_adapter(get_files_service())
+    assert isinstance(adapter, FilesAdapter)
 
 
 @pytest.mark.asyncio
 async def test_supported_file_types_are_mapped_to_protocol_dto() -> None:
-    implementation = FilesImplementation(get_files_service())
-    response = await implementation.list_supported_file_types()
+    adapter = FilesAdapter(get_files_service())
+    response = await adapter.list_supported_file_types()
 
     assert response.data.document_types[0] == ".pdf"
     assert ".webp" in response.data.image_types

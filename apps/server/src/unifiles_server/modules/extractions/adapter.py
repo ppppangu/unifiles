@@ -12,7 +12,7 @@ from ...shared.responses import success
 from .service import run_extraction
 
 
-class ExtractionsImplementation(BaseExtractionsApi):
+class ExtractionsAdapter(BaseExtractionsApi):
     async def list_file_extractions(
         self, file_id: str, limit: int | None, offset: int | None
     ) -> Any:

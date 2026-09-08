@@ -20,7 +20,7 @@ https://api.unifiles.dev/v1
 
 ## 认证
 
-所有 API 请求必须包含有效的 API Key。
+除 `/health` 和 `/v1/health` 外，所有 API 请求必须包含有效的 API Key。
 
 ### Header 认证
 
@@ -41,6 +41,7 @@ sk_test_xxxxxxxxxxxxxxxxxxxxx   # 测试环境
 HTTP/1.1 401 Unauthorized
 
 {
+    "success": false,
     "error": {
         "code": "INVALID_API_KEY",
         "message": "API Key 无效或已过期"
@@ -150,7 +151,6 @@ Content-Type: application/json
 |-------|------|
 | 200 | 成功 |
 | 201 | 创建成功 |
-| 200 | 读取、更新或删除成功 |
 | 400 | 请求参数错误 |
 | 401 | 认证失败 |
 | 403 | 权限不足 |
@@ -159,7 +159,6 @@ Content-Type: application/json
 | 413 | 请求体过大 |
 | 429 | 请求过于频繁 |
 | 500 | 服务器内部错误 |
-| 503 | 服务暂时不可用 |
 
 ## 分页
 
@@ -197,19 +196,11 @@ GET /v1/files?sort_by=created_at&order=desc
 
 ## 速率限制
 
-### 响应头
-
-```http
-X-RateLimit-Limit: 1000
-X-RateLimit-Remaining: 950
-X-RateLimit-Reset: 1705312800
-```
-
-### 超出限制
+部署可以使用 429 表示限流。响应仍使用统一错误 envelope；如果部署提供
+`Retry-After`，SDK 会读取它并控制重试等待时间。
 
 ```http
 HTTP/1.1 429 Too Many Requests
-Retry-After: 30
 
 {
     "error": {

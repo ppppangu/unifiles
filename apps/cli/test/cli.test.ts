@@ -48,7 +48,7 @@ describe("CLI", () => {
       vi.fn().mockResolvedValue(
         Response.json({
           success: true,
-          data: { document_types: [".txt"], image_types: [], all_types: [".txt"] },
+          data: { status: "ok", version: "0.1.0" },
         }),
       ),
     );

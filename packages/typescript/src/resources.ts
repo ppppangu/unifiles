@@ -14,12 +14,14 @@ import {
   type APIKey,
   type ChunkingStrategy,
   type DeletionResult,
-  Document,
+  IndexedDocument,
   type DocumentData,
-  Extraction,
+  ExtractionJob,
   type ExtractionData,
   type ExtractionOptions,
   type FileResource,
+  type HealthDetails,
+  type HealthStatus,
   type KnowledgeBase,
   type ListResponse,
   type SearchResults,
@@ -100,7 +102,7 @@ export class FilesResource {
     return (await this.transport.apis.files.deleteFile({ fileId })).data;
   }
 
-  async listSupportedTypes(): Promise<SupportedFileTypes> {
+  async supportedTypes(): Promise<SupportedFileTypes> {
     return (await this.transport.apis.files.listSupportedFileTypes()).data;
   }
 }
@@ -108,12 +110,12 @@ export class FilesResource {
 export class ExtractionsResource {
   constructor(private readonly transport: Transport) {}
 
-  #bind = (data: ExtractionData): Extraction => new Extraction(data, this.#wait);
+  #bind = (data: ExtractionData): ExtractionJob => new ExtractionJob(data, this.#wait);
 
   async create(
     fileId: string,
     options: { mode?: string; options?: ExtractionOptions } = {},
-  ): Promise<Extraction> {
+  ): Promise<ExtractionJob> {
     const response = await this.transport.apis.extractions.createExtraction({
       extractionCreate: {
         fileId,
@@ -125,14 +127,14 @@ export class ExtractionsResource {
     return this.#bind(response.data);
   }
 
-  async get(extractionId: string): Promise<Extraction> {
+  async get(extractionId: string): Promise<ExtractionJob> {
     return this.#bind((await this.transport.apis.extractions.getExtraction({ extractionId })).data);
   }
 
   async list(
     fileId: string,
     options: { limit?: number; offset?: number } = {},
-  ): Promise<ListResponse<Extraction>> {
+  ): Promise<ListResponse<ExtractionJob>> {
     const response = await this.transport.apis.extractions.listFileExtractions({
       fileId,
       limit: options.limit ?? 50,
@@ -141,7 +143,7 @@ export class ExtractionsResource {
     return { ...response.data, items: response.data.items.map(this.#bind) };
   }
 
-  #wait = async (id: string, options: WaitOptions): Promise<Extraction> => {
+  #wait = async (id: string, options: WaitOptions): Promise<ExtractionJob> => {
     const timeoutMs = options.timeoutMs ?? 300_000;
     const pollIntervalMs = options.pollIntervalMs ?? 2_000;
     const deadline = Date.now() + timeoutMs;
@@ -158,13 +160,13 @@ export class ExtractionsResource {
 export class DocumentsResource {
   constructor(private readonly transport: Transport) {}
 
-  #bind = (data: DocumentData): Document => new Document(data, this.#wait);
+  #bind = (data: DocumentData): IndexedDocument => new IndexedDocument(data, this.#wait);
 
   async create(
     kbId: string,
     fileId: string,
     options: { title?: string; metadata?: Record<string, unknown> } = {},
-  ): Promise<Document> {
+  ): Promise<IndexedDocument> {
     const response = await this.transport.apis.documents.createDocument({
       kbId,
       documentCreate: {
@@ -180,7 +182,7 @@ export class DocumentsResource {
   async list(
     kbId: string,
     options: { limit?: number; offset?: number } = {},
-  ): Promise<ListResponse<Document>> {
+  ): Promise<ListResponse<IndexedDocument>> {
     const response = await this.transport.apis.documents.listDocuments({
       kbId,
       limit: options.limit ?? 50,
@@ -189,7 +191,7 @@ export class DocumentsResource {
     return { ...response.data, items: response.data.items.map(this.#bind) };
   }
 
-  async get(kbId: string, documentId: string): Promise<Document> {
+  async get(kbId: string, documentId: string): Promise<IndexedDocument> {
     return this.#bind(
       (await this.transport.apis.documents.getDocument({ kbId, documentId })).data,
     );
@@ -199,7 +201,7 @@ export class DocumentsResource {
     return (await this.transport.apis.documents.deleteDocument({ kbId, documentId })).data;
   }
 
-  #wait = async (kbId: string, id: string, options: WaitOptions): Promise<Document> => {
+  #wait = async (kbId: string, id: string, options: WaitOptions): Promise<IndexedDocument> => {
     const timeoutMs = options.timeoutMs ?? 300_000;
     const pollIntervalMs = options.pollIntervalMs ?? 2_000;
     const deadline = Date.now() + timeoutMs;
@@ -406,23 +408,35 @@ export class APIKeysResource {
     ).data;
   }
 
-  async delete(id: string): Promise<DeletionResult> {
+  async revoke(id: string): Promise<DeletionResult> {
     return (await this.transport.apis.apiKeys.revokeApiKey({ keyId: id })).data;
-  }
-
-  revoke(id: string): Promise<DeletionResult> {
-    return this.delete(id);
   }
 }
 
 export class UsageResource {
   constructor(private readonly transport: Transport) {}
 
-  async getStats(): Promise<UsageStats> {
+  async stats(): Promise<UsageStats> {
     return (await this.transport.apis.usage.getUsageStats()).data;
   }
 
-  async getLimits(): Promise<UsageLimits> {
+  async limits(): Promise<UsageLimits> {
     return (await this.transport.apis.usage.getUsageLimits()).data;
+  }
+}
+
+export class SystemResource {
+  constructor(private readonly transport: Transport) {}
+
+  async health(): Promise<HealthStatus> {
+    return (await this.transport.apis.system.getVersionedHealth()).data;
+  }
+
+  async liveness(): Promise<HealthStatus> {
+    return (await this.transport.apis.system.getHealth()).data;
+  }
+
+  async details(): Promise<HealthDetails> {
+    return (await this.transport.apis.system.getHealthDetails()).data;
   }
 }

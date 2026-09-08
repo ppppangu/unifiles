@@ -7,7 +7,7 @@ from typing import Annotated
 from fastapi import Depends
 from unifiles_server_protocol.apis.files_api_base import BaseFilesApi
 
-from .implementation import FilesImplementation
+from .adapter import FilesAdapter
 from .service import FilesService
 
 
@@ -15,7 +15,7 @@ def get_files_service() -> FilesService:
     return FilesService()
 
 
-def get_files_api_implementation(
+def provide_files_adapter(
     service: Annotated[FilesService, Depends(get_files_service)],
 ) -> BaseFilesApi:
-    return FilesImplementation(service)
+    return FilesAdapter(service)

@@ -29,6 +29,7 @@ def test_sync_python_sdk_against_real_server(tmp_path: Path) -> None:
         results = client.knowledge_bases.hybrid_search(
             kb.id, "project deadline", vector_weight=0.5, keyword_weight=0.5
         )
+        assert client.system.health().status == "ok"
 
         assert extraction.markdown and "Friday" in extraction.markdown
         assert document.status == "indexed"
@@ -54,6 +55,7 @@ async def test_async_python_sdk_against_real_server(tmp_path: Path) -> None:
             document = await client.knowledge_bases.documents.create(kb.id, file.id)
             await document.wait(poll_interval=0)
             results = await client.knowledge_bases.search(kb.id, "observability", top_k=3)
+            assert (await client.system.health()).status == "ok"
 
             assert extraction.status == "completed"
             assert document.status == "indexed"

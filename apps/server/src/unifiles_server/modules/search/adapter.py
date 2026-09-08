@@ -14,7 +14,7 @@ from ...shared.responses import success
 from .service import search
 
 
-class SearchImplementation(BaseSearchApi):
+class SearchAdapter(BaseSearchApi):
     async def search_knowledge_base(self, kb_id: str, search_request: SearchRequest) -> Any:
         _, principal, database = current_context()
         return success(

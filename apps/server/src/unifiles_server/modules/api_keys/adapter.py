@@ -11,7 +11,7 @@ from ...shared.auth import current_context
 from ...shared.responses import model_payload, success
 
 
-class APIKeysImplementation(BaseAPIKeysApi):
+class APIKeysAdapter(BaseAPIKeysApi):
     async def create_api_key(
         self, api_key_create: APIKeyCreate, idempotency_key: str | None
     ) -> Any:

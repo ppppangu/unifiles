@@ -50,7 +50,7 @@ curl -X POST "http://localhost:8088/v1/api-keys" \
   -d '{
     "name": "production-key",
     "scopes": ["files:*", "kb:*"],
-    "expires_in_days": 365
+    "expires_at": "2027-01-15T10:30:00Z"
   }'
 ```
 
@@ -133,7 +133,7 @@ API Key 可以配置不同的权限范围，限制其访问能力：
 | `kb:read` | 读取知识库和搜索 |
 | `kb:write` | 创建和修改知识库 |
 | `kb:*` | 知识库的所有权限 |
-| `api-keys:*` | 管理 API 密钥 |
+| `api_keys:*` | 管理 API 密钥 |
 | `webhooks:*` | 管理 Webhooks |
 | `*` | 所有权限 |
 
@@ -171,7 +171,7 @@ for key in keys.items:
 ### 撤销 Key
 
 ```python
-client.api_keys.delete(key_id="key_xxx")
+client.api_keys.revoke(key_id="key_xxx")
 ```
 
 ### 设置过期时间
@@ -180,7 +180,7 @@ client.api_keys.delete(key_id="key_xxx")
 key = client.api_keys.create(
     name="temp-key",
     scopes=["files:*"],
-    expires_in_days=7  # 7 天后过期
+    expires_at="2027-01-15T10:30:00Z"
 )
 
 print(f"过期时间: {key.expires_at}")
@@ -236,22 +236,10 @@ new_key = admin_client.api_keys.create(
 # ...
 
 # 撤销旧 Key
-admin_client.api_keys.delete(old_key_id)
+admin_client.api_keys.revoke(old_key_id)
 ```
 
-### 4. 使用 IP 白名单
-
-限制 API Key 只能从特定 IP 访问：
-
-```python
-key = admin_client.api_keys.create(
-    name="production",
-    scopes=["*"],
-    allowed_ips=["203.0.113.0/24", "198.51.100.1"]
-)
-```
-
-### 5. 监控使用情况
+### 4. 监控使用情况
 
 定期检查 API Key 的使用情况：
 
@@ -273,7 +261,7 @@ print(f"文件上传量: {usage.files_uploaded}")
 
     1. 立即撤销泄露的 Key：
        ```python
-       admin_client.api_keys.delete(compromised_key_id)
+       admin_client.api_keys.revoke(compromised_key_id)
        ```
     2. 创建新的 API Key
     3. 更新所有使用该 Key 的应用

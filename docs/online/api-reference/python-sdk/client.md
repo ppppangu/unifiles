@@ -22,6 +22,9 @@ UnifilesClient(
 | `timeout` | int | 30 | 请求超时（秒） |
 | `max_retries` | int | 3 | 失败重试次数 |
 
+`base_url` 填服务地址即可，SDK 会自动补上 `/v1`。`client.raw` 是 generated
+协议入口，适合低层调用；常规业务代码应使用上面的 public resource facade。
+
 ### 示例
 
 ```python
@@ -111,7 +114,7 @@ API Key 命名空间。
 ```python
 client.api_keys.create(name)   # 创建 API Key
 client.api_keys.list()         # 列出 API Keys
-client.api_keys.delete(key_id) # 撤销 API Key
+client.api_keys.revoke(key_id) # 撤销 API Key
 ```
 
 ### client.usage
@@ -119,8 +122,18 @@ client.api_keys.delete(key_id) # 撤销 API Key
 使用统计命名空间。
 
 ```python
-client.usage.get_stats()   # 获取使用统计
-client.usage.get_limits()  # 获取配额限制
+client.usage.stats()   # 获取使用统计
+client.usage.limits()  # 获取配额限制
+```
+
+### client.system
+
+系统状态命名空间。
+
+```python
+client.system.health()     # 版本化健康检查
+client.system.liveness()   # 存活检查
+client.system.details()    # 详细健康状态
 ```
 
 ## 上下文管理器

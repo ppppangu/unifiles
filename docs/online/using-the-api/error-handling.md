@@ -8,6 +8,7 @@
 
 ```json
 {
+    "success": false,
     "error": {
         "code": "INVALID_REQUEST",
         "message": "请求参数无效",
@@ -41,7 +42,6 @@
 | `422` | Unprocessable Entity | 业务逻辑错误 |
 | `429` | Too Many Requests | 超出速率限制 |
 | `500` | Internal Server Error | 服务器内部错误 |
-| `503` | Service Unavailable | 服务暂时不可用 |
 
 ## 错误码参考
 
@@ -52,7 +52,7 @@
 | `INVALID_API_KEY` | API Key 无效 | 检查 API Key 是否正确 |
 | `EXPIRED_API_KEY` | API Key 已过期 | 重新生成 API Key |
 | `REVOKED_API_KEY` | API Key 已被撤销 | 联系管理员或创建新 Key |
-| `MISSING_AUTH` | 未提供认证信息 | 添加 Authorization 头 |
+| `MISSING_API_KEY` | 未提供认证信息 | 添加 Authorization 头 |
 
 ```python
 from unifiles.exceptions import AuthenticationError
@@ -183,7 +183,7 @@ except RateLimitError as e:
     result = client.files.upload("document.pdf")
 ```
 
-### 服务器错误 (500/503)
+### 服务器错误 (500+)
 
 | 错误码 | 说明 | 解决方法 |
 |-------|------|---------|
@@ -213,7 +213,7 @@ UnifilesError (基类)
 ├── ValidationError       # 400/422 验证错误
 ├── ProcessingError       # 422 处理错误
 ├── RateLimitError        # 429 速率限制
-├── ServerError           # 500/503 服务器错误
+├── ServerError           # 500+ 服务器错误
 └── TimeoutError          # 请求超时
 ```
 

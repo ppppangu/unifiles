@@ -19,11 +19,11 @@ class File:
     updated_at: datetime       # 更新时间
 ```
 
-### Extraction
+### ExtractionJob
 
 ```python
 @dataclass
-class Extraction:
+class ExtractionJob:
     id: str                    # 提取任务 ID
     file_id: str               # 关联文件 ID
     status: str                # pending | processing | completed | failed
@@ -36,7 +36,7 @@ class Extraction:
     created_at: datetime
     completed_at: Optional[datetime]
 
-    def wait(self, timeout: int = 300) -> "Extraction": ...
+    def wait(self, timeout: int = 300) -> "ExtractionJob": ...
 ```
 
 ### KnowledgeBase
@@ -55,11 +55,11 @@ class KnowledgeBase:
     updated_at: datetime
 ```
 
-### Document
+### IndexedDocument
 
 ```python
 @dataclass
-class Document:
+class IndexedDocument:
     id: str
     kb_id: str
     file_id: str
@@ -71,7 +71,7 @@ class Document:
     created_at: datetime
     indexed_at: Optional[datetime]
 
-    def wait(self, timeout: int = 300) -> "Document": ...
+    def wait(self, timeout: int = 300) -> "IndexedDocument": ...
 ```
 
 ### Chunk
@@ -129,9 +129,9 @@ class ListResponse(Generic[T]):
 
 # 具体类型
 FileList = ListResponse[File]
-ExtractionList = ListResponse[Extraction]
+ExtractionJobList = ListResponse[ExtractionJob]
 KnowledgeBaseList = ListResponse[KnowledgeBase]
-DocumentList = ListResponse[Document]
+IndexedDocumentList = ListResponse[IndexedDocument]
 ```
 
 ## 搜索结果
@@ -169,11 +169,11 @@ class ExtractionUsage:
 ## 类型导入
 
 ```python
-from unifiles.types import (
+from unifiles import (
     File,
-    Extraction,
+    ExtractionJob,
     KnowledgeBase,
-    Document,
+    IndexedDocument,
     Chunk,
     Webhook,
     APIKey,

@@ -71,6 +71,22 @@ def test_sync_resource_namespaces_and_file_mapping() -> None:
     assert len(client.files.list()) == 0
 
 
+def test_public_names_are_domain_specific_without_legacy_aliases() -> None:
+    client = UnifilesClient("sk_test", base_url="http://example.test", max_retries=0)
+    assert hasattr(client.system, "health")
+    assert hasattr(client.system, "liveness")
+    assert hasattr(client.system, "details")
+    assert hasattr(client.files, "supported_types")
+    assert hasattr(client.usage, "stats")
+    assert hasattr(client.usage, "limits")
+    assert hasattr(client.api_keys, "revoke")
+    assert not hasattr(client.files, "list_supported_types")
+    assert not hasattr(client.usage, "get_stats")
+    assert not hasattr(client.usage, "get_limits")
+    assert not hasattr(client.api_keys, "delete")
+    client.close()
+
+
 def test_error_envelope_maps_to_typed_exception() -> None:
     def handler(_: httpx.Request) -> httpx.Response:
         return httpx.Response(

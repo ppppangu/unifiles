@@ -7,7 +7,7 @@ from typing import Annotated
 from fastapi import Depends
 from unifiles_server_protocol.apis.system_api_base import BaseSystemApi
 
-from .implementation import SystemImplementation
+from .adapter import SystemAdapter
 from .service import SystemService
 
 
@@ -15,7 +15,7 @@ def get_system_service() -> SystemService:
     return SystemService()
 
 
-def get_system_api_implementation(
+def provide_system_adapter(
     service: Annotated[SystemService, Depends(get_system_service)],
 ) -> BaseSystemApi:
-    return SystemImplementation(service)
+    return SystemAdapter(service)

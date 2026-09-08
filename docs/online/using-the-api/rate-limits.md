@@ -1,6 +1,8 @@
 # 速率限制
 
-Unifiles 对 API 请求实施速率限制，以确保服务的稳定性和公平使用。了解这些限制有助于你设计更健壮的应用。
+本页介绍客户端如何处理部署返回的 429。请求速率和套餐配额由具体部署决定，
+当前 self-hosted OpenAPI contract 不固定下面表格中的数值；应用不应把这些数值
+写死在业务逻辑中。
 
 ## 限制概览
 
@@ -35,7 +37,7 @@ Unifiles 对 API 请求实施速率限制，以确保服务的稳定性和公平
 
 ## 响应头信息
 
-每个 API 响应都包含速率限制相关的头信息：
+具体部署可以返回速率限制相关的头信息；这些字段不是当前 OpenAPI contract 的必选字段：
 
 ```http
 HTTP/1.1 200 OK
@@ -62,6 +64,7 @@ Content-Type: application/json
 Retry-After: 30
 
 {
+    "success": false,
     "error": {
         "code": "RATE_LIMIT_EXCEEDED",
         "message": "请求过于频繁，请稍后重试",
@@ -120,7 +123,7 @@ file = upload_with_retry("document.pdf")
 
 ```python
 # 获取使用统计
-usage = client.usage.get_stats()
+usage = client.usage.stats()
 
 print(f"本月已用存储: {usage.storage_used_mb} MB")
 print(f"存储配额: {usage.storage_limit_mb} MB")
@@ -128,7 +131,7 @@ print(f"本月提取页数: {usage.extraction_pages_used}")
 print(f"提取配额: {usage.extraction_pages_limit}")
 
 # 获取限制详情
-limits = client.usage.get_limits()
+limits = client.usage.limits()
 
 print(f"API 请求限制: {limits.api_requests_per_minute}/分钟")
 print(f"文件上传限制: {limits.file_uploads_per_minute}/分钟")
@@ -272,7 +275,7 @@ def process_files_with_rate_limit(file_paths, rate_per_second=10):
 ```python
 def check_quota_before_operation(required_pages=0, required_storage_mb=0):
     """在操作前检查配额"""
-    usage = client.usage.get_stats()
+    usage = client.usage.stats()
     
     # 检查存储配额
     available_storage = usage.storage.limit_bytes - usage.storage.used_bytes

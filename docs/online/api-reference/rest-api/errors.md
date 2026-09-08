@@ -4,6 +4,7 @@
 
 ```json
 {
+    "success": false,
     "error": {
         "code": "ERROR_CODE",
         "message": "错误描述",
@@ -20,7 +21,7 @@
 | `INVALID_API_KEY` | API Key 无效 |
 | `EXPIRED_API_KEY` | API Key 已过期 |
 | `REVOKED_API_KEY` | API Key 已被撤销 |
-| `MISSING_AUTH` | 未提供认证信息 |
+| `MISSING_API_KEY` | 未提供认证信息 |
 
 ## 权限错误 (403)
 
@@ -69,7 +70,7 @@
 | `RATE_LIMIT_EXCEEDED` | 请求频率超限 |
 | `CONCURRENT_LIMIT_EXCEEDED` | 并发请求超限 |
 
-## 服务器错误 (500/503)
+## 服务器错误 (500)
 
 | 错误码 | 说明 |
 |-------|------|

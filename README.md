@@ -89,6 +89,7 @@ uv run ruff check apps packages/python scripts codegen/scripts
 uv run mypy apps/server/src packages/python/src scripts codegen/scripts
 npm run check
 uv run python codegen/scripts/codegen.py validate
+uv run python codegen/scripts/check_public_surface.py
 uv run python codegen/scripts/codegen.py check all
 ```
 

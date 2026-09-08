@@ -28,11 +28,11 @@ from unifiles_server_protocol.models.health_details_response import HealthDetail
 from unifiles_server_protocol.models.health_response import HealthResponse
 from unifiles_server_protocol.security_api import SecurityProvider
 
-ImplementationProvider: TypeAlias = Callable[..., BaseSystemApi]
+AdapterProvider: TypeAlias = Callable[..., BaseSystemApi]
 
 
 def create_router(
-    get_implementation: ImplementationProvider,
+    get_adapter: AdapterProvider,
     get_token_BearerAuth: SecurityProvider,
 ) -> APIRouter:
     router = APIRouter()
@@ -57,12 +57,12 @@ def create_router(
         response_model_by_alias=True,
     )
     async def get_versioned_health(
-        implementation: Annotated[
+        adapter: Annotated[
             BaseSystemApi,
-            Depends(get_implementation),
+            Depends(get_adapter),
         ],
     ) -> HealthResponse:
-        return await implementation.get_versioned_health()
+        return await adapter.get_versioned_health()
 
     @router.get(
         "/v1/health/details",
@@ -85,12 +85,12 @@ def create_router(
                 get_token_BearerAuth
             ),
         ],
-        implementation: Annotated[
+        adapter: Annotated[
             BaseSystemApi,
-            Depends(get_implementation),
+            Depends(get_adapter),
         ],
     ) -> HealthDetailsResponse:
-        return await implementation.get_health_details()
+        return await adapter.get_health_details()
 
     @router.get(
         "/health",
@@ -112,10 +112,10 @@ def create_router(
         response_model_by_alias=True,
     )
     async def get_health(
-        implementation: Annotated[
+        adapter: Annotated[
             BaseSystemApi,
-            Depends(get_implementation),
+            Depends(get_adapter),
         ],
     ) -> HealthResponse:
-        return await implementation.get_health()
+        return await adapter.get_health()
     return router

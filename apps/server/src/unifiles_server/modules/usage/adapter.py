@@ -10,7 +10,7 @@ from ...shared.auth import current_context
 from ...shared.responses import success
 
 
-class UsageImplementation(BaseUsageApi):
+class UsageAdapter(BaseUsageApi):
     async def get_usage_stats(self) -> Any:
         _, principal, database = current_context()
         return success(database.usage(principal["user_id"]))

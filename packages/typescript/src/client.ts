@@ -3,6 +3,7 @@ import {
   ExtractionsResource,
   FilesResource,
   KnowledgeBasesResource,
+  SystemResource,
   UsageResource,
   WebhooksResource,
 } from "./resources.js";
@@ -17,6 +18,7 @@ export class UnifilesClient {
   readonly webhooks: WebhooksResource;
   readonly apiKeys: APIKeysResource;
   readonly usage: UsageResource;
+  readonly system: SystemResource;
   readonly raw: GeneratedAPIs;
   readonly baseUrl: string;
 
@@ -30,5 +32,6 @@ export class UnifilesClient {
     this.webhooks = new WebhooksResource(transport);
     this.apiKeys = new APIKeysResource(transport);
     this.usage = new UsageResource(transport);
+    this.system = new SystemResource(transport);
   }
 }

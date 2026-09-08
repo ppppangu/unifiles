@@ -57,7 +57,7 @@ https://api.unifiles.dev/v1
 
 ### 认证
 
-所有请求需要在 Header 中包含 API Key：
+除 `/health` 和 `/v1/health` 外，所有请求需要在 Header 中包含 API Key：
 
 ```
 Authorization: Bearer sk_your_api_key
@@ -71,14 +71,17 @@ Authorization: Bearer sk_your_api_key
 
 ### 响应格式
 
-所有响应都是 JSON 格式：
+JSON 响应使用统一 envelope；文件下载接口直接返回字节：
 
 ```json
 {
-    "id": "file_abc123",
-    "filename": "document.pdf",
-    "size": 1048576,
-    "created_at": "2024-01-15T10:30:00Z"
+    "success": true,
+    "data": {
+        "id": "file_abc123",
+        "filename": "document.pdf",
+        "size": 1048576,
+        "created_at": "2024-01-15T10:30:00Z"
+    }
 }
 ```
 
@@ -86,6 +89,7 @@ Authorization: Bearer sk_your_api_key
 
 ```json
 {
+    "success": false,
     "error": {
         "code": "INVALID_REQUEST",
         "message": "请求参数无效",
@@ -183,12 +187,20 @@ client.webhooks.delete()
 # API Keys
 client.api_keys.create()
 client.api_keys.list()
-client.api_keys.delete()
+client.api_keys.revoke()
 
 # Usage
-client.usage.get_stats()
-client.usage.get_limits()
+client.usage.stats()
+client.usage.limits()
+
+# System
+client.system.health()
+client.system.liveness()
+client.system.details()
 ```
+
+`client.raw` 提供完整的 generated OpenAPI surface，适合需要低层参数或尚未有
+facade helper 的场景。常规应用应优先使用上面的 public facade。
 
 ## 下一步
 

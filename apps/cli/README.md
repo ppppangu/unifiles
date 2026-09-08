@@ -11,3 +11,7 @@ printf '%s' "$UNIFILES_API_KEY" | unifiles config set production \
   --api-key-stdin
 unifiles files list
 ```
+
+The CLI uses the public TypeScript SDK. `status` checks `system.liveness()`;
+`files types`, `usage stats`, and `api-keys revoke` use the same domain names as
+the SDK facade.

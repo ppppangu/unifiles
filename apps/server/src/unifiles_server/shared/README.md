@@ -5,4 +5,4 @@ SQLite persistence, error envelopes, settings, and response mapping.
 
 Feature-specific authorization and business rules must remain in their owning
 module. Generated router factories receive shared authentication through each
-feature's static api.py composition entry point.
+feature's static router.py composition entry point.

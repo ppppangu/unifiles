@@ -28,11 +28,11 @@ from {{modelPackage}}.extra_models import TokenModel  # noqa: F401
 {{/imports}}
 {{#securityImports.0}}from {{packageName}}.security_api import SecurityProvider{{/securityImports.0}}
 
-ImplementationProvider: TypeAlias = Callable[..., Base{{classname}}]
+AdapterProvider: TypeAlias = Callable[..., Base{{classname}}]
 
 
 def create_router(
-    get_implementation: ImplementationProvider,
+    get_adapter: AdapterProvider,
     {{#securityImports}}
     get_token_{{.}}: SecurityProvider,
     {{/securityImports}}
@@ -74,16 +74,16 @@ def create_router(
         ],
         {{/authMethods}}
         {{/hasAuthMethods}}
-        implementation: Annotated[
+        adapter: Annotated[
             Base{{classname}},
-            Depends(get_implementation),
+            Depends(get_adapter),
         ],
         {{#allParams}}
         {{>endpoint_argument_definition}},
         {{/allParams}}
     ) -> {{returnType}}{{^returnType}}None{{/returnType}}:
         {{#notes}}"""{{.}}"""
-        {{/notes}}return await implementation.{{operationId}}({{#allParams}}{{>impl_argument}}{{^-last}}, {{/-last}}{{/allParams}})
+        {{/notes}}return await adapter.{{operationId}}({{#allParams}}{{>impl_argument}}{{^-last}}, {{/-last}}{{/allParams}})
     {{^-last}}
 
     {{/-last}}

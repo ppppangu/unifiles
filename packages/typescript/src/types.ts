@@ -8,6 +8,8 @@ import type {
   ExtractionResource,
   FileList,
   FileResource as GeneratedFileResource,
+  HealthDetails as GeneratedHealthDetails,
+  HealthStatus as GeneratedHealthStatus,
   KnowledgeBaseResource,
   SearchResults as GeneratedSearchResults,
   SupportedFileTypes as GeneratedSupportedFileTypes,
@@ -30,6 +32,8 @@ export type UsageStats = GeneratedUsageStats;
 export type UsageLimits = GeneratedUsageLimits;
 export type DeletionResult = GeneratedDeletionResult;
 export type SupportedFileTypes = GeneratedSupportedFileTypes;
+export type HealthDetails = GeneratedHealthDetails;
+export type HealthStatus = GeneratedHealthStatus;
 export type ChunkingStrategy = GeneratedChunkingStrategy & {
   readonly chunk_size?: undefined;
 };
@@ -44,11 +48,11 @@ export interface WaitOptions {
   pollIntervalMs?: number;
 }
 
-export interface Extraction extends ExtractionResource {}
-export class Extraction {
-  readonly #waiter: (id: string, options: WaitOptions) => Promise<Extraction>;
+export interface ExtractionJob extends ExtractionResource {}
+export class ExtractionJob {
+  readonly #waiter: (id: string, options: WaitOptions) => Promise<ExtractionJob>;
 
-  constructor(data: ExtractionResource, waiter: (id: string, options: WaitOptions) => Promise<Extraction>) {
+  constructor(data: ExtractionResource, waiter: (id: string, options: WaitOptions) => Promise<ExtractionJob>) {
     Object.assign(this, data);
     this.#waiter = waiter;
   }
@@ -60,13 +64,13 @@ export class Extraction {
   }
 }
 
-export interface Document extends DocumentResource {}
-export class Document {
-  readonly #waiter: (kbId: string, id: string, options: WaitOptions) => Promise<Document>;
+export interface IndexedDocument extends DocumentResource {}
+export class IndexedDocument {
+  readonly #waiter: (kbId: string, id: string, options: WaitOptions) => Promise<IndexedDocument>;
 
   constructor(
     data: DocumentResource,
-    waiter: (kbId: string, id: string, options: WaitOptions) => Promise<Document>,
+    waiter: (kbId: string, id: string, options: WaitOptions) => Promise<IndexedDocument>,
   ) {
     Object.assign(this, data);
     this.#waiter = waiter;

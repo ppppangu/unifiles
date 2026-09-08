@@ -28,11 +28,11 @@ from unifiles_server_protocol.models.usage_limits_response import UsageLimitsRes
 from unifiles_server_protocol.models.usage_stats_response import UsageStatsResponse
 from unifiles_server_protocol.security_api import SecurityProvider
 
-ImplementationProvider: TypeAlias = Callable[..., BaseUsageApi]
+AdapterProvider: TypeAlias = Callable[..., BaseUsageApi]
 
 
 def create_router(
-    get_implementation: ImplementationProvider,
+    get_adapter: AdapterProvider,
     get_token_BearerAuth: SecurityProvider,
 ) -> APIRouter:
     router = APIRouter()
@@ -63,12 +63,12 @@ def create_router(
                 get_token_BearerAuth
             ),
         ],
-        implementation: Annotated[
+        adapter: Annotated[
             BaseUsageApi,
-            Depends(get_implementation),
+            Depends(get_adapter),
         ],
     ) -> UsageStatsResponse:
-        return await implementation.get_usage_stats()
+        return await adapter.get_usage_stats()
 
     @router.get(
         "/v1/usage/limits",
@@ -96,10 +96,10 @@ def create_router(
                 get_token_BearerAuth
             ),
         ],
-        implementation: Annotated[
+        adapter: Annotated[
             BaseUsageApi,
-            Depends(get_implementation),
+            Depends(get_adapter),
         ],
     ) -> UsageLimitsResponse:
-        return await implementation.get_usage_limits()
+        return await adapter.get_usage_limits()
     return router
