@@ -19,7 +19,7 @@ jobs:
     environment: pypi
     steps:
       - uses: actions/checkout@v4
-      - uses: astral-sh/setup-uv@v6
+      - uses: astral-sh/setup-uv@v7
         with:
           python-version: "3.11"
       - run: uv run --frozen python scripts/check_release_versions.py --tag "$GITHUB_REF_NAME"
@@ -38,7 +38,7 @@ jobs:
     environment: pypi
     steps:
       - uses: actions/checkout@v4
-      - uses: astral-sh/setup-uv@v6
+      - uses: astral-sh/setup-uv@v7
         with:
           python-version: "3.11"
       - run: uv run --frozen python scripts/check_release_versions.py --tag "$GITHUB_REF_NAME"
@@ -64,7 +64,7 @@ jobs:
         with:
           node-version: 24
           registry-url: https://registry.npmjs.org
-      - uses: astral-sh/setup-uv@v6
+      - uses: astral-sh/setup-uv@v7
         with:
           python-version: "3.11"
       - run: npm install --global npm@11.5.1
