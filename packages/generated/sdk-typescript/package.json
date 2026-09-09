@@ -17,7 +17,7 @@
     "prepare": "npm run build"
   },
   "devDependencies": {
-    "typescript": "^4.0 || ^5.0"
+    "typescript": "^7.0"
   },
   "license": "Apache-2.0",
   "contributors": [
