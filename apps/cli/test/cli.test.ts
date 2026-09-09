@@ -58,16 +58,10 @@ describe("CLI", () => {
     expect(output.mock.calls.flat().join("")).toContain('"ok": true');
   });
 
-  it("runs through the npm bin symlink", () => {
-    const executable = fileURLToPath(
-      new URL(
-        `../../../node_modules/.bin/unifiles${process.platform === "win32" ? ".cmd" : ""}`,
-        import.meta.url,
-      ),
-    );
-    const result = spawnSync(executable, ["--help"], {
+  it("runs the built CLI entrypoint", () => {
+    const executable = fileURLToPath(new URL("../dist/index.js", import.meta.url));
+    const result = spawnSync(process.execPath, [executable, "--help"], {
       encoding: "utf8",
-      shell: process.platform === "win32",
     });
 
     expect(result.status, result.stderr).toBe(0);
