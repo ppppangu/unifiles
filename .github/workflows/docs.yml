@@ -30,7 +30,7 @@ jobs:
           enable-cache: true
       - run: uv sync --all-packages --group docs
       - run: uv run mkdocs build --strict
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: documentation-site
           path: site
