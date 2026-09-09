@@ -117,7 +117,6 @@ tmp/
 claude.md
 
 # UV package manager
-uv.lock
 .python-version
 
 # Project specific

@@ -9,7 +9,7 @@ git clone https://github.com/ppppangu/unifiles.git
 cd unifiles
 uv sync --all-packages --group dev
 
-UNIFILES_BOOTSTRAP_API_KEY=sk_test_local \
+UNIFILES_BOOTSTRAP_API_KEY=<bootstrap-key> \
   uv run unifiles-server --host 127.0.0.1 --port 8088
 ```
 
@@ -27,7 +27,7 @@ UNIFILES_BOOTSTRAP_API_KEY=sk_test_local \
     from unifiles import UnifilesClient
 
     client = UnifilesClient(
-        api_key="sk_test_local",
+        api_key="<bootstrap-key>",
         base_url="http://localhost:8088",
     )
 
@@ -50,7 +50,7 @@ UNIFILES_BOOTSTRAP_API_KEY=sk_test_local \
 
     async def main():
         async with AsyncUnifilesClient(
-            api_key="sk_test_local",
+            api_key="<bootstrap-key>",
             base_url="http://localhost:8088",
         ) as client:
             file = await client.files.upload("document.pdf")
@@ -70,7 +70,7 @@ UNIFILES_BOOTSTRAP_API_KEY=sk_test_local \
     import { UnifilesClient } from "@wyy/unifiles";
 
     const client = new UnifilesClient({
-      apiKey: "sk_test_local",
+      apiKey: "<bootstrap-key>",
       baseUrl: "http://localhost:8088",
     });
 
@@ -89,7 +89,7 @@ UNIFILES_BOOTSTRAP_API_KEY=sk_test_local \
 
     ```bash
     npm install -g @wyy/unifiles-cli
-    printf '%s' sk_test_local | unifiles config set local \
+    printf '%s' <bootstrap-key> | unifiles config set local \
       --base-url http://localhost:8088 \
       --api-key-stdin
 

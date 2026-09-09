@@ -48,7 +48,7 @@ HTTP/1.1 201 Created
 {
     "id": "key_abc123",
     "name": "production-key",
-    "key": "[REDACTED]xxxxxxxxxxxxxxxxxxxxx",
+    "key": "<issued-key>",
     "scopes": ["files:read", "files:write", "kb:*"],
     "expires_at": "2025-01-15T10:30:00Z",
     "created_at": "2024-01-15T10:30:00Z"

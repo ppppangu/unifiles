@@ -31,8 +31,8 @@ Authorization: Bearer sk_your_api_key
 ### API Key 格式
 
 ```
-[REDACTED]xxxxxxxxxxxxxxxxxx   # 生产环境
-sk_test_xxxxxxxxxxxxxxxxxxxxx   # 测试环境
+<live-key>   # 生产环境
+<test-key>   # 测试环境
 ```
 
 ### 认证错误

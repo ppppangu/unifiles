@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+import hmac
 import json
 import secrets
 import sqlite3
@@ -37,6 +38,15 @@ def decode(value: str | None, default: Any) -> Any:
 
 def key_hash(value: str) -> str:
     return hashlib.sha256(value.encode()).hexdigest()
+
+
+def derived_api_key(bootstrap_key: str, key_id: str) -> str:
+    material = hmac.new(
+        bootstrap_key.encode(),
+        f"unifiles/api-key/v1/{key_id}".encode(),
+        hashlib.sha256,
+    ).digest()
+    return f"sk_live_{material.hex()}"
 
 
 SCHEMA = """
@@ -164,6 +174,7 @@ class Store:
         with self._lock:
             self.connection.executescript(SCHEMA)
             self.connection.commit()
+        self._scrub_sensitive_idempotency()
         self._ensure_bootstrap_key()
 
     def close(self) -> None:
@@ -171,7 +182,15 @@ class Store:
             self.connection.close()
 
     def _ensure_bootstrap_key(self) -> None:
-        digest = key_hash(self.settings.bootstrap_api_key)
+        bootstrap_key = self.settings.bootstrap_api_key
+        if bootstrap_key is None or not bootstrap_key.get_secret_value().strip():
+            raise RuntimeError(
+                "UNIFILES_BOOTSTRAP_API_KEY must be set before starting the server"
+            )
+        value = bootstrap_key.get_secret_value()
+        if value in {"<bootstrap-key>", "replace-me", "change-me"}:
+            raise RuntimeError("UNIFILES_BOOTSTRAP_API_KEY must not use a public default value")
+        digest = key_hash(value)
         with self._lock:
             self.connection.execute(
                 "DELETE FROM api_keys WHERE user_id = 'local' AND name = 'bootstrap' AND key_hash != ?",
@@ -189,8 +208,28 @@ class Store:
                     (id, user_id, name, key_hash, key_prefix, scopes, created_at)
                 VALUES (?, 'local', 'bootstrap', ?, ?, '["*"]', ?)
                 """,
-                (identifier("key"), digest, self.settings.bootstrap_api_key[:12], now()),
+                (identifier("key"), digest, value[:12], now()),
             )
+            self.connection.commit()
+
+    def _scrub_sensitive_idempotency(self) -> None:
+        """Remove raw API keys left by versions before encrypted replay metadata."""
+
+        with self._lock:
+            rows = self.connection.execute(
+                "SELECT user_id, key, operation, data FROM idempotency "
+                "WHERE operation = 'api-keys.create'"
+            ).fetchall()
+            for row in rows:
+                data = decode(row["data"], None)
+                if not isinstance(data, dict) or "key" not in data:
+                    continue
+                data["key"] = None
+                data["_key_id"] = data.get("_key_id") or data.get("id")
+                self.connection.execute(
+                    "UPDATE idempotency SET data = ? WHERE user_id = ? AND key = ? AND operation = ?",
+                    (encode(data), row["user_id"], row["key"], row["operation"]),
+                )
             self.connection.commit()
 
     def execute(self, sql: str, values: Iterable[Any] = ()) -> None:
@@ -230,13 +269,19 @@ class Store:
             "SELECT data FROM idempotency WHERE user_id = ? AND key = ? AND operation = ?",
             (user_id, key, operation),
         )
-        return decode(row["data"], None) if row else None
+        data = decode(row["data"], None) if row else None
+        if operation == "api-keys.create" and isinstance(data, dict):
+            data.pop("key", None)
+            data["_key_id"] = data.get("_key_id") or data.get("id")
+        return data
 
     def idempotent_put(
         self, user_id: str, key: str | None, operation: str, data: dict[str, Any]
     ) -> None:
         if not key:
             return
+        if operation == "api-keys.create":
+            data = {**data, "key": None, "_key_id": data.get("id")}
         self.execute(
             "INSERT OR REPLACE INTO idempotency (user_id, key, operation, data, created_at) VALUES (?, ?, ?, ?, ?)",
             (user_id, key, operation, encode(data), now()),
@@ -765,8 +810,11 @@ class Store:
         }
 
     def create_api_key(self, user_id: str, payload: dict[str, Any]) -> dict[str, Any]:
-        raw_key = f"sk_live_{secrets.token_urlsafe(24)}"
         key_id = identifier("key")
+        bootstrap_key = self.settings.bootstrap_api_key
+        if bootstrap_key is None:
+            raise RuntimeError("UNIFILES_BOOTSTRAP_API_KEY must be set")
+        raw_key = derived_api_key(bootstrap_key.get_secret_value(), key_id)
         created_at = now()
         self.execute(
             """
@@ -786,6 +834,30 @@ class Store:
             ),
         )
         result = self.api_key(user_id, key_id)
+        result["key"] = raw_key
+        return result
+
+    def restore_idempotent_api_key(self, cached: dict[str, Any]) -> dict[str, Any]:
+        key_id = cached.get("_key_id")
+        bootstrap_key = self.settings.bootstrap_api_key
+        if not isinstance(key_id, str) or bootstrap_key is None:
+            raise APIError(
+                409,
+                "IDEMPOTENCY_REPLAY_UNAVAILABLE",
+                "The idempotency record cannot be replayed after credential rotation",
+            )
+        raw_key = derived_api_key(bootstrap_key.get_secret_value(), key_id)
+        row = self.one(
+            "SELECT key_hash FROM api_keys WHERE user_id = 'local' AND id = ? AND revoked = 0",
+            (key_id,),
+        )
+        if not row or not hmac.compare_digest(row["key_hash"], key_hash(raw_key)):
+            raise APIError(
+                409,
+                "IDEMPOTENCY_REPLAY_UNAVAILABLE",
+                "The idempotency record cannot be replayed after credential rotation",
+            )
+        result = {key: value for key, value in cached.items() if key not in {"_key_id", "key"}}
         result["key"] = raw_key
         return result
 

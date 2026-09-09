@@ -51,7 +51,7 @@ def _remote_extract(
         )
     headers: dict[str, str] = {}
     if store.settings.ocr_api_key:
-        headers["Authorization"] = f"Bearer {store.settings.ocr_api_key}"
+        headers["Authorization"] = f"Bearer {store.settings.ocr_api_key.get_secret_value()}"
     path = Path(file["storage_path"])
     response = httpx.post(
         endpoint,

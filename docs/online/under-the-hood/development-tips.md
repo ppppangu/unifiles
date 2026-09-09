@@ -17,7 +17,7 @@ npm ci
 ## 启动 Server
 
 ```bash
-UNIFILES_BOOTSTRAP_API_KEY=sk_test_local \
+UNIFILES_BOOTSTRAP_API_KEY=<bootstrap-key> \
 UNIFILES_DATA_DIR=.unifiles-data \
 uv run unifiles-server --reload --port 8088
 ```
@@ -57,7 +57,7 @@ core 负责，手写 facade 只补充 `wait()`、重试和异常映射等协议�
 ## 本机 CLI profile
 
 ```bash
-printf '%s' sk_test_local | node apps/cli/dist/index.js config set local \
+printf '%s' <bootstrap-key> | node apps/cli/dist/index.js config set local \
   --base-url http://localhost:8088 \
   --api-key-stdin
 node apps/cli/dist/index.js --profile local status

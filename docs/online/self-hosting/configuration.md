@@ -5,7 +5,7 @@ Server 使用 `UNIFILES_` 前缀环境变量。
 | 变量 | 默认值 | 说明 |
 |---|---|---|
 | `UNIFILES_DATA_DIR` | `.unifiles-data` | SQLite 与文件存储目录 |
-| `UNIFILES_BOOTSTRAP_API_KEY` | `sk_test_local` | 首个管理 API Key；生产必须替换 |
+| `UNIFILES_BOOTSTRAP_API_KEY` | `<bootstrap-key>` | 首个管理 API Key；生产必须替换 |
 | `UNIFILES_CORS_ORIGINS` | 本机开发地址 | 逗号分隔的允许来源 |
 | `UNIFILES_MAX_FILE_SIZE_BYTES` | `104857600` | 单文件最大字节数 |
 | `UNIFILES_STORAGE_LIMIT_BYTES` | `10737418240` | 用户存储配额 |

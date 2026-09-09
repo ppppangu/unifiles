@@ -17,7 +17,7 @@ exposed through one `/v1` API.
 
 ```bash
 uv sync --all-packages --group dev
-UNIFILES_BOOTSTRAP_API_KEY=sk_test_local \
+UNIFILES_BOOTSTRAP_API_KEY=<bootstrap-key> \
   uv run unifiles-server --host 127.0.0.1 --port 8088
 ```
 
@@ -34,7 +34,7 @@ pip install unifiles-client
 from unifiles import UnifilesClient
 
 client = UnifilesClient(
-    api_key="sk_test_local",
+    api_key="<bootstrap-key>",
     base_url="http://localhost:8088",
 )
 
@@ -57,7 +57,7 @@ npm install @wyy/unifiles
 import { UnifilesClient } from "@wyy/unifiles";
 
 const client = new UnifilesClient({
-  apiKey: "sk_test_local",
+  apiKey: "<bootstrap-key>",
   baseUrl: "http://localhost:8088",
 });
 
@@ -72,7 +72,7 @@ const results = await client.knowledgeBases.search(kb.id, "important terms");
 
 ```bash
 npm install -g @wyy/unifiles-cli
-printf '%s' 'sk_test_local' | unifiles config set local \
+printf '%s' '<bootstrap-key>' | unifiles config set local \
   --base-url http://localhost:8088 \
   --api-key-stdin
 unifiles --profile local files list
@@ -111,3 +111,6 @@ under [`packages/generated`](packages/generated). They are independently rebuild
 dependencies; the product CLI remains handwritten under [`apps/cli`](apps/cli).
 
 See [unifiles.dev](https://unifiles.dev) for full documentation.
+
+Security reports and supported-version policy are documented in
+[`SECURITY.md`](SECURITY.md).

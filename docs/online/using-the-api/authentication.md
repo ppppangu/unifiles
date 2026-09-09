@@ -45,7 +45,7 @@ unifiles api-keys create production --scope 'files:*' 'kb:*'
 
 ```bash
 curl -X POST "http://localhost:8088/v1/api-keys" \
-  -H "Authorization: Bearer [REDACTED]" \
+  -H "Authorization: Bearer <admin-key>" \
   -H "Content-Type: application/json" \
   -d '{
     "name": "production-key",
@@ -64,7 +64,7 @@ curl -X POST "http://localhost:8088/v1/api-keys" \
 from unifiles import UnifilesClient
 
 # 方式 1: 直接传入
-client = UnifilesClient(api_key="[REDACTED]")
+client = UnifilesClient(api_key="<api-key>")
 
 # 方式 2: 从环境变量读取（推荐）
 import os
@@ -81,7 +81,7 @@ client = UnifilesClient()
 
 ```bash
 curl -X GET "https://api.unifiles.dev/v1/files" \
-  -H "Authorization: Bearer [REDACTED]"
+  -H "Authorization: Bearer <api-key>"
 ```
 
 ### 环境变量配置
@@ -91,19 +91,19 @@ curl -X GET "https://api.unifiles.dev/v1/files" \
 === "Linux/macOS"
 
     ```bash
-    export UNIFILES_API_KEY="[REDACTED]"
+    export UNIFILES_API_KEY="<api-key>"
     ```
 
 === "Windows (PowerShell)"
 
     ```powershell
-    $env:UNIFILES_API_KEY = "[REDACTED]"
+    $env:UNIFILES_API_KEY = "<api-key>"
     ```
 
 === ".env 文件"
 
     ```env
-    UNIFILES_API_KEY=[REDACTED]
+    UNIFILES_API_KEY=<api-key>
     ```
 
     使用 python-dotenv 加载：
@@ -141,7 +141,7 @@ API Key 可以配置不同的权限范围，限制其访问能力：
 
 ```python
 # 使用管理员 Key
-admin_client = UnifilesClient(api_key="[REDACTED]")
+admin_client = UnifilesClient(api_key="<admin-key>")
 
 # 创建只读 Key
 readonly_key = admin_client.api_keys.create(
