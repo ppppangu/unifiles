@@ -52,7 +52,7 @@
 #### 密钥格式
 
 ```
-[REDACTED]xxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+<issued-key>xxxxxxxx
 │  │    │
 │  │    └── 随机字符串 (32 字符)
 │  └────── 环境标识 (live/test)

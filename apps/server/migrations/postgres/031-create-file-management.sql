@@ -179,6 +179,6 @@ CREATE TRIGGER trigger_files_updated_at
 INSERT INTO unifiles.storage_configs (id, storage_name, connection_config, is_active, public_url_prefix, config_source)
 VALUES 
     ('default-local', 'Local Storage', '{"provider": "local", "base_path": "/uploads", "create_if_missing": true}', true, 'http://localhost:8000/files', 'env'),
-    ('example-minio', 'MinIO Object Storage', '{"provider": "minio", "endpoint": "localhost:9000", "access_key": "minioadmin", "secret_key": "minioadmin", "bucket_name": "unifiles", "region": "us-east-1", "secure": false}', false, 'https://minio.example.com/bucket', 'env')
+    ('example-minio', 'MinIO Object Storage', '{"provider": "minio", "endpoint": "localhost:9000", "access_key": "<minio-access-key>", "secret_key": "<minio-secret-key>", "bucket_name": "unifiles", "region": "us-east-1", "secure": false}', false, 'https://minio.example.com/bucket', 'env')
 ON CONFLICT (id) DO NOTHING;
 

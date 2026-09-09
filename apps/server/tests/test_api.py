@@ -53,7 +53,15 @@ def wait_for_status(
 
 
 def test_generated_protocol_router_is_mounted(client: TestClient) -> None:
-    route = next(route for route in client.app.routes if route.path == "/v1/files")
+    def routes(items):
+        for item in items:
+            original_router = getattr(item, "original_router", None)
+            if original_router is not None:
+                yield from routes(original_router.routes)
+            else:
+                yield item
+
+    route = next(route for route in routes(client.app.routes) if route.path == "/v1/files")
     assert route.endpoint.__module__.startswith("unifiles_server_protocol.apis.")
 
 
@@ -322,6 +330,35 @@ def test_bootstrap_key_rotates_on_restart(tmp_path: Path) -> None:
     assert getattr(old_key.value, "code", None) == "INVALID_API_KEY"
     assert second.authenticate("sk_second")["user_id"] == "local"
     second.close()
+
+
+def test_server_requires_an_explicit_bootstrap_key(tmp_path: Path) -> None:
+    with pytest.raises(RuntimeError, match="UNIFILES_BOOTSTRAP_API_KEY"):
+        Store(Settings(data_dir=tmp_path, bootstrap_api_key=None))
+
+
+def test_api_key_idempotency_cache_does_not_store_raw_key(client: TestClient) -> None:
+    first = data(
+        client.post(
+            "/v1/api-keys",
+            json={"name": "idempotent"},
+            headers={"Idempotency-Key": "api-key-cache-test"},
+        )
+    )
+    repeated = data(
+        client.post(
+            "/v1/api-keys",
+            json={"name": "ignored"},
+            headers={"Idempotency-Key": "api-key-cache-test"},
+        )
+    )
+    assert repeated["key"] == first["key"]
+    cached = client.app.state.store.one(
+        "SELECT data FROM idempotency WHERE operation = ? AND key = ?",
+        ("api-keys.create", "api-key-cache-test"),
+    )
+    assert cached is not None
+    assert first["key"] not in str(cached["data"])
 
 
 def test_remote_ocr_provider_handles_advanced_and_image_files(

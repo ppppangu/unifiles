@@ -24,11 +24,20 @@ GENERATED_PROTOCOL = (
 HTTP_METHODS = {"get", "put", "post", "delete", "options", "head", "patch", "trace"}
 
 
+def iter_app_routes(app):
+    for route in app.routes:
+        original_router = getattr(route, "original_router", None)
+        if original_router is not None:
+            yield from iter_app_routes(original_router)
+        else:
+            yield route
+
+
 def test_routes_are_unique() -> None:
     app = create_app()
     seen: set[tuple[str, str]] = set()
 
-    for route in app.routes:
+    for route in iter_app_routes(app):
         if not isinstance(route, APIRoute):
             continue
         for method in route.methods:
@@ -41,7 +50,7 @@ def test_routes_are_unique() -> None:
 
 def test_operation_ids_are_unique() -> None:
     operation_ids: list[str] = []
-    for route in create_app().routes:
+    for route in iter_app_routes(create_app()):
         if not isinstance(route, APIRoute):
             continue
         assert route.operation_id is not None, f"Missing operationId: {route.path}"
@@ -54,7 +63,7 @@ def test_composed_app_routes_exactly_match_canonical_contract() -> None:
     app = create_app()
     actual = {
         (method, route.path, route.operation_id)
-        for route in app.routes
+        for route in iter_app_routes(app)
         if isinstance(route, APIRoute)
         for method in route.methods
         if method not in {"HEAD", "OPTIONS"}

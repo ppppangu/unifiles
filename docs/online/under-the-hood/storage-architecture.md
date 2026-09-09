@@ -74,8 +74,8 @@ services:
     image: minio/minio:latest
     command: server /data --console-address ":9001"
     environment:
-      MINIO_ROOT_USER: minioadmin
-      MINIO_ROOT_PASSWORD: minioadmin
+      MINIO_ROOT_USER: minio-user
+      MINIO_ROOT_PASSWORD: minio-user
       MINIO_REGION: us-east-1
     volumes:
       - minio_data:/data
@@ -94,8 +94,8 @@ services:
 ```bash
 # MinIO 连接配置
 MINIO_ENDPOINT=localhost:9000
-MINIO_ACCESS_KEY=minioadmin
-MINIO_SECRET_KEY=minioadmin
+MINIO_ACCESS_KEY=minio-user
+MINIO_SECRET_KEY=minio-user
 MINIO_SECURE=false  # 生产环境设为 true
 MINIO_REGION=us-east-1
 
@@ -671,8 +671,8 @@ services:
     image: minio/minio:latest
     command: server http://minio{1...4}/data --console-address ":9001"
     environment:
-      MINIO_ROOT_USER: minioadmin
-      MINIO_ROOT_PASSWORD: minioadmin
+      MINIO_ROOT_USER: minio-user
+      MINIO_ROOT_PASSWORD: minio-user
     volumes:
       - minio1_data:/data
     hostname: minio1
@@ -681,8 +681,8 @@ services:
     image: minio/minio:latest
     command: server http://minio{1...4}/data --console-address ":9001"
     environment:
-      MINIO_ROOT_USER: minioadmin
-      MINIO_ROOT_PASSWORD: minioadmin
+      MINIO_ROOT_USER: minio-user
+      MINIO_ROOT_PASSWORD: minio-user
     volumes:
       - minio2_data:/data
     hostname: minio2
@@ -691,8 +691,8 @@ services:
     image: minio/minio:latest
     command: server http://minio{1...4}/data --console-address ":9001"
     environment:
-      MINIO_ROOT_USER: minioadmin
-      MINIO_ROOT_PASSWORD: minioadmin
+      MINIO_ROOT_USER: minio-user
+      MINIO_ROOT_PASSWORD: minio-user
     volumes:
       - minio3_data:/data
     hostname: minio3
@@ -701,8 +701,8 @@ services:
     image: minio/minio:latest
     command: server http://minio{1...4}/data --console-address ":9001"
     environment:
-      MINIO_ROOT_USER: minioadmin
-      MINIO_ROOT_PASSWORD: minioadmin
+      MINIO_ROOT_USER: minio-user
+      MINIO_ROOT_PASSWORD: minio-user
     volumes:
       - minio4_data:/data
     hostname: minio4

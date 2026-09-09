@@ -18,6 +18,7 @@ class APIKeysAdapter(BaseAPIKeysApi):
         _, principal, database = current_context()
         cached = database.idempotent_get(principal["user_id"], idempotency_key, "api-keys.create")
         if cached:
+            cached = database.restore_idempotent_api_key(cached)
             return success(cached)
         payload = model_payload(api_key_create)
         payload["scopes"] = payload.get("scopes") or ["*"]
