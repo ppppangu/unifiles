@@ -186,6 +186,11 @@ def remove_path(path: Path) -> None:
         path.unlink()
 
 
+def write_legal_files(output: Path) -> None:
+    for name in ("LICENSE", "NOTICE"):
+        shutil.copyfile(REPO_ROOT / name, output / name)
+
+
 def postprocess_server_protocol(output: Path, spec: Path) -> None:
     package = output / "src" / "unifiles_server_protocol"
     package.joinpath("__init__.py").write_text(
@@ -227,6 +232,7 @@ description = "Generated FastAPI protocol package for the Unifiles API"
 readme = "README.md"
 requires-python = ">=3.11"
 license = {text = "Apache-2.0"}
+authors = [{name = "meidici911", email = "meidici911@gmail.com"}]
 dependencies = [
     "fastapi>=0.115.0",
     "pydantic>=2.10.0",
@@ -236,6 +242,10 @@ dependencies = [
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/unifiles_server_protocol"]
+
+[tool.hatch.build.targets.wheel.force-include]
+LICENSE = "LICENSE"
+NOTICE = "NOTICE"
 """,
         encoding="utf-8",
     )
@@ -261,6 +271,8 @@ the consuming application. This package never imports unifiles_server.
 """,
         encoding="utf-8",
     )
+
+    write_legal_files(output)
 
 
 def record_contract_digest(output: Path, spec: Path) -> None:
@@ -454,6 +466,7 @@ description = "Generated Python client core for the Unifiles API"
 readme = "README.md"
 requires-python = ">=3.11"
 license = {text = "Apache-2.0"}
+authors = [{name = "meidici911", email = "meidici911@gmail.com"}]
 dependencies = [
     "httpx>=0.27.0",
     "pydantic>=2.10.0",
@@ -463,6 +476,10 @@ dependencies = [
 
 [tool.hatch.build.targets.wheel]
 packages = ["unifiles_generated"]
+
+[tool.hatch.build.targets.wheel.force-include]
+LICENSE = "LICENSE"
+NOTICE = "NOTICE"
 """,
         encoding="utf-8",
     )
@@ -487,6 +504,8 @@ Build the package with:
     )
 
 
+    write_legal_files(output)
+
 def postprocess_sdk_typescript(output: Path, spec: Path) -> None:
     for path in output.joinpath("src").rglob("*.ts"):
         contents = path.read_text(encoding="utf-8")
@@ -499,12 +518,14 @@ def postprocess_sdk_typescript(output: Path, spec: Path) -> None:
         {
             "description": "Generated TypeScript client core for the Unifiles API",
             "license": "Apache-2.0",
+            "author": "meidici911 <meidici911@gmail.com>",
+            "contributors": ["OpenAPI-Generator"],
             "repository": {
                 "type": "git",
                 "url": "https://github.com/ppppangu/unifiles.git",
                 "directory": "packages/generated/sdk-typescript",
             },
-            "files": ["dist", "README.md"],
+            "files": ["dist", "README.md", "LICENSE", "NOTICE"],
             "engines": {"node": ">=22"},
         }
     )
@@ -512,6 +533,7 @@ def postprocess_sdk_typescript(output: Path, spec: Path) -> None:
         json.dumps(package, indent=2, ensure_ascii=False) + "\n",
         encoding="utf-8",
     )
+    write_legal_files(output)
     output.joinpath("README.md").write_text(
         """# @wyy/unifiles-generated
 

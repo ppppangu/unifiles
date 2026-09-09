@@ -2,7 +2,7 @@
   "name": "@wyy/unifiles-generated",
   "version": "0.1.0",
   "description": "Generated TypeScript client core for the Unifiles API",
-  "author": "OpenAPI-Generator",
+  "author": "meidici911 <meidici911@gmail.com>",
   "repository": {
     "type": "git",
     "url": "https://github.com/ppppangu/unifiles.git",
@@ -20,9 +20,14 @@
     "typescript": "^4.0 || ^5.0"
   },
   "license": "Apache-2.0",
+  "contributors": [
+    "OpenAPI-Generator"
+  ],
   "files": [
     "dist",
-    "README.md"
+    "README.md",
+    "LICENSE",
+    "NOTICE"
   ],
   "engines": {
     "node": ">=22"

@@ -5,6 +5,7 @@ build-backend = "hatchling.build"
 [project]
 name = "unifiles-server"
 version = "0.1.0"
+authors = [{name = "meidici911", email = "meidici911@gmail.com"}]
 description = "Self-hosted Unifiles document processing API"
 readme = "README.md"
 requires-python = ">=3.11"
@@ -27,3 +28,7 @@ unifiles-server = "unifiles_server.cli:main"
 packages = [
     "src/unifiles_server",
 ]
+
+[tool.hatch.build.targets.wheel.force-include]
+LICENSE = "LICENSE"
+NOTICE = "NOTICE"
