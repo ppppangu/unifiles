@@ -41,7 +41,7 @@
     "@types/node": "^22.10.0",
     "tsup": "^8.3.5",
     "typescript": "^5.7.2",
-    "vitest": "^4.1.11"
+    "vitest": "^5.0.0"
   },
   "author": "meidici911 <meidici911@gmail.com>",
   "bugs": {
