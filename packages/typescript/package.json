@@ -19,8 +19,15 @@
       "require": "./dist/index.cjs"
     }
   },
-  "files": ["dist", "README.md"],
-  "engines": {"node": ">=22"},
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE",
+    "NOTICE"
+  ],
+  "engines": {
+    "node": ">=22"
+  },
   "scripts": {
     "generate": "uv run python ../../codegen/scripts/codegen.py generate sdk-typescript",
     "build": "tsup src/index.ts --format esm,cjs --dts --sourcemap --clean",
@@ -35,5 +42,9 @@
     "tsup": "^8.3.5",
     "typescript": "^5.7.2",
     "vitest": "^4.1.11"
+  },
+  "author": "meidici911 <meidici911@gmail.com>",
+  "bugs": {
+    "url": "https://github.com/ppppangu/unifiles/issues"
   }
 }

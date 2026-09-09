@@ -11,9 +11,8 @@ Include the affected version or commit, a minimal reproduction, impact, and any
 conditions required to reproduce the issue. Do not include real API keys,
 personal data, or production files in the report.
 
-If private vulnerability reporting is not available for the repository, contact
-the maintainers through the repository owner profile before disclosing details
-publicly.
+If private vulnerability reporting is not available for the repository, email
+meidici911@gmail.com before disclosing details publicly.
 
 After a report is received, the maintainers will acknowledge it, validate the
 impact, coordinate a fix, and publish a security advisory when disclosure is

@@ -9,6 +9,7 @@ description = "Generated Python client core for the Unifiles API"
 readme = "README.md"
 requires-python = ">=3.11"
 license = {text = "Apache-2.0"}
+authors = [{name = "meidici911", email = "meidici911@gmail.com"}]
 dependencies = [
     "httpx>=0.27.0",
     "pydantic>=2.10.0",
@@ -18,3 +19,7 @@ dependencies = [
 
 [tool.hatch.build.targets.wheel]
 packages = ["unifiles_generated"]
+
+[tool.hatch.build.targets.wheel.force-include]
+LICENSE = "LICENSE"
+NOTICE = "NOTICE"

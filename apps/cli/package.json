@@ -9,9 +9,18 @@
   },
   "license": "Apache-2.0",
   "type": "module",
-  "bin": {"unifiles": "./dist/index.js"},
-  "files": ["dist", "README.md"],
-  "engines": {"node": ">=22"},
+  "bin": {
+    "unifiles": "./dist/index.js"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE",
+    "NOTICE"
+  ],
+  "engines": {
+    "node": ">=22"
+  },
   "scripts": {
     "build": "tsup src/index.ts --format esm --platform node --clean",
     "typecheck": "tsc --noEmit",
@@ -27,5 +36,6 @@
     "tsup": "^8.3.5",
     "typescript": "^5.7.2",
     "vitest": "^4.1.11"
-  }
+  },
+  "author": "meidici911 <meidici911@gmail.com>"
 }
