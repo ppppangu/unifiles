@@ -163,7 +163,7 @@ from unifiles.exceptions import ValidationError, NotFoundError
 def upload_and_manage_file():
     """完整的文件管理流程"""
     
-    client = UnifilesClient(api_key="sk_...")
+    client = UnifilesClient(api_key="<api-key>")
     
     # 1. 上传文件
     print("正在上传文件...")

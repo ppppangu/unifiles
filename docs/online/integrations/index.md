@@ -17,7 +17,7 @@ Unifiles 可以与主流 AI/LLM 框架无缝集成，快速构建 RAG 应用。
 from unifiles.integrations.langchain import UnifilesRetriever
 
 retriever = UnifilesRetriever(
-    api_key="sk_...",
+    api_key="<api-key>",
     kb_id="kb_xxx"
 )
 
@@ -31,7 +31,7 @@ docs = retriever.get_relevant_documents("查询内容")
 from unifiles import UnifilesClient
 from langchain.schema import Document
 
-client = UnifilesClient(api_key="sk_...")
+client = UnifilesClient(api_key="<api-key>")
 
 results = client.knowledge_bases.search(
     kb_id="kb_xxx",

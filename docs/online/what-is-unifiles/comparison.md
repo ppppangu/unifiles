@@ -73,7 +73,7 @@ LangChain 是一个 LLM 应用开发框架，提供了丰富的组件和链式�
 # Unifiles 负责文档处理
 from unifiles import UnifilesClient
 
-unifiles = UnifilesClient(api_key="sk_...")
+unifiles = UnifilesClient(api_key="<api-key>")
 file = unifiles.files.upload("document.pdf")
 unifiles.extractions.create(file.id).wait()
 unifiles.knowledge_bases.documents.create(kb_id, file.id).wait()
@@ -83,7 +83,7 @@ from langchain.chains import RetrievalQA
 from langchain_openai import ChatOpenAI
 from unifiles.integrations.langchain import UnifilesRetriever
 
-retriever = UnifilesRetriever(api_key="sk_...", kb_id=kb_id)
+retriever = UnifilesRetriever(api_key="<api-key>", kb_id=kb_id)
 qa_chain = RetrievalQA.from_chain_type(
     llm=ChatOpenAI(model="gpt-4"),
     retriever=retriever
@@ -198,12 +198,12 @@ vectorstore = Chroma.from_documents(docs, embeddings)
 from unifiles import UnifilesClient
 from unifiles.integrations.langchain import UnifilesRetriever
 
-client = UnifilesClient(api_key="sk_...")
+client = UnifilesClient(api_key="<api-key>")
 file = client.files.upload("document.pdf")
 client.extractions.create(file.id).wait()
 client.knowledge_bases.documents.create(kb_id, file.id).wait()
 
-retriever = UnifilesRetriever(api_key="sk_...", kb_id=kb_id)
+retriever = UnifilesRetriever(api_key="<api-key>", kb_id=kb_id)
 # 后续 LangChain 代码保持不变
 ```
 

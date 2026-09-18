@@ -67,7 +67,7 @@
 2. **已获取 API Key**
    ```python
    from unifiles import UnifilesClient
-   client = UnifilesClient(api_key="sk_...")
+   client = UnifilesClient(api_key="<api-key>")
    ```
 
 3. **准备测试文件**
@@ -116,7 +116,7 @@
 from unifiles import UnifilesClient
 
 # 初始化（假设 API Key 已配置）
-client = UnifilesClient(api_key="sk_...")
+client = UnifilesClient(api_key="<api-key>")
 
 # 变量命名
 file = client.files.upload(...)        # 单个文件

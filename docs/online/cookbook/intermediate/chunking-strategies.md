@@ -230,7 +230,7 @@ Chunk 2: "合同金额的10%计算，最高不超过..."
 ```python
 from unifiles import UnifilesClient
 
-client = UnifilesClient(api_key="sk_...")
+client = UnifilesClient(api_key="<api-key>")
 
 # 准备测试文件
 file = client.files.upload("handbook.pdf")

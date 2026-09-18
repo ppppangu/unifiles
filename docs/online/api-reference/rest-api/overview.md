@@ -67,7 +67,7 @@ HTTP/1.1 401 Unauthorized
 ```http
 POST /v1/knowledge-bases HTTP/1.1
 Host: api.unifiles.dev
-Authorization: Bearer sk_...
+Authorization: Bearer <api-key>
 Content-Type: application/json
 
 {
@@ -241,7 +241,7 @@ Idempotency-Key: unique-request-id-12345
 **cURL:**
 ```bash
 curl -X GET https://api.unifiles.dev/v1/files \
-  -H "Authorization: Bearer sk_..."
+  -H "Authorization: Bearer <api-key>"
 ```
 
 **Python requests:**
@@ -250,14 +250,14 @@ import requests
 
 response = requests.get(
     "https://api.unifiles.dev/v1/files",
-    headers={"Authorization": "Bearer sk_..."}
+    headers={"Authorization": "Bearer <api-key>"}
 )
 ```
 
 **JavaScript fetch:**
 ```javascript
 const response = await fetch("https://api.unifiles.dev/v1/files", {
-    headers: {"Authorization": "Bearer sk_..."}
+    headers: {"Authorization": "Bearer <api-key>"}
 });
 ```
 

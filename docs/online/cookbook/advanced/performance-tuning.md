@@ -21,7 +21,7 @@ from concurrent.futures import ThreadPoolExecutor
 from unifiles import UnifilesClient
 import time
 
-client = UnifilesClient(api_key="sk_...")
+client = UnifilesClient(api_key="<api-key>")
 
 def upload_with_metrics(path: str) -> dict:
     """上传并记录指标"""

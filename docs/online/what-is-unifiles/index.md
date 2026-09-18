@@ -13,7 +13,7 @@ Unifiles 将这些复杂性封装为简洁的 API，让你可以：
 ```python
 from unifiles import UnifilesClient
 
-client = UnifilesClient(api_key="sk_...")
+client = UnifilesClient(api_key="<api-key>")
 
 # 三行代码完成：上传 → 提取 → 索引
 file = client.files.upload("contract.pdf")
@@ -108,7 +108,7 @@ Unifiles 支持多种接入方式，适应不同场景需求：
     ```python
     from unifiles import UnifilesClient
     
-    client = UnifilesClient(api_key="sk_...")
+    client = UnifilesClient(api_key="<api-key>")
     file = client.files.upload("document.pdf")
     ```
 
@@ -120,7 +120,7 @@ Unifiles 支持多种接入方式，适应不同场景需求：
 
     ```bash
     curl -X POST "https://api.unifiles.dev/v1/files" \
-      -H "Authorization: Bearer sk_..." \
+      -H "Authorization: Bearer <api-key>" \
       -F "file=@document.pdf"
     ```
 

@@ -292,7 +292,7 @@ summary_results = client.knowledge_bases.search(kb_id=kb_summary.id, query="..."
 ```python
 from unifiles import UnifilesClient
 
-client = UnifilesClient(api_key="sk_...")
+client = UnifilesClient(api_key="<api-key>")
 
 # ========== Layer 1: 文件存储 ==========
 print("1. 上传文件...")

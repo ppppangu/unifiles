@@ -14,7 +14,7 @@ pip install unifiles-client
 ```python
 from unifiles import AsyncUnifilesClient
 
-async with AsyncUnifilesClient(api_key="sk_...") as client:
+async with AsyncUnifilesClient(api_key="<api-key>") as client:
     file = await client.files.upload("document.pdf")
     extraction = await client.extractions.create(file.id)
     await extraction.wait()
@@ -26,7 +26,7 @@ async with AsyncUnifilesClient(api_key="sk_...") as client:
 from unifiles import UnifilesClient
 
 # 初始化客户端
-client = UnifilesClient(api_key="sk_...")
+client = UnifilesClient(api_key="<api-key>")
 
 # 上传文件
 file = client.files.upload("document.pdf")
@@ -46,7 +46,7 @@ results = client.knowledge_bases.search(kb_id=kb.id, query="查询内容")
 
 ```python
 client = UnifilesClient(
-    api_key="sk_...",              # API Key（必需）
+    api_key="<api-key>",              # API Key（必需）
     base_url="https://...",        # 自定义服务地址
     timeout=30,                    # 请求超时（秒）
     max_retries=3                  # 最大重试次数
@@ -56,7 +56,7 @@ client = UnifilesClient(
 ### 环境变量
 
 ```bash
-export UNIFILES_API_KEY=sk_...
+export UNIFILES_API_KEY=<api-key>
 export UNIFILES_BASE_URL=https://...
 ```
 
@@ -107,7 +107,7 @@ SDK 提供完整的类型注解，支持 IDE 自动补全：
 from unifiles import UnifilesClient
 from unifiles import File, ExtractionJob, KnowledgeBase
 
-client = UnifilesClient(api_key="sk_...")
+client = UnifilesClient(api_key="<api-key>")
 
 file: File = client.files.upload("doc.pdf")
 extraction: ExtractionJob = client.extractions.create(file_id=file.id)

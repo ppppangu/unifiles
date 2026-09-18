@@ -18,7 +18,7 @@ Webhooks 允许你在 Unifiles 中的异步操作完成时接收实时通知，�
 ```python
 from unifiles import UnifilesClient
 
-client = UnifilesClient(api_key="sk_...")
+client = UnifilesClient(api_key="<api-key>")
 
 # 创建 Webhook
 webhook = client.webhooks.create(
@@ -81,7 +81,7 @@ client.webhooks.delete(webhook_id)
 
 ```http
 POST /v1/webhooks
-Authorization: Bearer sk_...
+Authorization: Bearer <api-key>
 Content-Type: application/json
 
 {
@@ -107,21 +107,21 @@ Content-Type: application/json
 
 ```http
 GET /v1/webhooks
-Authorization: Bearer sk_...
+Authorization: Bearer <api-key>
 ```
 
 ### 获取 Webhook
 
 ```http
 GET /v1/webhooks/{webhook_id}
-Authorization: Bearer sk_...
+Authorization: Bearer <api-key>
 ```
 
 ### 更新 Webhook
 
 ```http
 PATCH /v1/webhooks/{webhook_id}
-Authorization: Bearer sk_...
+Authorization: Bearer <api-key>
 Content-Type: application/json
 
 {
@@ -134,7 +134,7 @@ Content-Type: application/json
 
 ```http
 DELETE /v1/webhooks/{webhook_id}
-Authorization: Bearer sk_...
+Authorization: Bearer <api-key>
 ```
 
 ## 支持的事件

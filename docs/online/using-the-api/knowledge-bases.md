@@ -23,7 +23,7 @@
 ```python
 from unifiles import UnifilesClient
 
-client = UnifilesClient(api_key="sk_...")
+client = UnifilesClient(api_key="<api-key>")
 
 # 创建知识库
 kb = client.knowledge_bases.create(
@@ -233,7 +233,7 @@ results = client.knowledge_bases.search(
 
 ```http
 POST /v1/knowledge-bases
-Authorization: Bearer sk_...
+Authorization: Bearer <api-key>
 Content-Type: application/json
 
 {
@@ -269,21 +269,21 @@ Content-Type: application/json
 
 ```http
 GET /v1/knowledge-bases?limit=50&offset=0
-Authorization: Bearer sk_...
+Authorization: Bearer <api-key>
 ```
 
 **获取知识库：**
 
 ```http
 GET /v1/knowledge-bases/{kb_id}
-Authorization: Bearer sk_...
+Authorization: Bearer <api-key>
 ```
 
 **更新知识库：**
 
 ```http
 PATCH /v1/knowledge-bases/{kb_id}
-Authorization: Bearer sk_...
+Authorization: Bearer <api-key>
 Content-Type: application/json
 
 {
@@ -296,7 +296,7 @@ Content-Type: application/json
 
 ```http
 DELETE /v1/knowledge-bases/{kb_id}
-Authorization: Bearer sk_...
+Authorization: Bearer <api-key>
 ```
 
 ### 文档操作
@@ -305,7 +305,7 @@ Authorization: Bearer sk_...
 
 ```http
 POST /v1/knowledge-bases/{kb_id}/documents
-Authorization: Bearer sk_...
+Authorization: Bearer <api-key>
 Content-Type: application/json
 
 {
@@ -337,21 +337,21 @@ Content-Type: application/json
 
 ```http
 GET /v1/knowledge-bases/{kb_id}/documents?limit=50
-Authorization: Bearer sk_...
+Authorization: Bearer <api-key>
 ```
 
 **获取文档：**
 
 ```http
 GET /v1/knowledge-bases/{kb_id}/documents/{document_id}
-Authorization: Bearer sk_...
+Authorization: Bearer <api-key>
 ```
 
 **删除文档：**
 
 ```http
 DELETE /v1/knowledge-bases/{kb_id}/documents/{document_id}
-Authorization: Bearer sk_...
+Authorization: Bearer <api-key>
 ```
 
 ### 搜索操作
@@ -360,7 +360,7 @@ Authorization: Bearer sk_...
 
 ```http
 POST /v1/knowledge-bases/{kb_id}/search
-Authorization: Bearer sk_...
+Authorization: Bearer <api-key>
 Content-Type: application/json
 
 {
@@ -396,7 +396,7 @@ Content-Type: application/json
 
 ```http
 POST /v1/knowledge-bases/{kb_id}/hybrid-search
-Authorization: Bearer sk_...
+Authorization: Bearer <api-key>
 Content-Type: application/json
 
 {
@@ -557,7 +557,7 @@ results = client.knowledge_bases.search(
 ```python
 from unifiles import UnifilesClient
 
-client = UnifilesClient(api_key="sk_...")
+client = UnifilesClient(api_key="<api-key>")
 
 # 1. 创建知识库
 kb = client.knowledge_bases.create(

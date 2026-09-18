@@ -31,15 +31,15 @@ UnifilesClient(
 from unifiles import UnifilesClient
 
 # 基本用法
-client = UnifilesClient(api_key="sk_...")
+client = UnifilesClient(api_key="<api-key>")
 
 # 从环境变量读取
-# export UNIFILES_API_KEY=sk_...
+# export UNIFILES_API_KEY=<api-key>
 client = UnifilesClient()
 
 # 自定义配置
 client = UnifilesClient(
-    api_key="sk_...",
+    api_key="<api-key>",
     base_url="https://your-server.com",
     timeout=60,
     max_retries=5
@@ -139,7 +139,7 @@ client.system.details()    # 详细健康状态
 ## 上下文管理器
 
 ```python
-with UnifilesClient(api_key="sk_...") as client:
+with UnifilesClient(api_key="<api-key>") as client:
     file = client.files.upload("doc.pdf")
     # 自动清理资源
 ```
@@ -151,7 +151,7 @@ with UnifilesClient(api_key="sk_...") as client:
 ```python
 from concurrent.futures import ThreadPoolExecutor
 
-client = UnifilesClient(api_key="sk_...")
+client = UnifilesClient(api_key="<api-key>")
 
 def upload_file(path):
     return client.files.upload(path)

@@ -17,7 +17,7 @@ POST /v1/files
 
 **Headers:**
 ```http
-Authorization: Bearer sk_...
+Authorization: Bearer <api-key>
 Content-Type: multipart/form-data
 ```
 
@@ -33,7 +33,7 @@ Content-Type: multipart/form-data
 
 ```bash
 curl -X POST https://api.unifiles.dev/v1/files \
-  -H "Authorization: Bearer sk_..." \
+  -H "Authorization: Bearer <api-key>" \
   -F "file=@document.pdf" \
   -F 'metadata={"project":"legal","year":2024}' \
   -F "tags=contract,important"
@@ -92,7 +92,7 @@ GET /v1/files
 
 ```bash
 curl -X GET "https://api.unifiles.dev/v1/files?limit=20&tags=contract" \
-  -H "Authorization: Bearer sk_..."
+  -H "Authorization: Bearer <api-key>"
 ```
 
 ### 响应
@@ -146,7 +146,7 @@ GET /v1/files/{file_id}
 
 ```bash
 curl -X GET https://api.unifiles.dev/v1/files/file_abc123 \
-  -H "Authorization: Bearer sk_..."
+  -H "Authorization: Bearer <api-key>"
 ```
 
 ### 响应
@@ -196,7 +196,7 @@ GET /v1/files/{file_id}/download
 
 ```bash
 curl -X GET https://api.unifiles.dev/v1/files/file_abc123/download \
-  -H "Authorization: Bearer sk_..." \
+  -H "Authorization: Bearer <api-key>" \
   -o downloaded.pdf
 ```
 
@@ -236,7 +236,7 @@ DELETE /v1/files/{file_id}
 
 ```bash
 curl -X DELETE https://api.unifiles.dev/v1/files/file_abc123 \
-  -H "Authorization: Bearer sk_..."
+  -H "Authorization: Bearer <api-key>"
 ```
 
 ### 响应
@@ -265,7 +265,7 @@ GET /v1/files/types
 
 ```bash
 curl -X GET https://api.unifiles.dev/v1/files/types \
-  -H "Authorization: Bearer sk_..."
+  -H "Authorization: Bearer <api-key>"
 ```
 
 ### 响应

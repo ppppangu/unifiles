@@ -233,7 +233,7 @@ from unifiles.exceptions import (
     TimeoutError
 )
 
-client = UnifilesClient(api_key="sk_...")
+client = UnifilesClient(api_key="<api-key>")
 
 try:
     file = client.files.upload("document.pdf")
@@ -459,7 +459,7 @@ logging.getLogger("unifiles").setLevel(logging.DEBUG)
 
 # 查看完整的请求/响应
 client = UnifilesClient(
-    api_key="sk_...",
+    api_key="<api-key>",
     debug=True  # 启用调试模式
 )
 ```

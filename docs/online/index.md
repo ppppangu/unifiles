@@ -47,7 +47,7 @@ Unifiles 是一个自托管的文档处理平台，为 AI 应用提供文件存�
 ```python
 from unifiles import UnifilesClient
 
-client = UnifilesClient(api_key="sk_...")
+client = UnifilesClient(api_key="<api-key>")
 
 # 上传文件
 file = client.files.upload("contract.pdf")

@@ -33,7 +33,7 @@ print(types.all_types)       # 所有支持的格式
 ```python
 from unifiles import UnifilesClient
 
-client = UnifilesClient(api_key="sk_...")
+client = UnifilesClient(api_key="<api-key>")
 
 # 上传本地文件
 file = client.files.upload("document.pdf")
@@ -80,7 +80,7 @@ file = client.files.upload_bytes(
 
 ```bash
 curl -X POST "https://api.unifiles.dev/v1/files" \
-  -H "Authorization: Bearer sk_..." \
+  -H "Authorization: Bearer <api-key>" \
   -F "file=@document.pdf" \
   -F 'tags=["legal", "2024"]' \
   -F 'metadata={"project": "demo"}'
@@ -191,7 +191,7 @@ files = client.files.list(
 
 ```bash
 curl -X GET "https://api.unifiles.dev/v1/files?limit=20&offset=0&tags=legal" \
-  -H "Authorization: Bearer sk_..."
+  -H "Authorization: Bearer <api-key>"
 ```
 
 ---
@@ -251,7 +251,7 @@ print(url)  # https://storage.unifiles.dev/...
 ```bash
 # 直接下载
 curl -X GET "https://api.unifiles.dev/v1/files/f_abc123/download" \
-  -H "Authorization: Bearer sk_..." \
+  -H "Authorization: Bearer <api-key>" \
   -o downloaded.pdf
 ```
 
@@ -373,7 +373,7 @@ def file_exists(client, file_id):
     
     ```python
     client = UnifilesClient(
-        api_key="sk_...",
+        api_key="<api-key>",
         timeout=300  # 5 分钟
     )
     ```

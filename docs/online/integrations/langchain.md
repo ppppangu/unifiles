@@ -19,7 +19,7 @@ from unifiles.integrations.langchain import UnifilesRetriever
 
 # 初始化 Retriever
 retriever = UnifilesRetriever(
-    api_key="sk_...",
+    api_key="<api-key>",
     kb_id="kb_xxx",
     top_k=5,
     threshold=0.7
@@ -198,7 +198,7 @@ print(answer)
 ```python
 # 只检索特定类别的文档
 retriever = UnifilesRetriever(
-    api_key="sk_...",
+    api_key="<api-key>",
     kb_id="kb_xxx",
     top_k=5,
     filter={"metadata.category": "contract"}
@@ -207,7 +207,7 @@ retriever = UnifilesRetriever(
 # 动态过滤
 def get_filtered_retriever(department: str):
     return UnifilesRetriever(
-        api_key="sk_...",
+        api_key="<api-key>",
         kb_id="kb_xxx",
         filter={"metadata.department": department}
     )
@@ -224,7 +224,7 @@ finance_retriever = get_filtered_retriever("Finance")
 from unifiles.integrations.langchain import UnifilesLoader
 
 loader = UnifilesLoader(
-    api_key="sk_...",
+    api_key="<api-key>",
     kb_id="kb_xxx"
 )
 
@@ -330,9 +330,9 @@ class UnifilesHybridRetriever(BaseRetriever):
 from langchain.retrievers import EnsembleRetriever
 
 # 创建多个 Retriever
-hr_retriever = UnifilesRetriever(api_key="sk_...", kb_id="kb_hr")
-legal_retriever = UnifilesRetriever(api_key="sk_...", kb_id="kb_legal")
-finance_retriever = UnifilesRetriever(api_key="sk_...", kb_id="kb_finance")
+hr_retriever = UnifilesRetriever(api_key="<api-key>", kb_id="kb_hr")
+legal_retriever = UnifilesRetriever(api_key="<api-key>", kb_id="kb_legal")
+finance_retriever = UnifilesRetriever(api_key="<api-key>", kb_id="kb_finance")
 
 # 组合 Retriever
 ensemble = EnsembleRetriever(
@@ -357,7 +357,7 @@ compressor = CrossEncoderReranker(model=reranker, top_n=3)
 
 # 创建压缩 Retriever
 retriever = UnifilesRetriever(
-    api_key="sk_...",
+    api_key="<api-key>",
     kb_id="kb_xxx",
     top_k=10  # 先检索更多，再重排序
 )
@@ -380,7 +380,7 @@ from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.runnables import RunnablePassthrough
 
 # 配置
-UNIFILES_API_KEY = "sk_..."
+UNIFILES_API_KEY = "<api-key>"
 UNIFILES_KB_ID = "kb_xxx"
 OPENAI_API_KEY = "sk_openai_..."
 

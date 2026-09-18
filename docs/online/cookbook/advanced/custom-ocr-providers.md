@@ -21,7 +21,7 @@ Unifiles 支持多种 OCR 提供者：
 ```python
 from unifiles import UnifilesClient
 
-client = UnifilesClient(api_key="sk_...")
+client = UnifilesClient(api_key="<api-key>")
 
 # 使用 Tesseract（开源）
 extraction = client.extractions.create(

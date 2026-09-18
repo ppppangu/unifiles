@@ -11,7 +11,7 @@
 ```python
 from unifiles import UnifilesClient
 
-client = UnifilesClient(api_key="sk_...")
+client = UnifilesClient(api_key="<api-key>")
 
 def search_knowledge_base(query: str, kb_id: str) -> list:
     """搜索知识库并返回结果"""
@@ -198,7 +198,7 @@ from pydantic import BaseModel
 from unifiles import UnifilesClient
 
 app = FastAPI()
-client = UnifilesClient(api_key="sk_...")
+client = UnifilesClient(api_key="<api-key>")
 
 class SearchRequest(BaseModel):
     query: str

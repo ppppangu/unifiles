@@ -84,13 +84,13 @@ from unifiles import UnifilesClient
 
 # 默认配置：自动重试3次
 client = UnifilesClient(
-    api_key="sk_...",
+    api_key="<api-key>",
     max_retries=3  # 默认值
 )
 
 # 禁用自动重试
 client = UnifilesClient(
-    api_key="sk_...",
+    api_key="<api-key>",
     max_retries=0
 )
 ```
@@ -102,7 +102,7 @@ from unifiles import UnifilesClient
 from unifiles.exceptions import RateLimitError
 import time
 
-client = UnifilesClient(api_key="sk_...", max_retries=0)
+client = UnifilesClient(api_key="<api-key>", max_retries=0)
 
 def upload_with_retry(file_path, max_attempts=5):
     for attempt in range(max_attempts):
@@ -143,7 +143,7 @@ print(f"文件上传限制: {limits.file_uploads_per_minute}/分钟")
 
 ```http
 GET /v1/usage/stats
-Authorization: Bearer sk_...
+Authorization: Bearer <api-key>
 ```
 
 **响应：**
@@ -183,7 +183,7 @@ Authorization: Bearer sk_...
 
 ```http
 GET /v1/usage/limits
-Authorization: Bearer sk_...
+Authorization: Bearer <api-key>
 ```
 
 **响应：**

@@ -60,7 +60,7 @@ from unifiles import UnifilesClient
 from typing import List, Dict
 import numpy as np
 
-client = UnifilesClient(api_key="sk_...")
+client = UnifilesClient(api_key="<api-key>")
 
 def evaluate_retrieval(
     kb_id: str,

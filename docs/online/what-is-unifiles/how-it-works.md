@@ -55,7 +55,7 @@ graph TB
 ```python
 from unifiles import UnifilesClient
 
-client = UnifilesClient(api_key="sk_...")
+client = UnifilesClient(api_key="<api-key>")
 
 # 上传文件
 file = client.files.upload(

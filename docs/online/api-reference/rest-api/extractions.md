@@ -45,7 +45,7 @@ POST /v1/extractions
 
 ```bash
 curl -X POST https://api.unifiles.dev/v1/extractions \
-  -H "Authorization: Bearer sk_..." \
+  -H "Authorization: Bearer <api-key>" \
   -H "Content-Type: application/json" \
   -d '{
     "file_id": "file_abc123",
@@ -97,7 +97,7 @@ GET /v1/extractions/{extraction_id}
 
 ```bash
 curl -X GET https://api.unifiles.dev/v1/extractions/ext_xyz789 \
-  -H "Authorization: Bearer sk_..."
+  -H "Authorization: Bearer <api-key>"
 ```
 
 ### 响应（处理中）
@@ -192,7 +192,7 @@ GET /v1/files/{file_id}/extractions
 
 ```bash
 curl -X GET https://api.unifiles.dev/v1/files/file_abc123/extractions \
-  -H "Authorization: Bearer sk_..."
+  -H "Authorization: Bearer <api-key>"
 ```
 
 ### 响应

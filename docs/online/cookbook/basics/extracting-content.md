@@ -12,7 +12,7 @@
 ```python
 from unifiles import UnifilesClient
 
-client = UnifilesClient(api_key="sk_...")
+client = UnifilesClient(api_key="<api-key>")
 
 # 假设已有上传的文件
 file = client.files.upload("report.pdf")
@@ -232,7 +232,7 @@ from unifiles.exceptions import ProcessingError
 def extract_document(file_path: str) -> str:
     """上传文件并提取内容"""
     
-    client = UnifilesClient(api_key="sk_...")
+    client = UnifilesClient(api_key="<api-key>")
     
     # 1. 上传文件
     print(f"正在上传: {file_path}")

@@ -33,7 +33,7 @@
 ```python
 from unifiles import UnifilesClient
 
-client = UnifilesClient(api_key="sk_...")
+client = UnifilesClient(api_key="<api-key>")
 
 class TenantIsolatedClient:
     """租户隔离的 Unifiles 客户端"""
@@ -350,7 +350,7 @@ class MultiTenantUnifilesService:
         }
 
 # 使用示例
-service = MultiTenantUnifilesService(api_key="sk_...")
+service = MultiTenantUnifilesService(api_key="<api-key>")
 
 # 创建租户
 tenant_a = Tenant(
@@ -380,7 +380,7 @@ results = service.search(
 from flask import Flask, request, jsonify
 
 app = Flask(__name__)
-service = MultiTenantUnifilesService(api_key="sk_...")
+service = MultiTenantUnifilesService(api_key="<api-key>")
 
 @app.route("/webhook/unifiles", methods=["POST"])
 def webhook():

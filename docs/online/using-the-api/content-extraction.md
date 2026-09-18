@@ -23,7 +23,7 @@
 ```python
 from unifiles import UnifilesClient
 
-client = UnifilesClient(api_key="sk_...")
+client = UnifilesClient(api_key="<api-key>")
 
 # 先上传文件
 file = client.files.upload("document.pdf")
@@ -113,7 +113,7 @@ for ext in extractions.items:
 
 ```http
 POST /v1/extractions
-Authorization: Bearer sk_...
+Authorization: Bearer <api-key>
 Content-Type: application/json
 
 {
@@ -142,7 +142,7 @@ Content-Type: application/json
 
 ```http
 GET /v1/extractions/{extraction_id}
-Authorization: Bearer sk_...
+Authorization: Bearer <api-key>
 ```
 
 **响应（处理中）：**
@@ -182,7 +182,7 @@ Authorization: Bearer sk_...
 
 ```http
 GET /v1/files/{file_id}/extractions
-Authorization: Bearer sk_...
+Authorization: Bearer <api-key>
 ```
 
 **响应：**

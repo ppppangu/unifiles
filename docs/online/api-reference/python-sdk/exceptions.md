@@ -171,7 +171,7 @@ from unifiles.exceptions import (
 )
 import time
 
-client = UnifilesClient(api_key="sk_...")
+client = UnifilesClient(api_key="<api-key>")
 
 def safe_upload(file_path: str, max_retries: int = 3):
     for attempt in range(max_retries):

@@ -30,7 +30,7 @@ Server: 完成！ → Client (Webhook)
 ```python
 from unifiles import UnifilesClient
 
-client = UnifilesClient(api_key="sk_...")
+client = UnifilesClient(api_key="<api-key>")
 
 # 创建 Webhook
 webhook = client.webhooks.create(
@@ -182,7 +182,7 @@ async def on_extraction_completed(data: dict):
 ```python
 from unifiles import UnifilesClient
 
-client = UnifilesClient(api_key="sk_...")
+client = UnifilesClient(api_key="<api-key>")
 
 # 批量上传和处理，无需等待
 def process_documents_async(file_paths: list):
@@ -229,7 +229,7 @@ import hmac
 import hashlib
 
 app = Flask(__name__)
-client = UnifilesClient(api_key="sk_...")
+client = UnifilesClient(api_key="<api-key>")
 
 WEBHOOK_SECRET = "your_secret"
 DEFAULT_KB_ID = "kb_default"

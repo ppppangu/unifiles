@@ -12,7 +12,7 @@
 ```python
 from unifiles import UnifilesClient
 
-client = UnifilesClient(api_key="sk_...")
+client = UnifilesClient(api_key="<api-key>")
 
 # 创建知识库
 kb = client.knowledge_bases.create(
@@ -177,7 +177,7 @@ from unifiles import UnifilesClient
 def build_knowledge_base(name: str, file_paths: list) -> str:
     """构建知识库的完整流程"""
     
-    client = UnifilesClient(api_key="sk_...")
+    client = UnifilesClient(api_key="<api-key>")
     
     # 1. 创建知识库
     print(f"创建知识库: {name}")

@@ -23,7 +23,7 @@
 ```python
 from unifiles import UnifilesClient
 
-client = UnifilesClient(api_key="sk_...")
+client = UnifilesClient(api_key="<api-key>")
 
 file = client.files.upload(
     path="contract.pdf",

@@ -17,7 +17,7 @@ Unifiles 提供 REST API、Python SDK、TypeScript SDK 和 Unix CLI 四种接入
 
 ```bash
 curl -X POST https://api.unifiles.dev/v1/files \
-  -H "Authorization: Bearer sk_..." \
+  -H "Authorization: Bearer <api-key>" \
   -F "file=@document.pdf"
 ```
 
@@ -26,7 +26,7 @@ curl -X POST https://api.unifiles.dev/v1/files \
 ```python
 from unifiles import UnifilesClient
 
-client = UnifilesClient(api_key="sk_...")
+client = UnifilesClient(api_key="<api-key>")
 file = client.files.upload("document.pdf")
 ```
 
@@ -35,7 +35,7 @@ file = client.files.upload("document.pdf")
 ```typescript
 import { UnifilesClient } from "@wyy/unifiles";
 
-const client = new UnifilesClient({ apiKey: "sk_..." });
+const client = new UnifilesClient({ apiKey: "<api-key>" });
 const file = await client.files.upload("document.pdf");
 ```
 
@@ -150,7 +150,7 @@ JSON 响应使用统一 envelope；文件下载接口直接返回字节：
 Python SDK 使用命名空间组织 API：
 
 ```python
-client = UnifilesClient(api_key="sk_...")
+client = UnifilesClient(api_key="<api-key>")
 
 # Files
 client.files.upload()

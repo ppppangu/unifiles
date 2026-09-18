@@ -67,11 +67,11 @@ Layer 3: 知识库
 from unifiles import UnifilesClient
 
 # 使用 API Key 初始化
-client = UnifilesClient(api_key="sk_...")
+client = UnifilesClient(api_key="<api-key>")
 
 # 自部署场景指定 base_url
 client = UnifilesClient(
-    api_key="sk_...",
+    api_key="<api-key>",
     base_url="http://localhost:8088"
 )
 ```

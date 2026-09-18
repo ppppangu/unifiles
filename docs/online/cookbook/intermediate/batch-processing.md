@@ -9,7 +9,7 @@
 ```python
 from unifiles import UnifilesClient
 
-client = UnifilesClient(api_key="sk_...")
+client = UnifilesClient(api_key="<api-key>")
 
 def process_files_sequential(file_paths: list):
     """顺序处理文件"""
@@ -45,7 +45,7 @@ results = process_files_sequential([
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from unifiles import UnifilesClient
 
-client = UnifilesClient(api_key="sk_...")
+client = UnifilesClient(api_key="<api-key>")
 
 def process_single_file(path: str) -> dict:
     """处理单个文件"""
@@ -97,7 +97,7 @@ import time
 from unifiles import UnifilesClient
 from unifiles.exceptions import RateLimitError
 
-client = UnifilesClient(api_key="sk_...")
+client = UnifilesClient(api_key="<api-key>")
 
 def process_with_rate_limit(file_paths: list, rate_per_minute: int = 50):
     """带速率限制的批处理"""
@@ -154,7 +154,7 @@ def process_with_rate_limit(file_paths: list, rate_per_minute: int = 50):
 from unifiles import UnifilesClient
 import json
 
-client = UnifilesClient(api_key="sk_...")
+client = UnifilesClient(api_key="<api-key>")
 
 def submit_batch_async(file_paths: list, kb_id: str = None):
     """异步批量提交（使用 Webhook 接收结果）"""
@@ -346,7 +346,7 @@ class BatchProcessor:
 
 # 使用
 processor = BatchProcessor(
-    api_key="sk_...",
+    api_key="<api-key>",
     kb_id="kb_xxx"  # 可选
 )
 
@@ -428,7 +428,7 @@ class ResumableBatchProcessor:
         Path(self.checkpoint_file).unlink(missing_ok=True)
 
 # 使用
-processor = ResumableBatchProcessor(api_key="sk_...")
+processor = ResumableBatchProcessor(api_key="<api-key>")
 
 # 第一次运行（假设中途失败）
 results = processor.process_files(file_paths)
