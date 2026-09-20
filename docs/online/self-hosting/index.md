@@ -10,7 +10,9 @@ git clone https://github.com/ppppangu/unifiles.git
 cd unifiles
 uv sync --all-packages --group dev
 
-UNIFILES_BOOTSTRAP_API_KEY='replace-me' \
+# Generate a random bootstrap key for this server.
+export UNIFILES_BOOTSTRAP_API_KEY="$(python -c 'import secrets; print(secrets.token_urlsafe(32))')"
+
 UNIFILES_DATA_DIR=/var/lib/unifiles \
 uv run unifiles-server --host 0.0.0.0 --port 8088
 ```
@@ -18,7 +20,7 @@ uv run unifiles-server --host 0.0.0.0 --port 8088
 ## Docker Compose
 
 ```bash
-export UNIFILES_BOOTSTRAP_API_KEY='replace-me'
+export UNIFILES_BOOTSTRAP_API_KEY="$(python -c 'import secrets; print(secrets.token_urlsafe(32))')"
 docker compose up -d --build
 curl http://localhost:8088/health
 ```
@@ -29,7 +31,7 @@ curl http://localhost:8088/health
 ## 客户端连接
 
 ```bash
-printf '%s' 'replace-me' | unifiles config set local \
+printf '%s' "$UNIFILES_BOOTSTRAP_API_KEY" | unifiles config set local \
   --base-url http://localhost:8088 \
   --api-key-stdin
 unifiles --profile local status

@@ -7,7 +7,7 @@
 ```python
 UnifilesClient(
     api_key: str = None,
-    base_url: str = "https://api.unifiles.dev",
+    base_url: str | None = None,
     timeout: int = 30,
     max_retries: int = 3
 )
@@ -18,7 +18,7 @@ UnifilesClient(
 | 参数 | 类型 | 默认值 | 说明 |
 |-----|------|-------|------|
 | `api_key` | str | None | API Key，未提供时从环境变量读取 |
-| `base_url` | str | `https://api.unifiles.dev` | API 服务地址 |
+| `base_url` | str | None | API 服务地址；未提供时使用 `https://api.unifiles.dev/v1`，SDK 会自动补上 `/v1` |
 | `timeout` | int | 30 | 请求超时（秒） |
 | `max_retries` | int | 3 | 失败重试次数 |
 

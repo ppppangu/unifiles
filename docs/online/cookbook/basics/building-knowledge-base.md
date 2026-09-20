@@ -129,7 +129,7 @@ for i, chunk in enumerate(results.chunks, 1):
 ```python
 from openai import OpenAI
 
-openai = OpenAI(api_key="sk_openai_...")
+openai = OpenAI(api_key="<openai-api-key>")
 
 def answer_question(kb_id: str, question: str) -> str:
     """基于知识库回答问题"""

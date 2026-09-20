@@ -2,6 +2,12 @@
 
 本文档详细介绍 Unifiles 的安全架构，包括认证、授权、加密和数据保护策略。
 
+!!! warning "实现状态"
+    下面的网关、JWT、加密和审计图描述目标架构，不等同于当前 0.1 自部署 Server
+    的已实现能力。当前 Server 使用 Bearer API Key、资源归属检查、SQLite/本地文件
+    存储和可配置配额；请以 [认证](../using-the-api/authentication.md)、[配置](../self-hosting/configuration.md)
+    和 OpenAPI 参考为准。
+
 ## 安全架构概览
 
 ```
@@ -79,7 +85,7 @@ def generate_api_key(prefix: str = "sk_live") -> tuple[str, str]:
     # 组合完整密钥
     api_key = f"{prefix}_{random_part}"
     
-    # 生成前缀用于显示 (如 sk_live_abc...)
+    # 生成前缀用于显示 (如 <api-key>...)
     key_prefix = f"{prefix}_{random_part[:8]}..."
     
     return api_key, key_prefix
@@ -347,7 +353,7 @@ class AuthMiddleware(BaseHTTPMiddleware):
     async def _authenticate_api_key(self, api_key: str) -> User:
         """验证 API Key"""
         # 提取前缀
-        prefix = api_key[:12]  # [REDACTED]
+        prefix = api_key[:12]  # key prefix
         
         # 查找匹配的密钥
         key_record = await find_api_key_by_prefix(prefix)

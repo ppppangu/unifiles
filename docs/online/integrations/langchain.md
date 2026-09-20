@@ -1,6 +1,11 @@
 # LangChain 集成
 
-Unifiles 提供 LangChain Retriever 和 Loader 组件，可直接用于构建 RAG 应用。
+Unifiles 当前通过 Python SDK/API 与 LangChain 集成。
+
+!!! warning "当前发布范围"
+    当前 `unifiles-client` 不包含 `unifiles.integrations.langchain`。本页的 Retriever/Loader
+    实现是适配设计示例，不能直接复制后导入；请使用 `UnifilesClient` 查询知识库，再按
+    你项目中的 LangChain 版本实现适配器。
 
 ## 安装
 
@@ -15,7 +20,7 @@ pip install unifiles-client langchain langchain-openai
 ### 基本用法
 
 ```python
-from unifiles.integrations.langchain import UnifilesRetriever
+# Design sketch: adapt UnifilesClient search results to your LangChain version.
 
 # 初始化 Retriever
 retriever = UnifilesRetriever(
@@ -108,12 +113,12 @@ class UnifilesRetriever(BaseRetriever):
 ### 基础 QA 链
 
 ```python
-from unifiles.integrations.langchain import UnifilesRetriever
+# Design sketch: adapt UnifilesClient search results to your LangChain version.
 from langchain.chains import RetrievalQA
 from langchain_openai import ChatOpenAI
 
 retriever = UnifilesRetriever(
-    api_key="sk_unifiles_...",
+    api_key="<api-key>",
     kb_id="kb_xxx",
     top_k=5
 )
@@ -221,7 +226,7 @@ finance_retriever = get_filtered_retriever("Finance")
 从 Unifiles 知识库加载所有文档。
 
 ```python
-from unifiles.integrations.langchain import UnifilesLoader
+# Design sketch: adapt UnifilesClient files to your LangChain version.
 
 loader = UnifilesLoader(
     api_key="<api-key>",
@@ -374,7 +379,7 @@ docs = compression_retriever.get_relevant_documents("查询")
 ## 完整示例
 
 ```python
-from unifiles.integrations.langchain import UnifilesRetriever
+# Design sketch: adapt UnifilesClient search results to your LangChain version.
 from langchain_openai import ChatOpenAI
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.runnables import RunnablePassthrough
@@ -382,7 +387,7 @@ from langchain_core.runnables import RunnablePassthrough
 # 配置
 UNIFILES_API_KEY = "<api-key>"
 UNIFILES_KB_ID = "kb_xxx"
-OPENAI_API_KEY = "sk_openai_..."
+OPENAI_API_KEY = "<openai-api-key>"
 
 # 初始化组件
 retriever = UnifilesRetriever(

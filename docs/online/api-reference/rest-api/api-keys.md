@@ -75,7 +75,7 @@ HTTP/1.1 200 OK
         {
             "id": "key_abc123",
             "name": "production-key",
-            "key_prefix": "[REDACTED]x",
+            "key_prefix": "<api-key>x",
             "scopes": ["*"],
             "last_used_at": "2024-01-15T12:00:00Z",
             "expires_at": "2025-01-15T10:30:00Z",

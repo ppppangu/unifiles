@@ -9,11 +9,15 @@ git clone https://github.com/ppppangu/unifiles.git
 cd unifiles
 uv sync --all-packages --group dev
 
-UNIFILES_BOOTSTRAP_API_KEY=<bootstrap-key> \
+# Generate a one-time local bootstrap key.
+export UNIFILES_BOOTSTRAP_API_KEY="$(python -c 'import secrets; print(secrets.token_urlsafe(32))')"
+
+UNIFILES_BOOTSTRAP_API_KEY="$UNIFILES_BOOTSTRAP_API_KEY" \
   uv run unifiles-server --host 127.0.0.1 --port 8088
 ```
 
 服务启动后可访问 `http://localhost:8088/docs`，数据默认写入 `.unifiles-data/`。
+保持这个终端中的 `UNIFILES_BOOTSTRAP_API_KEY`，下面的客户端示例会从同一个环境变量读取它。
 
 ## 2. 选择客户端
 
@@ -24,10 +28,11 @@ UNIFILES_BOOTSTRAP_API_KEY=<bootstrap-key> \
     ```
 
     ```python
+    import os
     from unifiles import UnifilesClient
 
     client = UnifilesClient(
-        api_key="<bootstrap-key>",
+        api_key=os.environ["UNIFILES_BOOTSTRAP_API_KEY"],
         base_url="http://localhost:8088",
     )
 
@@ -46,11 +51,12 @@ UNIFILES_BOOTSTRAP_API_KEY=<bootstrap-key> \
 
     ```python
     import asyncio
+    import os
     from unifiles import AsyncUnifilesClient
 
     async def main():
         async with AsyncUnifilesClient(
-            api_key="<bootstrap-key>",
+            api_key=os.environ["UNIFILES_BOOTSTRAP_API_KEY"],
             base_url="http://localhost:8088",
         ) as client:
             file = await client.files.upload("document.pdf")
@@ -70,7 +76,7 @@ UNIFILES_BOOTSTRAP_API_KEY=<bootstrap-key> \
     import { UnifilesClient } from "@wyy/unifiles";
 
     const client = new UnifilesClient({
-      apiKey: "<bootstrap-key>",
+      apiKey: process.env.UNIFILES_BOOTSTRAP_API_KEY,
       baseUrl: "http://localhost:8088",
     });
 
@@ -89,7 +95,7 @@ UNIFILES_BOOTSTRAP_API_KEY=<bootstrap-key> \
 
     ```bash
     npm install -g @wyy/unifiles-cli
-    printf '%s' <bootstrap-key> | unifiles config set local \
+    printf '%s' "$UNIFILES_BOOTSTRAP_API_KEY" | unifiles config set local \
       --base-url http://localhost:8088 \
       --api-key-stdin
 

@@ -60,7 +60,7 @@ https://api.unifiles.dev/v1
 除 `/health` 和 `/v1/health` 外，所有请求需要在 Header 中包含 API Key：
 
 ```
-Authorization: Bearer sk_your_api_key
+Authorization: Bearer <api-key>
 ```
 
 ### 请求格式

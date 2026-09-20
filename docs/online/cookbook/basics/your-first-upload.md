@@ -14,10 +14,10 @@
 from unifiles import UnifilesClient
 
 # 使用 API Key 初始化
-client = UnifilesClient(api_key="sk_your_api_key")
+client = UnifilesClient(api_key="<api-key>")
 
 # 或从环境变量读取
-# export UNIFILES_API_KEY=sk_your_api_key
+# export UNIFILES_API_KEY=<api-key>
 client = UnifilesClient()  # 自动读取 UNIFILES_API_KEY
 ```
 

@@ -17,7 +17,9 @@ npm ci
 ## 启动 Server
 
 ```bash
-UNIFILES_BOOTSTRAP_API_KEY=<bootstrap-key> \
+# Generate a local bootstrap key before starting the server.
+export UNIFILES_BOOTSTRAP_API_KEY="$(python -c 'import secrets; print(secrets.token_urlsafe(32))')"
+
 UNIFILES_DATA_DIR=.unifiles-data \
 uv run unifiles-server --reload --port 8088
 ```
@@ -35,6 +37,7 @@ uv run pytest
 
 # TypeScript SDK 与 CLI
 npm run check
+npm run build --workspace @wyy/unifiles-cli
 
 # 协议与文档
 uv run python codegen/scripts/codegen.py validate
@@ -57,7 +60,7 @@ core 负责，手写 facade 只补充 `wait()`、重试和异常映射等协议�
 ## 本机 CLI profile
 
 ```bash
-printf '%s' <bootstrap-key> | node apps/cli/dist/index.js config set local \
+printf '%s' "$UNIFILES_BOOTSTRAP_API_KEY" | node apps/cli/dist/index.js config set local \
   --base-url http://localhost:8088 \
   --api-key-stdin
 node apps/cli/dist/index.js --profile local status

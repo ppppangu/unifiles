@@ -2,6 +2,10 @@
 
 Unifiles 与其他文档处理和 RAG 方案有什么不同？本文从多个维度进行对比分析，帮助你选择最适合的方案。
 
+!!! warning "当前交付范围"
+    这是能力定位与适配方式的比较。当前公开仓库提供自部署 Server、Python/TypeScript SDK
+    和 CLI；SaaS、内置 OCR 和 LangChain 官方组件需要另行实现或部署，不能仅凭本页的定位表视为已发布能力。
+
 ## 定位差异
 
 首先需要明确，这些方案的定位并不完全相同：
@@ -78,15 +82,17 @@ file = unifiles.files.upload("document.pdf")
 unifiles.extractions.create(file.id).wait()
 unifiles.knowledge_bases.documents.create(kb_id, file.id).wait()
 
-# LangChain 负责应用逻辑
+# LangChain 负责应用逻辑（适配器需由应用自行实现）
 from langchain.chains import RetrievalQA
 from langchain_openai import ChatOpenAI
-from unifiles.integrations.langchain import UnifilesRetriever
+from langchain_core.documents import Document
 
-retriever = UnifilesRetriever(api_key="<api-key>", kb_id=kb_id)
+results = unifiles.knowledge_bases.search(kb_id, "合同的违约条款是什么？")
+documents = [Document(page_content=chunk.content) for chunk in results.chunks]
+your_langchain_retriever = build_retriever(documents)
 qa_chain = RetrievalQA.from_chain_type(
     llm=ChatOpenAI(model="gpt-4"),
-    retriever=retriever
+    retriever=your_langchain_retriever
 )
 
 answer = qa_chain.invoke({"query": "合同的违约条款是什么？"})
@@ -194,16 +200,18 @@ loader = PyPDFLoader("document.pdf")
 docs = loader.load()
 vectorstore = Chroma.from_documents(docs, embeddings)
 
-# 之后：Unifiles + LangChain
+# 之后：Unifiles + LangChain（应用自行适配检索结果）
 from unifiles import UnifilesClient
-from unifiles.integrations.langchain import UnifilesRetriever
+from langchain_core.documents import Document
 
 client = UnifilesClient(api_key="<api-key>")
 file = client.files.upload("document.pdf")
 client.extractions.create(file.id).wait()
 client.knowledge_bases.documents.create(kb_id, file.id).wait()
 
-retriever = UnifilesRetriever(api_key="<api-key>", kb_id=kb_id)
+results = client.knowledge_bases.search(kb_id, "合同的违约条款是什么？")
+documents = [Document(page_content=chunk.content) for chunk in results.chunks]
+retriever = build_retriever(documents)
 # 后续 LangChain 代码保持不变
 ```
 

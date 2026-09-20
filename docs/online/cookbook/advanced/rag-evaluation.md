@@ -183,7 +183,7 @@ for name, metrics in comparison.items():
 ```python
 from openai import OpenAI
 
-openai = OpenAI(api_key="sk_openai_...")
+openai = OpenAI(api_key="<openai-api-key>")
 
 @dataclass
 class QATestCase:

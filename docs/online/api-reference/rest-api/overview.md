@@ -25,7 +25,7 @@ https://api.unifiles.dev/v1
 ### Header 认证
 
 ```http
-Authorization: Bearer sk_your_api_key
+Authorization: Bearer <api-key>
 ```
 
 ### API Key 格式

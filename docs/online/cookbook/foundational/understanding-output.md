@@ -187,8 +187,8 @@ print(extraction.completed_at)
 from unifiles import UnifilesClient
 from openai import OpenAI
 
-unifiles = UnifilesClient(api_key="sk_unifiles_...")
-openai = OpenAI(api_key="sk_openai_...")
+unifiles = UnifilesClient(api_key="<api-key>")
+openai = OpenAI(api_key="<openai-api-key>")
 
 # 1. 上传并提取文档
 file = unifiles.files.upload("company_policy.pdf")

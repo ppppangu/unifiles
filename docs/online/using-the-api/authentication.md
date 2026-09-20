@@ -7,7 +7,7 @@ Unifiles 使用 API Key 进行身份认证。本文介绍如何获取和使用 A
 API Key 是访问 Unifiles API 的凭证，格式为：
 
 ```
-[REDACTED]xxxxxxxxxxxxxxxxxxxxxxxxx
+<api-key>
 ```
 
 - 前缀 `sk_` 表示 Secret Key
@@ -23,6 +23,9 @@ API Key 是访问 Unifiles API 的凭证，格式为：
 
 ### SaaS 用户
 
+> 当前公开仓库只保证自部署 Server 的实现。下列控制台流程需要一个单独部署的 SaaS
+> 控制台；没有该服务时请使用“自部署用户”流程。
+
 1. 登录 [Unifiles 控制台](https://console.unifiles.dev)
 2. 进入「设置」→「API 密钥」
 3. 点击「创建新密钥」
@@ -33,10 +36,11 @@ API Key 是访问 Unifiles API 的凭证，格式为：
 启动自部署 Server 时设置 bootstrap API Key：
 
 ```bash
-UNIFILES_BOOTSTRAP_API_KEY='replace-me' unifiles-server --port 8088
+export UNIFILES_BOOTSTRAP_API_KEY="$(python -c 'import secrets; print(secrets.token_urlsafe(32))')"
+unifiles-server --port 8088
 
 # 使用 bootstrap Key 创建后续 Key
-UNIFILES_API_KEY='replace-me' \
+UNIFILES_API_KEY="$UNIFILES_BOOTSTRAP_API_KEY" \
 UNIFILES_BASE_URL='http://localhost:8088' \
 unifiles api-keys create production --scope 'files:*' 'kb:*'
 ```
@@ -196,7 +200,7 @@ print(f"过期时间: {key.expires_at}")
 
 ```python
 # ❌ 不要这样做
-client = UnifilesClient(api_key="[REDACTED]...")
+client = UnifilesClient(api_key="<api-key>")
 
 # ✅ 推荐做法
 import os
@@ -271,9 +275,7 @@ print(f"文件上传量: {usage.files_uploaded}")
 
     为每个环境创建独立的 Key：
     
-    - 开发环境：`sk_test_dev_...`
-    - 测试环境：`sk_test_staging_...`
-    - 生产环境：`sk_live_prod_...`
+    - 开发、测试和生产环境均使用部署返回的 `<api-key>`；前缀只是实现细节，不要手工拼接。
     
     使用环境变量区分：
     

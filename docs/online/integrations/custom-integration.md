@@ -181,8 +181,8 @@ class SimpleRAG:
 
 # 使用
 rag = SimpleRAG(
-    unifiles_api_key="sk_unifiles_...",
-    openai_api_key="sk_openai_...",
+    unifiles_api_key="<api-key>",
+    openai_api_key="<openai-api-key>",
     kb_id="kb_xxx"
 )
 

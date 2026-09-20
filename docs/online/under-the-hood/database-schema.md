@@ -50,7 +50,7 @@ CREATE TABLE api_keys (
     user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     
     -- 密钥信息 (存储哈希值，不存储明文)
-    key_prefix VARCHAR(12) NOT NULL,  -- 如 "sk_live_abc"
+    key_prefix VARCHAR(12) NOT NULL,  -- 如 "<api-key>"
     key_hash VARCHAR(255) NOT NULL,   -- bcrypt 哈希
     
     -- 元数据

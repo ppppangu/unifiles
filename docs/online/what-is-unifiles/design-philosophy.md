@@ -351,7 +351,7 @@ Unifiles 原生支持多租户，确保不同用户的数据完全隔离。
 
 ```python
 # 为每个终端用户创建独立的 API Key
-admin_client = UnifilesClient(api_key="[REDACTED]")
+admin_client = UnifilesClient(api_key="<api-key>")
 
 # 创建用户专属 API Key
 user_key = admin_client.api_keys.create(
