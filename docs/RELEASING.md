@@ -2,11 +2,48 @@
 
 ## Documentation site
 
-`.github/workflows/docs.yml` is a build check: it runs `mkdocs build --strict` and uploads the
-generated `site` directory as an artifact. It does not publish `unifiles.dev`. The public domain is
-hosted outside GitHub Pages, so a docs release must also run the configured external hosting deploy
-for the new `main` commit and then verify the live URL. A successful Documentation workflow alone
-does not prove that the online site has changed.
+`.github/workflows/docs.yml` is the preflight build check: it runs `mkdocs build --strict` and
+uploads the generated `site` directory as an artifact. The public site is published by Cloudflare
+Pages project `unifiles-docs`.
+
+The current Cloudflare Pages configuration is:
+
+| Setting | Value |
+|---|---|
+| Git repository | `ppppangu/unifiles` |
+| Production branch | `main` |
+| Root directory | `/` |
+| Build command | `python -m pip install "mkdocs>=1.6.1" "mkdocs-material>=9.6.23" "mkdocs-monorepo-plugin>=1.1.1" && mkdocs build --strict` |
+| Output directory | `site` |
+| Custom domains | `unifiles.dev`, `www.unifiles.dev` |
+| Automatic deployment | enabled |
+
+A push to `main` now follows this path:
+
+```text
+GitHub push → GitHub Actions docs check → Cloudflare Pages build → site/ → unifiles.dev
+```
+
+After a documentation push, verify the deployment without changing it:
+
+```bash
+npx --yes wrangler pages deployment list --project-name unifiles-docs
+```
+
+The latest Production deployment should show the new commit and `Active`. Then open
+`https://unifiles.dev/` and one changed page. A successful GitHub Documentation workflow alone
+is only a build proof; the Cloudflare deployment and live URL are the publication proof.
+
+For an emergency manual deployment, build first and upload the resulting directory with:
+
+```bash
+uv run mkdocs build --strict
+npx --yes wrangler pages deploy site --project-name unifiles-docs --branch main \
+  --commit-hash "$(git rev-parse HEAD)" --commit-message "$(git log -1 --pretty=%s)"
+```
+
+Prefer the Git-connected automatic path. Do not put Cloudflare credentials in the repository; the
+Wrangler command requires a separately authenticated local session or a protected CI secret.
 
 Release tags are the only supported publication entry point. The workflow validates that the tag
 version matches every package it will publish, each public package's exact generated dependency,
