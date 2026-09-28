@@ -13,7 +13,7 @@ The current Cloudflare Pages configuration is:
 | Git repository | `ppppangu/unifiles` |
 | Production branch | `main` |
 | Root directory | `/` |
-| Build command | `python -m pip install "mkdocs>=1.6.1" "mkdocs-material>=9.6.23" "mkdocs-monorepo-plugin>=1.1.1" && mkdocs build --strict` |
+| Build command | `python3 -m pip install -r requirements-docs.txt && python3 -m mkdocs build --strict` |
 | Output directory | `site` |
 | Custom domains | `unifiles.dev`, `www.unifiles.dev` |
 | Automatic deployment | enabled |
@@ -37,7 +37,8 @@ is only a build proof; the Cloudflare deployment and live URL are the publicatio
 For an emergency manual deployment, build first and upload the resulting directory with:
 
 ```bash
-uv run mkdocs build --strict
+python3 -m pip install -r requirements-docs.txt
+python3 -m mkdocs build --strict
 npx --yes wrangler pages deploy site --project-name unifiles-docs --branch main \
   --commit-hash "$(git rev-parse HEAD)" --commit-message "$(git log -1 --pretty=%s)"
 ```
