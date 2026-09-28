@@ -2,7 +2,7 @@
 
 ## Documentation site
 
-`.github/workflows/docs.yml` is the preflight build check: it runs `mkdocs build --strict` and
+`.github/workflows/docs.yml` is the documentation build check: it runs `mkdocs build --strict` and
 uploads the generated `site` directory as an artifact. The public site is published by Cloudflare
 Pages project `unifiles-docs`.
 
@@ -17,11 +17,19 @@ The current Cloudflare Pages configuration is:
 | Output directory | `site` |
 | Custom domains | `unifiles.dev`, `www.unifiles.dev` |
 | Automatic deployment | enabled |
+| Build variable (Production and Preview) | `SKIP_DEPENDENCY_INSTALL=1` |
+| Python version | read from `.python-version` |
+
+Keep `SKIP_DEPENDENCY_INSTALL=1` in both environments. Without it, Pages detects the root
+`pyproject.toml` and attempts `pip install .` before the build command. This repository root is
+a uv workspace, not an installable Python distribution, so that automatic step fails with
+`Multiple top-level packages discovered`. The explicit build command installs only the document
+dependencies in `requirements-docs.txt`; GitHub Actions uses the same file and Python version.
 
 A push to `main` now follows this path:
 
 ```text
-GitHub push → GitHub Actions docs check (preflight)
+GitHub push → GitHub Actions docs check
            └→ Cloudflare Pages build → site/ → unifiles.dev
 ```
 
@@ -31,9 +39,24 @@ After a documentation push, verify the deployment without changing it:
 npx --yes wrangler pages deployment list --project-name unifiles-docs
 ```
 
-The latest Production deployment should show the new commit and `Active`. Then open
-`https://unifiles.dev/` and one changed page. A successful GitHub Documentation workflow alone
-is only a build proof; the Cloudflare deployment and live URL are the publication proof.
+The latest Production deployment must show the intended commit and finish successfully.
+Wrangler's `Active` can mean queued or building; it is not proof of publication. Open its Build
+link and wait for a successful Deploy stage (API: `latest_stage.name=deploy` and
+`latest_stage.status=success`). The project's canonical production deployment must point to that
+successful deployment. Then open `https://unifiles.dev/` and check content that changed in the new
+version; an HTTP 200 or a familiar page title may still be the previous deployment.
+
+GitHub Actions and Pages run independently on a push; the Actions build does not gate the Pages
+build. Use a pull request for normal changes, review its checks and Pages preview, then merge to
+`main` to publish. A successful GitHub Documentation workflow alone is only a build proof.
+
+For local preflight, use an isolated environment with the same document dependencies:
+
+```bash
+python3 -m venv .venv-docs
+.venv-docs/bin/python -m pip install -r requirements-docs.txt
+.venv-docs/bin/python -m mkdocs build --strict
+```
 
 For an emergency manual deployment, build first and upload the resulting directory with:
 
@@ -47,7 +70,9 @@ npx --yes wrangler pages deploy site --project-name unifiles-docs --branch main 
 Prefer the Git-connected automatic path. Do not put Cloudflare credentials in the repository; the
 Wrangler command requires a separately authenticated local session or a protected CI secret.
 
-Release tags are the only supported publication entry point. The workflow validates that the tag
+## Package releases
+
+Release tags are the only supported package publication entry point. The workflow validates that the tag
 version matches every package it will publish, each public package's exact generated dependency,
 and npm trusted-publishing repository identity before any upload begins.
 
