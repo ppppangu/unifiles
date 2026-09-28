@@ -21,7 +21,8 @@ The current Cloudflare Pages configuration is:
 A push to `main` now follows this path:
 
 ```text
-GitHub push → GitHub Actions docs check → Cloudflare Pages build → site/ → unifiles.dev
+GitHub push → GitHub Actions docs check (preflight)
+           └→ Cloudflare Pages build → site/ → unifiles.dev
 ```
 
 After a documentation push, verify the deployment without changing it:
